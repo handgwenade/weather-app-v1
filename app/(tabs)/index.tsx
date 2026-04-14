@@ -56,6 +56,82 @@ function formatRoundedNumber(value?: number | null, suffix = '') {
   return `${Math.round(value)}${suffix}`;
 }
 
+type PropertyRisk = 'High' | 'Moderate' | 'Low' | 'Unavailable';
+
+type HomeCurrentWeatherSnapshot = {
+  temperatureF: number | null;
+  windSpeedMph: number | null;
+  precipProbability: number | null;
+  humidity: number | null;
+  conditionLabel: string;
+  sourceTimestamp: string | null;
+  refreshFallbackLabel: string | null;
+};
+
+type HomeAlertSummary = {
+  status: 'loading' | 'none' | 'active' | 'unavailable';
+  event: string | null;
+  area: string | null;
+};
+
+type HomeViewModel = {
+  updatedLabel: string;
+  metrics: HomeMetric[];
+  statusBanner: HomeStatusBanner;
+  monitoringCard: HomeMonitoringCard;
+  monitoredLocationCard: HomeLocationCard;
+};
+
+const INITIAL_CURRENT_WEATHER: HomeCurrentWeatherSnapshot = {
+  temperatureF: null,
+  windSpeedMph: null,
+  precipProbability: null,
+  humidity: null,
+  conditionLabel: 'Current conditions',
+  sourceTimestamp: null,
+  refreshFallbackLabel: null,
+};
+
+const INITIAL_ALERT_SUMMARY: HomeAlertSummary = {
+  status: 'loading',
+  event: null,
+  area: null,
+};
+
+function formatClockLabel(value: string | Date) {
+  const date = typeof value === 'string' ? new Date(value) : value;
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function formatTemperatureValue(value?: number | null) {
+  return value === null || value === undefined || Number.isNaN(value)
+    ? '--'
+    : `${Math.round(value)}°F`;
+}
+
+function formatPercentValue(value?: number | null) {
+  return value === null || value === undefined || Number.isNaN(value)
+    ? '--'
+    : `${Math.round(value)}%`;
+}
+
+function formatWindValue(value?: number | null, direction?: string | null) {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return '--';
+  }
+
+  const baseValue = `${Math.round(value)} mph`;
+  return direction ? `${baseValue} ${direction}` : baseValue;
+}
+
 function getTopTitle(report: WydotRoadReport | null, fallback: string) {
   if (report) {
     return `${report.routeCode} ${report.townGroup}`;
@@ -64,217 +140,222 @@ function getTopTitle(report: WydotRoadReport | null, fallback: string) {
   return fallback;
 }
 
-function buildStatusBanner(params: {
-  alertMessage: string;
-  roadMessage: string;
-  roadReport: WydotRoadReport | null;
-  propertyRisk: string;
-}): HomeStatusBanner {
-  const { alertMessage, roadMessage, roadReport, propertyRisk } = params;
-  const alertLower = alertMessage.toLowerCase();
-  const roadLower = roadMessage.toLowerCase();
-
-  if (roadReport?.primarySegment.restriction !== 'None') {
-    return {
-      title: 'Travel restrictions in effect',
-      subtitle: `${roadReport?.routeCode} near ${roadReport?.townGroup} needs immediate attention`,
-      statusLabel: 'Action',
-      statusTone: 'alert',
-      actionLabel: 'Review now',
-    };
-  }
-
-  if (roadReport?.primarySegment.advisory !== 'None') {
-    return {
-      title: 'Travel advisory posted',
-      subtitle: `${roadReport.routeCode} conditions need a closer look before heading out`,
-      statusLabel: 'Watch',
-      statusTone: 'warning',
-      actionLabel: 'Monitor only',
-    };
-  }
-
-  if (
-    !alertLower.includes('no official alerts') &&
-    !alertLower.includes('temporarily unavailable') &&
-    !alertLower.includes('loading')
-  ) {
-    return {
-      title: 'Active weather alerts posted',
-      subtitle: 'Review official guidance before travel or outdoor work',
-      statusLabel: 'Alert',
-      statusTone: 'alert',
-      actionLabel: 'Review now',
-    };
-  }
-
-  if (propertyRisk === 'High') {
-    return {
-      title: 'Freeze-sensitive conditions tonight',
-      subtitle: 'Cold temperatures may affect exposed surfaces and plants',
-      statusLabel: 'Watch',
-      statusTone: 'warning',
-      actionLabel: 'Monitor only',
-    };
-  }
-
-  if (
-    roadLower.includes('freezing') ||
-    roadLower.includes('near freezing') ||
-    roadLower.includes('windy')
-  ) {
-    return {
-      title: 'Minor maintenance concern',
-      subtitle: roadMessage,
-      statusLabel: 'Watch',
-      statusTone: 'warning',
-      actionLabel: 'Monitor only',
-    };
-  }
-
-  return {
-    title: 'No major maintenance concerns',
-    subtitle: 'Conditions stable across monitored corridors',
-    statusLabel: 'Good',
-    statusTone: 'good',
-    actionLabel: 'Monitor only',
-  };
-}
-
-function buildMonitoringCard(params: {
-  propertyRisk: string;
+function buildHomeViewModel(params: {
+  currentWeather: HomeCurrentWeatherSnapshot;
+  alertSummary: HomeAlertSummary;
+  propertyRisk: PropertyRisk;
   propertyLocationName: string;
-  roadMessage: string;
-}): HomeMonitoringCard {
-  const { propertyRisk, propertyLocationName, roadMessage } = params;
-  const roadLower = roadMessage.toLowerCase();
-
-  if (propertyRisk === 'High') {
-    return {
-      title: 'Freeze risk is elevated',
-      body: `${propertyLocationName} may need protection before temperatures drop below freezing.`,
-    };
-  }
-
-  if (propertyRisk === 'Moderate') {
-    return {
-      title: 'Freeze risk remains manageable',
-      body: `${propertyLocationName} is close to caution range, so keep an eye on overnight temperatures.`,
-    };
-  }
-
-  if (roadLower.includes('freezing') || roadLower.includes('near freezing')) {
-    return {
-      title: 'Cold pavement is being watched',
-      body: 'Temperatures are trending lower, but monitored surfaces are not showing major impacts yet.',
-    };
-  }
-
-  return {
-    title: 'Freeze risk remains low',
-    body: 'Temperatures are holding above freezing and pavement is dry.',
-  };
-}
-
-function buildLocationBullets(params: {
-  liveTemperature: string;
   roadReport: WydotRoadReport | null;
-  alertMessage: string;
-  roadMessage: string;
-}): HomeBullet[] {
-  const { liveTemperature, roadReport, alertMessage, roadMessage } = params;
+  topTitle: string;
+}): HomeViewModel {
+  const {
+    currentWeather,
+    alertSummary,
+    propertyRisk,
+    propertyLocationName,
+    roadReport,
+    topTitle,
+  } = params;
+  const observation = roadReport?.primaryStationObservation;
+  const hasRestriction =
+    !!roadReport && roadReport.primarySegment.restriction !== 'None';
+  const hasAdvisory = !!roadReport && roadReport.primarySegment.advisory !== 'None';
+  const surfaceCondition =
+    roadReport?.primarySegment.officialCondition &&
+    !['None'].includes(roadReport.primarySegment.officialCondition)
+      ? roadReport.primarySegment.officialCondition
+      : null;
+  const windMetric = observation?.windDirection
+    ? formatWindValue(observation.windAvgMph, observation.windDirection)
+    : formatWindValue(currentWeather.windSpeedMph);
+  const metrics: HomeMetric[] = [
+    { label: 'Air Temp', value: formatTemperatureValue(currentWeather.temperatureF) },
+    { label: 'Road Temp', value: formatRoundedNumber(observation?.surfaceTempF, '°F') },
+    { label: 'Wind', value: windMetric },
+    { label: 'Gusts', value: formatRoundedNumber(observation?.windGustMph, ' mph') },
+    { label: 'Precip Prob', value: formatPercentValue(currentWeather.precipProbability) },
+    { label: 'Humidity', value: formatPercentValue(currentWeather.humidity) },
+  ];
+
+  const updatedLabel = (() => {
+    const sourceLabel = currentWeather.sourceTimestamp
+      ? formatClockLabel(currentWeather.sourceTimestamp)
+      : null;
+
+    if (sourceLabel) {
+      return sourceLabel;
+    }
+
+    if (currentWeather.refreshFallbackLabel) {
+      return `Last refresh ${currentWeather.refreshFallbackLabel}`;
+    }
+
+    return 'Waiting for data';
+  })();
+
+  const statusBanner: HomeStatusBanner = (() => {
+    if (hasRestriction && roadReport) {
+      return {
+        title: 'Travel restriction posted',
+        subtitle: `${roadReport.routeCode} near ${roadReport.townGroup}`,
+        statusLabel: 'Restriction',
+        statusTone: 'alert',
+        actionLabel: 'Review now',
+      };
+    }
+
+    if (hasAdvisory && roadReport) {
+      return {
+        title: 'Travel advisory posted',
+        subtitle: `${roadReport.routeCode} near ${roadReport.townGroup}`,
+        statusLabel: 'Advisory',
+        statusTone: 'warning',
+        actionLabel: 'Monitor',
+      };
+    }
+
+    if (alertSummary.status === 'active') {
+      return {
+        title: alertSummary.event ?? 'Official weather alert active',
+        subtitle: alertSummary.area ?? 'Official guidance is active for this area',
+        statusLabel: 'Alert',
+        statusTone: 'alert',
+        actionLabel: 'Review now',
+      };
+    }
+
+    if (propertyRisk === 'High') {
+      return {
+        title: 'Freeze-sensitive conditions possible',
+        subtitle: `${propertyLocationName} forecast low is in the freeze-risk range.`,
+        statusLabel: 'Freeze',
+        statusTone: 'warning',
+        actionLabel: 'Monitor',
+      };
+    }
+
+    if (propertyRisk === 'Moderate') {
+      return {
+        title: 'Freeze watch remains in range',
+        subtitle: `${propertyLocationName} forecast low is near the freeze threshold.`,
+        statusLabel: 'Freeze',
+        statusTone: 'warning',
+        actionLabel: 'Monitor',
+      };
+    }
+
+    return {
+      title: 'No active operational flags',
+      subtitle: 'No restrictions, advisories, or official alerts are active right now.',
+      statusLabel: 'Stable',
+      statusTone: 'good',
+      actionLabel: 'Monitor',
+    };
+  })();
+
+  const monitoringCard: HomeMonitoringCard = (() => {
+    if (propertyRisk === 'High') {
+      return {
+        title: 'Freeze risk is elevated',
+        body: `${propertyLocationName} forecast low supports freeze protection planning.`,
+      };
+    }
+
+    if (propertyRisk === 'Moderate') {
+      return {
+        title: 'Freeze risk remains near threshold',
+        body: `${propertyLocationName} forecast low is close enough to freezing to keep under watch.`,
+      };
+    }
+
+    if ((hasRestriction || hasAdvisory) && roadReport) {
+      return {
+        title: 'Road conditions deserve a check',
+        body: `${roadReport.routeCode} near ${roadReport.townGroup} has active WYDOT guidance.`,
+      };
+    }
+
+    if (surfaceCondition && surfaceCondition !== 'Dry' && roadReport) {
+      return {
+        title: 'Road surface is not fully dry',
+        body: `${surfaceCondition} is the latest surface report for ${roadReport.townGroup}.`,
+      };
+    }
+
+    if ((currentWeather.temperatureF ?? 99) <= 32) {
+      return {
+        title: 'Cold air is being watched',
+        body: `Current air temperature is ${formatTemperatureValue(currentWeather.temperatureF)}.`,
+      };
+    }
+
+    return {
+      title: 'No immediate freeze concern',
+      body: `${propertyLocationName} currently has no freeze-driven monitoring flag.`,
+    };
+  })();
+
   const bullets: HomeBullet[] = [];
 
-  if (liveTemperature !== '--') {
+  if (currentWeather.temperatureF !== null) {
     bullets.push({
-      id: 'temp',
-      text: `Air temps holding near ${liveTemperature}`,
+      id: 'air-temp',
+      text: `Air temp: ${formatTemperatureValue(currentWeather.temperatureF)}`,
     });
   }
 
-  if (roadReport?.primarySegment.officialCondition && !['None'].includes(roadReport.primarySegment.officialCondition)) {
+  if (surfaceCondition) {
     bullets.push({
       id: 'surface',
-      text:
-        roadReport.primarySegment.officialCondition === 'Dry'
-          ? 'Surface dry'
-          : roadReport.primarySegment.officialCondition,
+      text: `Surface: ${surfaceCondition === 'Dry' ? 'Dry' : surfaceCondition}`,
     });
   }
 
-  if (roadMessage.toLowerCase().includes('windy')) {
+  if (alertSummary.status === 'active' && alertSummary.event) {
+    bullets.push({
+      id: 'alert',
+      text: `Alert: ${alertSummary.event}`,
+    });
+  } else if (windMetric !== '--') {
     bullets.push({
       id: 'wind',
-      text: 'Wind remains worth watching',
+      text: `Wind: ${windMetric}`,
     });
-  } else if (!alertMessage.toLowerCase().includes('no official alerts')) {
+  } else if (currentWeather.precipProbability !== null) {
     bullets.push({
-      id: 'alerts',
-      text: 'Official guidance remains in view',
-    });
-  } else {
-    bullets.push({
-      id: 'drift',
-      text: 'No drifting concern right now',
+      id: 'precip-prob',
+      text: `Precip prob: ${formatPercentValue(currentWeather.precipProbability)}`,
     });
   }
 
-  return bullets.slice(0, 3);
-}
-
-function buildLocationCard(params: {
-  topTitle: string;
-  liveTemperature: string;
-  roadReport: WydotRoadReport | null;
-  alertMessage: string;
-  roadMessage: string;
-}): HomeLocationCard {
-  const { topTitle, liveTemperature, roadReport, alertMessage, roadMessage } = params;
-  const roadLower = roadMessage.toLowerCase();
-
-  const statusTone =
-    roadLower.includes('restriction') || roadLower.includes('advisory')
-      ? 'warning'
-      : 'good';
+  const monitoredLocationCard: HomeLocationCard = {
+    title: topTitle,
+    bullets: bullets.slice(0, 3),
+    statusLabel: hasRestriction
+      ? 'Restriction'
+      : hasAdvisory || (surfaceCondition !== null && surfaceCondition !== 'Dry')
+        ? 'Advisory'
+        : alertSummary.status === 'active'
+          ? 'Alert'
+          : 'Normal',
+    statusTone: hasRestriction
+      ? 'alert'
+      : hasAdvisory || (surfaceCondition !== null && surfaceCondition !== 'Dry')
+        ? 'warning'
+        : alertSummary.status === 'active'
+          ? 'alert'
+          : 'good',
+    impactLabel:
+      hasRestriction || hasAdvisory ? 'Impact possible soon' : 'Impact in 6+ hrs',
+  };
 
   return {
-    title: topTitle,
-    bullets: buildLocationBullets({
-      liveTemperature,
-      roadReport,
-      alertMessage,
-      roadMessage,
-    }),
-    statusLabel: statusTone === 'warning' ? 'Watch' : 'Monitor',
-    statusTone,
-    impactLabel:
-      statusTone === 'warning' ? 'Impact possible soon' : 'Impact in 6+ hrs',
+    updatedLabel,
+    metrics,
+    statusBanner,
+    monitoringCard,
+    monitoredLocationCard,
   };
-}
-
-function buildMetrics(params: {
-  liveTemperature: string;
-  roadReport: WydotRoadReport | null;
-  liveWind: string;
-  precipLine: string;
-  humidityValue: string;
-}): HomeMetric[] {
-  const { liveTemperature, roadReport, liveWind, precipLine, humidityValue } = params;
-  const observation = roadReport?.primaryStationObservation;
-  const roadTemp = formatRoundedNumber(observation?.surfaceTempF, '°F');
-  const gusts = formatRoundedNumber(observation?.windGustMph, ' mph');
-  const wind = observation?.windDirection
-    ? `${formatRoundedNumber(observation.windAvgMph, ' mph')} ${observation.windDirection}`
-    : liveWind;
-
-  return [
-    { label: 'Air Temp', value: liveTemperature === '--' ? '--' : `${liveTemperature}F` },
-    { label: 'Road Temp', value: roadTemp },
-    { label: 'Wind', value: wind },
-    { label: 'Gusts', value: gusts },
-    { label: 'Precip', value: precipLine.replace('Precip ', '') || '--' },
-    { label: 'Humidity', value: humidityValue },
-  ];
 }
 
 function buildOutlookItems(params: {
@@ -305,21 +386,19 @@ export default function HomeScreen() {
   const savedLocations = useSavedLocations();
   const propertyLocation = usePropertyLocation();
 
-  const [liveTemperature, setLiveTemperature] = useState('--');
-  const [liveWind, setLiveWind] = useState('Unavailable');
+  const [currentWeather, setCurrentWeather] = useState<HomeCurrentWeatherSnapshot>(
+    INITIAL_CURRENT_WEATHER
+  );
   const [forecastItems, setForecastItems] = useState<string[]>([
     'Today: Forecast pending',
     'Tomorrow: Forecast pending',
     'Next: Forecast pending',
   ]);
-  const [alertMessage, setAlertMessage] = useState('Loading alerts...');
-  const [roadMessage, setRoadMessage] = useState('Loading road conditions...');
-  const [lastUpdated, setLastUpdated] = useState('Updating now');
+  const [alertSummary, setAlertSummary] = useState<HomeAlertSummary>(
+    INITIAL_ALERT_SUMMARY
+  );
   const [switchModalVisible, setSwitchModalVisible] = useState(false);
-  const [conditionLabel, setConditionLabel] = useState('Current conditions');
-  const [precipLine, setPrecipLine] = useState('Precip --');
-  const [humidityValue, setHumidityValue] = useState('--');
-  const [propertyRisk, setPropertyRisk] = useState('Unavailable');
+  const [propertyRisk, setPropertyRisk] = useState<PropertyRisk>('Unavailable');
   const [roadReport, setRoadReport] = useState<WydotRoadReport | null>(null);
 
   useEffect(() => {
@@ -346,28 +425,29 @@ export default function HomeScreen() {
         const windSpeedMph = metersPerSecondToMph(values.windSpeed);
         const precipProbability = Math.round(values.precipitationProbability ?? 0);
         const weatherCode = values.weatherCode;
+        const sourceTimestamp =
+          typeof currentResult.value.data.time === 'string'
+            ? currentResult.value.data.time
+            : null;
+        const fallbackLabel = sourceTimestamp
+          ? null
+          : formatClockLabel(new Date());
 
-        setLiveTemperature(`${temperatureF}°`);
-        setLiveWind(`${windSpeedMph} mph`);
-        setPrecipLine(`Precip ${precipProbability}%`);
-        setHumidityValue(`${Math.round(values.humidity ?? 0)}%`);
-        setConditionLabel(getConditionLabel(weatherCode));
-        setRoadMessage(getRoadCautionMessage(temperatureF, windSpeedMph));
-        setLastUpdated(
-          new Date().toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false,
-          })
-        );
+        setCurrentWeather({
+          temperatureF,
+          windSpeedMph,
+          precipProbability,
+          humidity:
+            typeof values.humidity === 'number' ? Math.round(values.humidity) : null,
+          conditionLabel: getConditionLabel(weatherCode),
+          sourceTimestamp,
+          refreshFallbackLabel: fallbackLabel,
+        });
       } else {
-        setLiveTemperature('--');
-        setLiveWind('Unavailable');
-        setPrecipLine('Precip --');
-        setHumidityValue('--');
-        setConditionLabel('Weather unavailable');
-        setRoadMessage('Road conditions temporarily unavailable');
-        setLastUpdated('Waiting for data');
+        setCurrentWeather({
+          ...INITIAL_CURRENT_WEATHER,
+          conditionLabel: 'Weather unavailable',
+        });
       }
 
       if (forecastResult.status === 'fulfilled') {
@@ -409,30 +489,31 @@ export default function HomeScreen() {
         const features = alertsResult.value.features ?? [];
 
         if (features.length === 0) {
-          setAlertMessage(`No official alerts right now for ${formatCityState(selectedLocation)}`);
+          setAlertSummary({
+            status: 'none',
+            event: null,
+            area: formatCityState(selectedLocation),
+          });
         } else {
           const firstAlert = features[0];
           const event = firstAlert.properties?.event ?? 'Active alert';
           const area = firstAlert.properties?.areaDesc ?? formatCityState(selectedLocation);
-          setAlertMessage(`${event} - ${area}`);
+          setAlertSummary({
+            status: 'active',
+            event,
+            area,
+          });
         }
       } else {
-        setAlertMessage('Official alerts are temporarily unavailable');
+        setAlertSummary({
+          status: 'unavailable',
+          event: null,
+          area: null,
+        });
       }
 
       if (roadResult.status === 'fulfilled') {
-        const report = roadResult.value;
-        setRoadReport(report);
-
-        if (!report) {
-          setRoadReport(null);
-        } else if (report.primarySegment.restriction !== 'None') {
-          setRoadMessage(`Restriction in effect near ${report.townGroup}`);
-        } else if (report.primarySegment.advisory !== 'None') {
-          setRoadMessage(`Advisory posted near ${report.townGroup}`);
-        } else if (!['Dry', 'None'].includes(report.primarySegment.officialCondition)) {
-          setRoadMessage(`${report.primarySegment.officialCondition} near ${report.townGroup}`);
-        }
+        setRoadReport(roadResult.value);
       } else {
         setRoadReport(null);
       }
@@ -449,55 +530,27 @@ export default function HomeScreen() {
     () => getTopTitle(roadReport, selectedLocation.name),
     [roadReport, selectedLocation.name]
   );
-  const statusBanner = useMemo(
+  const homeViewModel = useMemo<HomeViewModel>(
     () =>
-      buildStatusBanner({
-        alertMessage,
-        roadMessage,
-        roadReport,
+      buildHomeViewModel({
+        currentWeather,
+        alertSummary,
         propertyRisk,
-      }),
-    [alertMessage, roadMessage, roadReport, propertyRisk]
-  );
-  const metrics = useMemo<HomeMetric[]>(
-    () =>
-      buildMetrics({
-        liveTemperature,
+        propertyLocationName: propertyLocation.name,
         roadReport,
-        liveWind,
-        precipLine,
-        humidityValue,
+        topTitle,
       }),
-    [humidityValue, liveTemperature, liveWind, precipLine, roadReport]
+    [alertSummary, currentWeather, propertyLocation.name, propertyRisk, roadReport, topTitle]
   );
   const outlookItems = useMemo<HomeOutlookItem[]>(
     () =>
       buildOutlookItems({
         forecastItems,
-        liveTemperature,
-        conditionLabel,
+        liveTemperature:
+          currentWeather.temperatureF === null ? '--' : `${currentWeather.temperatureF}°`,
+        conditionLabel: currentWeather.conditionLabel,
       }),
-    [conditionLabel, forecastItems, liveTemperature]
-  );
-  const monitoringCard = useMemo<HomeMonitoringCard>(
-    () =>
-      buildMonitoringCard({
-        propertyRisk,
-        propertyLocationName: propertyLocation.name,
-        roadMessage,
-      }),
-    [propertyLocation.name, propertyRisk, roadMessage]
-  );
-  const monitoredLocationCard = useMemo<HomeLocationCard>(
-    () =>
-      buildLocationCard({
-        topTitle,
-        liveTemperature,
-        roadReport,
-        alertMessage,
-        roadMessage,
-      }),
-    [alertMessage, liveTemperature, roadMessage, roadReport, topTitle]
+    [currentWeather.conditionLabel, currentWeather.temperatureF, forecastItems]
   );
 
   async function handleQuickSwitch(locationId: string) {
@@ -516,12 +569,12 @@ export default function HomeScreen() {
     <>
       <HomeScreenV2
         topTitle={topTitle}
-        updatedLabel={lastUpdated}
-        statusBanner={statusBanner}
-        metrics={metrics}
+        updatedLabel={homeViewModel.updatedLabel}
+        statusBanner={homeViewModel.statusBanner}
+        metrics={homeViewModel.metrics}
         outlookItems={outlookItems}
-        monitoringCard={monitoringCard}
-        monitoredLocationCard={monitoredLocationCard}
+        monitoringCard={homeViewModel.monitoringCard}
+        monitoredLocationCard={homeViewModel.monitoredLocationCard}
         onPressSettings={() => router.push('/settings')}
         onPressSwitchLocation={() => setSwitchModalVisible(true)}
         onPressPrimaryAction={() => router.push('/alerts')}
