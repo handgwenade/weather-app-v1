@@ -35,6 +35,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="conditions"
+        options={{
+          title: 'Conditions',
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="cloud-outline" size={28} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="alerts"
         options={{
           title: 'Alerts',
@@ -46,6 +55,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="settings"
         options={{
+          href: null,
           title: 'Settings',
           tabBarIcon: ({ color }) => (
             <Ionicons name="settings-outline" size={28} color={color} />
