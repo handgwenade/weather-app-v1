@@ -23,7 +23,6 @@ import { getWydotRoadReport, type WydotRoadReport } from '@/services/wydot';
 import {
   celsiusToFahrenheit,
   getFreezeRiskLabel,
-  getRoadCautionMessage,
   metersPerSecondToMph,
 } from '@/utils/weather';
 
