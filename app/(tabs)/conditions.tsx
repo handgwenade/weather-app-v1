@@ -529,6 +529,12 @@ export default function ConditionsScreen() {
     let isActive = true;
 
     async function loadCurrentWeather() {
+      if (!selectedLocation) {
+        setSourceUpdatedLabel(null);
+        setFallbackRefreshLabel(null);
+        return;
+      }
+
       const fallbackLabel = formatClockLabel(new Date());
 
       try {
@@ -618,6 +624,42 @@ export default function ConditionsScreen() {
       fallbackRefreshLabel,
     ],
   );
+
+  if (!selectedLocation) {
+    return (
+      <SafeAreaView edges={["top"]} style={styles.safeArea}>
+        <View style={styles.screen}>
+          <View style={styles.topBar}>
+            <View style={styles.topRow}>
+              <Text style={styles.locationTitle}>Conditions</Text>
+              <Pressable
+                accessibilityLabel="Open settings"
+                accessibilityRole="button"
+                onPress={() => router.push("/settings")}
+                style={styles.iconButton}
+              >
+                <Ionicons name="settings-outline" size={22} color="#475569" />
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateTitle}>No saved location selected</Text>
+            <Text style={styles.emptyStateBody}>
+              Add a location to see local conditions here.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push("/manage-locations")}
+              style={styles.emptyStateButton}
+            >
+              <Text style={styles.emptyStateButtonText}>Manage Locations</Text>
+            </Pressable>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView edges={["top"]} style={styles.safeArea}>
@@ -779,6 +821,42 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: "#62748E",
     letterSpacing: -0.15,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  emptyStateTitle: {
+    color: "#0F172B",
+    fontSize: 22,
+    lineHeight: 30,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  emptyStateBody: {
+    color: "#556274",
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
+    marginTop: 8,
+    maxWidth: 280,
+  },
+  emptyStateButton: {
+    minHeight: 44,
+    borderRadius: 12,
+    backgroundColor: "#2E6FC7",
+    paddingHorizontal: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 20,
+  },
+  emptyStateButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 20,
   },
   content: {
     paddingHorizontal: 16,

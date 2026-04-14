@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { Pressable, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import QuickSwitchModal from '@/components/quickSwitchModal';
 import HomeScreenV2, {
@@ -244,8 +247,8 @@ function buildHomeViewModel(params: {
     }
 
     return {
-      title: 'No active operational flags',
-      subtitle: 'No restrictions, advisories, or official alerts are active right now.',
+      title: 'No major weather issues right now',
+      subtitle: 'Conditions stable at this location.',
       statusLabel: 'Stable',
       statusTone: 'good',
       actionLabel: 'Monitor',
@@ -289,8 +292,8 @@ function buildHomeViewModel(params: {
     }
 
     return {
-      title: 'No immediate freeze concern',
-      body: `${propertyLocationName} currently has no freeze-driven monitoring flag.`,
+      title: 'Conditions stable at this location',
+      body: `No major weather issues are active for ${propertyLocationName} right now.`,
     };
   })();
 
@@ -404,6 +407,19 @@ export default function HomeScreen() {
     let isActive = true;
 
     async function loadHome() {
+      if (!selectedLocation || !propertyLocation) {
+        setCurrentWeather(INITIAL_CURRENT_WEATHER);
+        setForecastItems([
+          'Today: Forecast pending',
+          'Tomorrow: Forecast pending',
+          'Next: Forecast pending',
+        ]);
+        setAlertSummary(INITIAL_ALERT_SUMMARY);
+        setPropertyRisk('Unavailable');
+        setRoadReport(null);
+        return;
+      }
+
       const results = await Promise.allSettled([
         getSharedCurrentWeather(selectedLocation),
         getSharedForecast(selectedLocation),
@@ -525,22 +541,27 @@ export default function HomeScreen() {
     };
   }, [selectedLocation, propertyLocation]);
 
-  const topTitle = useMemo(
-    () => getTopTitle(roadReport, selectedLocation.name),
-    [roadReport, selectedLocation.name]
-  );
-  const homeViewModel = useMemo<HomeViewModel>(
-    () =>
-      buildHomeViewModel({
-        currentWeather,
-        alertSummary,
-        propertyRisk,
-        propertyLocationName: propertyLocation.name,
-        roadReport,
-        topTitle,
-      }),
-    [alertSummary, currentWeather, propertyLocation.name, propertyRisk, roadReport, topTitle]
-  );
+  const topTitle = useMemo(() => {
+    if (!selectedLocation) {
+      return null;
+    }
+
+    return getTopTitle(roadReport, selectedLocation.name);
+  }, [roadReport, selectedLocation]);
+  const homeViewModel = useMemo<HomeViewModel | null>(() => {
+    if (!topTitle || !propertyLocation) {
+      return null;
+    }
+
+    return buildHomeViewModel({
+      currentWeather,
+      alertSummary,
+      propertyRisk,
+      propertyLocationName: propertyLocation.name,
+      roadReport,
+      topTitle,
+    });
+  }, [alertSummary, currentWeather, propertyLocation, propertyRisk, roadReport, topTitle]);
   const outlookItems = useMemo<HomeOutlookItem[]>(
     () =>
       buildOutlookItems({
@@ -553,6 +574,11 @@ export default function HomeScreen() {
   );
 
   async function handleQuickSwitch(locationId: string) {
+    if (!selectedLocation) {
+      setSwitchModalVisible(false);
+      return;
+    }
+
     const nextLocation = savedLocations.find((location) => location.id === locationId);
 
     if (!nextLocation || nextLocation.id === selectedLocation.id) {
@@ -562,6 +588,98 @@ export default function HomeScreen() {
 
     await setSelectedLocation(nextLocation);
     setSwitchModalVisible(false);
+  }
+
+  if (!selectedLocation || !propertyLocation || !homeViewModel || !topTitle) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+        <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+          <View
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderBottomWidth: 1,
+              borderBottomColor: '#CAD5E2',
+              paddingHorizontal: 16,
+              paddingTop: 12,
+              paddingBottom: 14,
+            }}>
+            <View
+              style={{
+                minHeight: 28,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}>
+              <Text
+                style={{
+                  color: '#0F172B',
+                  fontSize: 18,
+                  fontWeight: '700',
+                  lineHeight: 28,
+                  letterSpacing: -0.44,
+                }}>
+                Home
+              </Text>
+
+              <Pressable onPress={() => router.push('/settings')}>
+                <Ionicons name="settings-outline" size={24} color="#2F5DA8" />
+              </Pressable>
+            </View>
+          </View>
+
+          <View
+            style={{
+              flex: 1,
+              paddingHorizontal: 24,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+            <Text
+              style={{
+                color: '#0F172B',
+                fontSize: 22,
+                fontWeight: '700',
+                lineHeight: 30,
+                textAlign: 'center',
+              }}>
+              No saved location selected
+            </Text>
+            <Text
+              style={{
+                color: '#556274',
+                fontSize: 15,
+                lineHeight: 22,
+                textAlign: 'center',
+                marginTop: 8,
+                maxWidth: 280,
+              }}>
+              Add a location to see local conditions here.
+            </Text>
+            <Pressable
+              onPress={() => router.push('/manage-locations')}
+              style={{
+                marginTop: 20,
+                minHeight: 44,
+                borderRadius: 12,
+                backgroundColor: '#2E6FC7',
+                paddingHorizontal: 18,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+              <Text
+                style={{
+                  color: '#FFFFFF',
+                  fontSize: 14,
+                  fontWeight: '600',
+                  lineHeight: 20,
+                }}>
+                Manage Locations
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (

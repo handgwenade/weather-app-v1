@@ -12,14 +12,14 @@ export type AppLocation = {
 
 type PersistedLocationState = {
   savedLocations: AppLocation[];
-  selectedLocationId: string;
-  defaultLocationId: string;
-  propertyLocationId: string;
+  selectedLocationId: string | null;
+  defaultLocationId: string | null;
+  propertyLocationId: string | null;
 };
 
 const STORAGE_KEY = 'weather-app-location-store-v2';
 
-const DEFAULT_LOCATIONS: AppLocation[] = [
+const LEGACY_SEEDED_LOCATIONS: AppLocation[] = [
   {
     id: 'home-nursery',
     name: 'Home Nursery',
@@ -46,10 +46,10 @@ const DEFAULT_LOCATIONS: AppLocation[] = [
   },
 ];
 
-let savedLocations: AppLocation[] = DEFAULT_LOCATIONS;
-let selectedLocationId = DEFAULT_LOCATIONS[0].id;
-let defaultLocationId = DEFAULT_LOCATIONS[0].id;
-let propertyLocationId = DEFAULT_LOCATIONS[0].id;
+let savedLocations: AppLocation[] = [];
+let selectedLocationId: string | null = null;
+let defaultLocationId: string | null = null;
+let propertyLocationId: string | null = null;
 let persistedStateLoadPromise: Promise<void> | null = null;
 
 const listeners = new Set<() => void>();
@@ -74,30 +74,60 @@ function buildLocationId() {
   return `location-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function getLocationById(id: string) {
-  return savedLocations.find((location) => location.id === id);
+function getLocationById(id: string | null) {
+  if (!id) {
+    return null;
+  }
+
+  return savedLocations.find((location) => location.id === id) ?? null;
 }
 
-function getFallbackLocation() {
-  return savedLocations[0] ?? DEFAULT_LOCATIONS[0];
+function getFirstSavedLocation() {
+  return savedLocations[0] ?? null;
 }
 
 function repairIdsIfNeeded() {
-  const selectedExists = savedLocations.some((location) => location.id === selectedLocationId);
-  const defaultExists = savedLocations.some((location) => location.id === defaultLocationId);
-  const propertyExists = savedLocations.some((location) => location.id === propertyLocationId);
-
-  if (!selectedExists) {
-    selectedLocationId = getFallbackLocation().id;
+  if (
+    selectedLocationId &&
+    !savedLocations.some((location) => location.id === selectedLocationId)
+  ) {
+    selectedLocationId = null;
   }
 
-  if (!defaultExists) {
-    defaultLocationId = getFallbackLocation().id;
+  if (
+    defaultLocationId &&
+    !savedLocations.some((location) => location.id === defaultLocationId)
+  ) {
+    defaultLocationId = null;
   }
 
-  if (!propertyExists) {
-    propertyLocationId = getFallbackLocation().id;
+  if (
+    propertyLocationId &&
+    !savedLocations.some((location) => location.id === propertyLocationId)
+  ) {
+    propertyLocationId = null;
   }
+}
+
+function isLegacySeededLocation(location: AppLocation, index: number) {
+  const legacyLocation = LEGACY_SEEDED_LOCATIONS[index];
+
+  return (
+    !!legacyLocation &&
+    location.id === legacyLocation.id &&
+    location.name === legacyLocation.name &&
+    location.city === legacyLocation.city &&
+    location.state === legacyLocation.state &&
+    location.latitude === legacyLocation.latitude &&
+    location.longitude === legacyLocation.longitude
+  );
+}
+
+function isLegacySeededState(locations: AppLocation[]) {
+  return (
+    locations.length === LEGACY_SEEDED_LOCATIONS.length &&
+    locations.every((location, index) => isLegacySeededLocation(location, index))
+  );
 }
 
 async function persistState() {
@@ -126,19 +156,27 @@ async function loadPersistedState() {
 
       const parsed = JSON.parse(rawValue) as Partial<PersistedLocationState>;
 
-      if (
-        Array.isArray(parsed.savedLocations) &&
-        parsed.savedLocations.length > 0 &&
-        typeof parsed.selectedLocationId === 'string' &&
-        typeof parsed.defaultLocationId === 'string'
-      ) {
-        savedLocations = parsed.savedLocations;
-        selectedLocationId = parsed.selectedLocationId;
-        defaultLocationId = parsed.defaultLocationId;
-        propertyLocationId =
-          typeof parsed.propertyLocationId === 'string'
-            ? parsed.propertyLocationId
-            : parsed.defaultLocationId;
+      if (Array.isArray(parsed.savedLocations)) {
+        if (isLegacySeededState(parsed.savedLocations)) {
+          savedLocations = [];
+          selectedLocationId = null;
+          defaultLocationId = null;
+          propertyLocationId = null;
+        } else {
+          savedLocations = parsed.savedLocations;
+          selectedLocationId =
+            typeof parsed.selectedLocationId === 'string'
+              ? parsed.selectedLocationId
+              : null;
+          defaultLocationId =
+            typeof parsed.defaultLocationId === 'string'
+              ? parsed.defaultLocationId
+              : null;
+          propertyLocationId =
+            typeof parsed.propertyLocationId === 'string'
+              ? parsed.propertyLocationId
+              : null;
+        }
 
         repairIdsIfNeeded();
         emitChange();
@@ -159,17 +197,17 @@ export function getSavedLocations() {
 
 export function getSelectedLocation() {
   repairIdsIfNeeded();
-  return getLocationById(selectedLocationId) ?? getFallbackLocation();
+  return getLocationById(selectedLocationId);
 }
 
 export function getDefaultLocation() {
   repairIdsIfNeeded();
-  return getLocationById(defaultLocationId) ?? getFallbackLocation();
+  return getLocationById(defaultLocationId);
 }
 
 export function getPropertyLocation() {
   repairIdsIfNeeded();
-  return getLocationById(propertyLocationId) ?? getFallbackLocation();
+  return getLocationById(propertyLocationId);
 }
 
 export async function setSelectedLocation(location: AppLocation) {
@@ -180,6 +218,15 @@ export async function setSelectedLocation(location: AppLocation) {
   }
 
   selectedLocationId = location.id;
+
+  if (!defaultLocationId) {
+    defaultLocationId = location.id;
+  }
+
+  if (!propertyLocationId) {
+    propertyLocationId = location.id;
+  }
+
   repairIdsIfNeeded();
 
   try {
@@ -247,6 +294,18 @@ export async function addSavedLocation(input: {
 
   savedLocations = [...savedLocations, newLocation];
 
+  if (!selectedLocationId) {
+    selectedLocationId = newLocation.id;
+  }
+
+  if (!defaultLocationId) {
+    defaultLocationId = newLocation.id;
+  }
+
+  if (!propertyLocationId) {
+    propertyLocationId = newLocation.id;
+  }
+
   try {
     await persistState();
   } catch (error) {
@@ -258,10 +317,6 @@ export async function addSavedLocation(input: {
 }
 
 export async function deleteSavedLocation(locationId: string) {
-  if (savedLocations.length <= 1) {
-    throw new Error('You must keep at least one saved location.');
-  }
-
   const locationToDelete = savedLocations.find((location) => location.id === locationId);
 
   if (!locationToDelete) {
@@ -269,17 +324,18 @@ export async function deleteSavedLocation(locationId: string) {
   }
 
   savedLocations = savedLocations.filter((location) => location.id !== locationId);
+  const nextFallbackLocation = getFirstSavedLocation();
 
   if (selectedLocationId === locationId) {
-    selectedLocationId = getFallbackLocation().id;
+    selectedLocationId = nextFallbackLocation?.id ?? null;
   }
 
   if (defaultLocationId === locationId) {
-    defaultLocationId = getFallbackLocation().id;
+    defaultLocationId = nextFallbackLocation?.id ?? null;
   }
 
   if (propertyLocationId === locationId) {
-    propertyLocationId = getFallbackLocation().id;
+    propertyLocationId = nextFallbackLocation?.id ?? null;
   }
 
   repairIdsIfNeeded();

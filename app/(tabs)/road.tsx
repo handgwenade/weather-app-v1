@@ -1,3 +1,4 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import QuickSwitchModal from "@/components/quickSwitchModal";
 import RoadScreenV2, {
   type RoadBullet,
@@ -7,7 +8,10 @@ import RoadScreenV2, {
 } from "@/components/road/RoadScreenV2";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
+import { Pressable, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
+  type AppLocation,
   formatCityState,
   setSelectedLocation,
   useSavedLocations,
@@ -81,9 +85,7 @@ function formatTimestampLabel(value: string | null | undefined) {
   });
 }
 
-function formatLocationFieldLabel(
-  location: ReturnType<typeof useSelectedLocation>,
-) {
+function formatLocationFieldLabel(location: AppLocation) {
   const cityState = formatCityState(location);
 
   if (location.name.trim().toLowerCase() === cityState.trim().toLowerCase()) {
@@ -325,12 +327,12 @@ function buildRoadOutlookItems(
   }));
 }
 
-function getRoadLocationLabel(location: ReturnType<typeof useSelectedLocation>) {
+function getRoadLocationLabel(location: AppLocation) {
   return formatCityState(location);
 }
 
 function buildRoadViewModel(params: {
-  selectedLocation: ReturnType<typeof useSelectedLocation>;
+  selectedLocation: AppLocation;
   routeLabel: string;
   currentWeather: RoadCurrentWeatherSnapshot;
   roadReport: WydotRoadReport | null;
@@ -412,7 +414,7 @@ function buildRoadViewModel(params: {
         : hasWeatherCaution
           ? "Weather caution active"
           : roadReport
-            ? "No active road flags"
+            ? "No active travel impacts"
             : "Road data unavailable";
 
   const statusSubtitle = hasRestriction
@@ -424,7 +426,7 @@ function buildRoadViewModel(params: {
         : hasWeatherCaution
           ? weatherCaution
           : roadReport
-            ? `No restriction or advisory reported near ${roadReport.townGroup}.`
+            ? "Conditions stable at this location."
             : "WYDOT road data is limited for this location right now.";
 
   const recommendationText = hasRestriction
@@ -436,7 +438,7 @@ function buildRoadViewModel(params: {
         : hasWeatherCaution
           ? "Weather conditions may affect pavement. Continue monitoring before travel."
           : roadReport
-            ? "No restriction or advisory is active. Continue routine monitoring."
+            ? "No active travel impacts. Continue routine monitoring."
             : "Road data is limited right now. Check again before travel.";
 
   const currentConditions: RoadMetric[] = [
@@ -567,23 +569,25 @@ export default function RoadScreen() {
     weatherCaution,
     roadSummary,
   );
-  const roadViewModel = buildRoadViewModel({
-    selectedLocation: roadLocation,
-    routeLabel,
-    currentWeather,
-    roadReport,
-    wydotNotice,
-    officialCondition,
-    advisory,
-    restriction,
-    stationObservedAt,
-    stationAirTemp,
-    stationSurfaceTemp,
-    stationWindAvg,
-    stationWindGust,
-    stationWindDirection,
-    weatherCaution,
-  });
+  const roadViewModel = roadLocation
+    ? buildRoadViewModel({
+        selectedLocation: roadLocation,
+        routeLabel,
+        currentWeather,
+        roadReport,
+        wydotNotice,
+        officialCondition,
+        advisory,
+        restriction,
+        stationObservedAt,
+        stationAirTemp,
+        stationSurfaceTemp,
+        stationWindAvg,
+        stationWindGust,
+        stationWindDirection,
+        weatherCaution,
+      })
+    : null;
 
   const outlookItems = buildRoadOutlookItems(
     stationAirTemp !== "Unavailable"
@@ -596,6 +600,25 @@ export default function RoadScreen() {
     let isActive = true;
 
     async function loadRoadConditions() {
+      if (!roadLocation) {
+        setRouteLabel("Add a location to view road conditions");
+        setOfficialCondition("Unavailable");
+        setAdvisory("Unavailable");
+        setRestriction("Unavailable");
+        setStationObservedAt("Unavailable");
+        setStationAirTemp("Unavailable");
+        setStationSurfaceTemp("Unavailable");
+        setStationWindAvg("Unavailable");
+        setStationWindGust("Unavailable");
+        setStationWindDirection("Unavailable");
+        setWydotNotice("");
+        setRoadSummary("No saved location selected.");
+        setWeatherCaution("Add a location to see local conditions here.");
+        setCurrentWeather(INITIAL_CURRENT_WEATHER);
+        setRoadReport(null);
+        return;
+      }
+
       setRouteLabel("Loading WYDOT corridor...");
       setOfficialCondition("Loading...");
       setAdvisory("Loading...");
@@ -746,6 +769,11 @@ export default function RoadScreen() {
   }, [roadLocation]);
 
   async function handleQuickSwitch(locationId: string) {
+    if (!selectedLocation) {
+      setSwitchModalVisible(false);
+      return;
+    }
+
     const nextLocation = savedLocations.find(
       (location) => location.id === locationId,
     );
@@ -757,6 +785,104 @@ export default function RoadScreen() {
 
     await setSelectedLocation(nextLocation);
     setSwitchModalVisible(false);
+  }
+
+  if (!selectedLocation || !roadViewModel) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+        <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+          <View
+            style={{
+              borderBottomWidth: 1,
+              borderBottomColor: "#CAD5E2",
+              paddingTop: 12,
+              paddingHorizontal: 16,
+              paddingBottom: 10,
+              backgroundColor: "#FFFFFF",
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 18,
+                  lineHeight: 28,
+                  fontWeight: "700",
+                  color: "#0F172B",
+                  letterSpacing: -0.44,
+                }}
+              >
+                Road
+              </Text>
+              <Pressable onPress={() => router.push("/settings")}>
+                <Ionicons name="settings-outline" size={22} color="#475569" />
+              </Pressable>
+            </View>
+          </View>
+
+          <View
+            style={{
+              flex: 1,
+              alignItems: "center",
+              justifyContent: "center",
+              paddingHorizontal: 24,
+            }}
+          >
+            <Text
+              style={{
+                color: "#0F172B",
+                fontSize: 22,
+                lineHeight: 30,
+                fontWeight: "700",
+                textAlign: "center",
+              }}
+            >
+              No saved location selected
+            </Text>
+            <Text
+              style={{
+                color: "#556274",
+                fontSize: 15,
+                lineHeight: 22,
+                textAlign: "center",
+                marginTop: 8,
+                maxWidth: 280,
+              }}
+            >
+              Add a location to see local conditions here.
+            </Text>
+            <Pressable
+              onPress={() => router.push("/manage-locations")}
+              style={{
+                marginTop: 20,
+                minHeight: 44,
+                borderRadius: 12,
+                backgroundColor: "#2E6FC7",
+                paddingHorizontal: 18,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text
+                style={{
+                  color: "#FFFFFF",
+                  fontSize: 14,
+                  fontWeight: "600",
+                  lineHeight: 20,
+                }}
+              >
+                Manage Locations
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (

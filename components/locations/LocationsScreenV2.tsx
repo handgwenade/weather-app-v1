@@ -2,15 +2,10 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-export type LocationCardTone = "neutral" | "highlight";
-
 export type LocationCard = {
   id: string;
   title: string;
-  categoryLabel: string;
-  categoryTone: LocationCardTone;
-  compact?: boolean;
-  detailTags: string[];
+  subtitle: string;
   canDelete: boolean;
 };
 
@@ -21,31 +16,12 @@ type LocationsScreenV2Props = {
   onPressDelete: (locationId: string) => void;
 };
 
-function getCategoryStyles(tone: LocationCardTone) {
-  if (tone === "highlight") {
-    return {
-      backgroundColor: "#FFF7ED",
-      textColor: "#CA3500",
-      iconColor: "#F97316",
-    };
-  }
-
-  return {
-    backgroundColor: "#F5F5F5",
-    textColor: "#59595B",
-    iconColor: "#6B7280",
-  };
-}
-
 export default function LocationsScreenV2({
   cards,
   onPressSettings,
   onPressAdd,
   onPressDelete,
 }: LocationsScreenV2Props) {
-  const compactCards = cards.filter((card) => card.compact);
-  const fullCards = cards.filter((card) => !card.compact);
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.topBar}>
@@ -72,53 +48,29 @@ export default function LocationsScreenV2({
           </Pressable>
         </View>
 
-        {compactCards.length > 0 ? (
-          <View style={styles.compactRow}>
-            {compactCards.map((card) => {
-              const categoryStyles = getCategoryStyles(card.categoryTone);
-
-              return (
-                <View key={card.id} style={styles.compactCard}>
-                  <Text style={styles.cardTitle}>{card.title}</Text>
-
-                  <View
-                    style={[
-                      styles.categoryChip,
-                      { backgroundColor: categoryStyles.backgroundColor },
-                    ]}
-                  >
-                    <Ionicons
-                      name={
-                        card.categoryTone === "highlight"
-                          ? "alert-circle-outline"
-                          : "location-outline"
-                      }
-                      size={14}
-                      color={categoryStyles.iconColor}
-                    />
-                    <Text
-                      style={[
-                        styles.categoryChipText,
-                        { color: categoryStyles.textColor },
-                      ]}
-                    >
-                      {card.categoryLabel}
-                    </Text>
-                  </View>
-                </View>
-              );
-            })}
+        {cards.length === 0 ? (
+          <View style={styles.emptyStateCard}>
+            <View style={styles.emptyStateIconWrap}>
+              <Ionicons name="location-outline" size={24} color="#2E6FC7" />
+            </View>
+            <Text style={styles.emptyStateTitle}>No saved locations yet</Text>
+            <Text style={styles.emptyStateBody}>
+              Add a location to start monitoring places you care about.
+            </Text>
+            <Pressable style={styles.emptyStateButton} onPress={onPressAdd}>
+              <Ionicons name="add-outline" size={16} color="#FFFFFF" />
+              <Text style={styles.emptyStateButtonText}>Add location</Text>
+            </Pressable>
           </View>
-        ) : null}
-
-        <View style={styles.fullCardStack}>
-          {fullCards.map((card) => {
-            const categoryStyles = getCategoryStyles(card.categoryTone);
-
-            return (
-              <View key={card.id} style={styles.fullCard}>
-                <View style={styles.fullCardHeader}>
-                  <Text style={styles.cardTitle}>{card.title}</Text>
+        ) : (
+          <View style={styles.cardStack}>
+            {cards.map((card) => (
+              <View key={card.id} style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <View style={styles.cardTextBlock}>
+                    <Text style={styles.cardTitle}>{card.title}</Text>
+                    <Text style={styles.cardSubtitle}>{card.subtitle}</Text>
+                  </View>
 
                   {card.canDelete ? (
                     <Pressable
@@ -133,45 +85,10 @@ export default function LocationsScreenV2({
                     </Pressable>
                   ) : null}
                 </View>
-
-                <View
-                  style={[
-                    styles.categoryChip,
-                    { backgroundColor: categoryStyles.backgroundColor },
-                  ]}
-                >
-                  <Ionicons
-                    name={
-                      card.categoryTone === "highlight"
-                        ? "alert-circle-outline"
-                        : "location-outline"
-                    }
-                    size={14}
-                    color={categoryStyles.iconColor}
-                  />
-                  <Text
-                    style={[
-                      styles.categoryChipText,
-                      { color: categoryStyles.textColor },
-                    ]}
-                  >
-                    {card.categoryLabel}
-                  </Text>
-                </View>
-
-                {card.detailTags.length > 0 ? (
-                  <View style={styles.tagsRow}>
-                    {card.detailTags.map((tag) => (
-                      <View key={tag} style={styles.detailTag}>
-                        <Text style={styles.detailTagText}>{tag}</Text>
-                      </View>
-                    ))}
-                  </View>
-                ) : null}
               </View>
-            );
-          })}
-        </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -249,13 +166,65 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     letterSpacing: -0.15,
   },
-  compactRow: {
+  emptyStateCard: {
+    minHeight: 220,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#D4D4D4",
+    borderRadius: 16,
+    paddingHorizontal: 24,
+    paddingTop: 30,
+    paddingBottom: 28,
+    alignItems: "center",
+  },
+  emptyStateIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#EAF4FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyStateTitle: {
+    color: "#1B1B1B",
+    fontSize: 18,
+    fontWeight: "700",
+    lineHeight: 28,
+    letterSpacing: -0.44,
+    textAlign: "center",
+    marginTop: 18,
+  },
+  emptyStateBody: {
+    color: "#556274",
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: "center",
+    marginTop: 8,
+    maxWidth: 260,
+  },
+  emptyStateButton: {
+    minWidth: 142,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: "#2E6FC7",
+    paddingHorizontal: 16,
     flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    marginTop: 20,
+  },
+  emptyStateButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 20,
+  },
+  cardStack: {
     gap: 12,
   },
-  compactCard: {
-    flex: 1,
-    minHeight: 91,
+  card: {
+    minHeight: 90,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#D4D4D4",
@@ -264,27 +233,17 @@ const styles = StyleSheet.create({
     paddingTop: 17,
     paddingBottom: 15,
   },
-  fullCardStack: {
-    gap: 12,
-  },
-  fullCard: {
-    minHeight: 129,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#D4D4D4",
-    borderRadius: 16,
-    paddingHorizontal: 17,
-    paddingTop: 17,
-    paddingBottom: 15,
-  },
-  fullCardHeader: {
+  cardHeader: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
   },
-  cardTitle: {
+  cardTextBlock: {
     flex: 1,
+    gap: 4,
+  },
+  cardTitle: {
     color: "#1B1B1B",
     fontSize: 18,
     fontWeight: "500",
@@ -297,39 +256,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  categoryChip: {
-    alignSelf: "flex-start",
-    minHeight: 24,
-    borderRadius: 28,
-    paddingHorizontal: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 8,
-  },
-  categoryChipText: {
-    fontSize: 12,
-    fontWeight: "500",
-    lineHeight: 16,
-  },
-  tagsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 12,
-  },
-  detailTag: {
-    minHeight: 24,
-    borderRadius: 8,
-    backgroundColor: "#F5F5F5",
-    paddingHorizontal: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  detailTagText: {
-    color: "#59595B",
-    fontSize: 12,
-    fontWeight: "500",
-    lineHeight: 16,
+  cardSubtitle: {
+    color: "#556274",
+    fontSize: 14,
+    fontWeight: "400",
+    lineHeight: 20,
   },
 });

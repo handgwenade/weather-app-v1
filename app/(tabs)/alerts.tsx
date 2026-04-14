@@ -1,9 +1,12 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import AlertsScreenV2, {
   type AlertCardItem,
   type AlertTone,
 } from "@/components/alerts/AlertsScreenV2";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
+import { Pressable, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { getActiveAlertsForLocation } from "../../services/nws";
 import { useSelectedLocation } from "../../data/locationStore";
 
@@ -159,6 +162,12 @@ export default function AlertsScreen() {
     let isActive = true;
 
     async function loadAlerts() {
+      if (!selectedLocation) {
+        setAlerts([]);
+        setAlertsAvailable(true);
+        return;
+      }
+
       try {
         const data = await getActiveAlertsForLocation(
           selectedLocation.latitude,
@@ -193,6 +202,106 @@ export default function AlertsScreen() {
       isActive = false;
     };
   }, [selectedLocation]);
+
+  if (!selectedLocation) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#F9FCFF" }}>
+        <View style={{ flex: 1, backgroundColor: "#F9FCFF" }}>
+          <View
+            style={{
+              backgroundColor: "#FFFFFF",
+              borderBottomWidth: 1,
+              borderBottomColor: "#CAD5E2",
+              paddingHorizontal: 16,
+              paddingTop: 12,
+              paddingBottom: 14,
+            }}
+          >
+            <View
+              style={{
+                minHeight: 28,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <Text
+                style={{
+                  color: "#0F172B",
+                  fontSize: 18,
+                  fontWeight: "700",
+                  lineHeight: 28,
+                  letterSpacing: -0.44,
+                }}
+              >
+                Official Alerts
+              </Text>
+
+              <Pressable onPress={() => router.push("/settings")}>
+                <Ionicons name="settings-outline" size={24} color="#2F5DA8" />
+              </Pressable>
+            </View>
+          </View>
+
+          <View
+            style={{
+              flex: 1,
+              paddingHorizontal: 24,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Text
+              style={{
+                color: "#0F172B",
+                fontSize: 22,
+                fontWeight: "700",
+                lineHeight: 30,
+                textAlign: "center",
+              }}
+            >
+              No saved location selected
+            </Text>
+            <Text
+              style={{
+                color: "#556274",
+                fontSize: 15,
+                lineHeight: 22,
+                textAlign: "center",
+                marginTop: 8,
+                maxWidth: 280,
+              }}
+            >
+              Add a location to see local conditions here.
+            </Text>
+            <Pressable
+              onPress={() => router.push("/manage-locations")}
+              style={{
+                marginTop: 20,
+                minHeight: 44,
+                borderRadius: 12,
+                backgroundColor: "#2E6FC7",
+                paddingHorizontal: 18,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text
+                style={{
+                  color: "#FFFFFF",
+                  fontSize: 14,
+                  fontWeight: "600",
+                  lineHeight: 20,
+                }}
+              >
+                Manage Locations
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <AlertsScreenV2
