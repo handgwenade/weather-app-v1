@@ -43,6 +43,19 @@ type WeatherSnapshot = {
   conditionLabel: string;
 };
 
+type ConditionsSnapshot = WeatherSnapshot & {
+  fetchedWindDirection: string | null;
+  sourceUpdatedLabel: string | null;
+  fallbackRefreshLabel: string | null;
+};
+
+type ConditionsViewModel = {
+  updatedLabel: string;
+  summaryText: string;
+  takeawayText: string;
+  windDirectionFooter: string;
+};
+
 const RANGE_OPTIONS: RangeOption[] = ["12H", "24H", "48H", "72H"];
 const X_AXIS_LABELS = ["6AM", "9AM", "12PM", "3PM", "6PM", "9PM", "12AM", "3AM"];
 const BASE_RANGE_PRESETS: Record<RangeOption, ConditionsPreset> = {
@@ -108,17 +121,17 @@ function getConditionLabel(weatherCode?: number) {
   return "Current conditions";
 }
 
-function formatUpdatedText(value: string | Date) {
+function formatClockLabel(value: string | Date) {
   const date = typeof value === "string" ? new Date(value) : value;
 
   if (Number.isNaN(date.getTime())) {
-    return "Updated 6:42 AM";
+    return null;
   }
 
-  return `Updated ${date.toLocaleTimeString("en-US", {
+  return date.toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
-  })}`;
+  });
 }
 
 function degreesToCompass(degrees: number) {
@@ -210,6 +223,88 @@ function buildConditionsPreset(
     temperatureRoad: shiftSeries(base.temperatureRoad, tempDelta + 1),
     wind: shiftSeries(base.wind, windDelta, 0),
     precipitation: shiftSeries(base.precipitation, precipDelta, 0),
+  };
+}
+
+function buildConditionsViewModel(
+  range: RangeOption,
+  snapshot: ConditionsSnapshot,
+): ConditionsViewModel {
+  const preset = buildConditionsPreset(range, snapshot);
+  const updatedLabel = snapshot.sourceUpdatedLabel
+    ? `Updated ${snapshot.sourceUpdatedLabel}`
+    : snapshot.fallbackRefreshLabel
+      ? `Last refresh ${snapshot.fallbackRefreshLabel}`
+      : "Update time unavailable";
+
+  const summaryParts: string[] = [];
+
+  if (
+    snapshot.conditionLabel !== "Current conditions" &&
+    snapshot.conditionLabel !== "Weather unavailable"
+  ) {
+    summaryParts.push(`${snapshot.conditionLabel} now`);
+  }
+
+  if (snapshot.currentTempF !== null) {
+    summaryParts.push(`${Math.round(snapshot.currentTempF)}°F`);
+  }
+
+  if (snapshot.currentWindMph !== null) {
+    summaryParts.push(`wind ${Math.round(snapshot.currentWindMph)} mph`);
+  }
+
+  if (snapshot.currentPrecipProbability !== null) {
+    summaryParts.push(`precip prob ${Math.round(snapshot.currentPrecipProbability)}%`);
+  }
+
+  const summaryText =
+    summaryParts.length > 0
+      ? summaryParts.join(", ")
+      : "Current weather details are limited right now";
+
+  const takeawayText = (() => {
+    if (snapshot.currentTempF !== null && snapshot.currentTempF <= 32) {
+      return `Current temperature is ${Math.round(snapshot.currentTempF)}°F. Monitor temperature-sensitive work.`;
+    }
+
+    if (
+      snapshot.currentPrecipProbability !== null &&
+      snapshot.currentPrecipProbability >= 50
+    ) {
+      return `Precipitation probability is ${Math.round(snapshot.currentPrecipProbability)}%. Keep weather-sensitive work under watch.`;
+    }
+
+    if (
+      snapshot.conditionLabel.toLowerCase().includes("snow") ||
+      snapshot.conditionLabel.toLowerCase().includes("rain") ||
+      snapshot.conditionLabel.toLowerCase().includes("drizzle")
+    ) {
+      return `${snapshot.conditionLabel} is the main weather signal right now. Continue monitoring current conditions.`;
+    }
+
+    if (snapshot.currentWindMph !== null && snapshot.currentWindMph >= 25) {
+      return `Wind is running ${Math.round(snapshot.currentWindMph)} mph. Wind is the main watch item right now.`;
+    }
+
+    if (
+      snapshot.currentTempF !== null ||
+      snapshot.currentWindMph !== null ||
+      snapshot.currentPrecipProbability !== null
+    ) {
+      return "No immediate weather-driven action is indicated by current conditions.";
+    }
+
+    return preset.takeaway;
+  })();
+
+  return {
+    updatedLabel,
+    summaryText,
+    takeawayText,
+    windDirectionFooter: snapshot.fetchedWindDirection
+      ? `Direction: ${snapshot.fetchedWindDirection}`
+      : "Direction unavailable",
   };
 }
 
@@ -422,17 +517,20 @@ export default function ConditionsScreen() {
   const selectedLocation = useSelectedLocation();
 
   const [selectedRange, setSelectedRange] = useState<RangeOption>("24H");
-  const [updatedText, setUpdatedText] = useState("Updated 6:42 AM");
   const [conditionLabel, setConditionLabel] = useState("Clear");
   const [currentTempF, setCurrentTempF] = useState<number | null>(null);
   const [currentWindMph, setCurrentWindMph] = useState<number | null>(null);
   const [currentWindDirection, setCurrentWindDirection] = useState<string | null>(null);
   const [currentPrecipProbability, setCurrentPrecipProbability] = useState<number | null>(null);
+  const [sourceUpdatedLabel, setSourceUpdatedLabel] = useState<string | null>(null);
+  const [fallbackRefreshLabel, setFallbackRefreshLabel] = useState<string | null>(null);
 
   useEffect(() => {
     let isActive = true;
 
     async function loadCurrentWeather() {
+      const fallbackLabel = formatClockLabel(new Date());
+
       try {
         const result = await getSharedCurrentWeather(selectedLocation);
 
@@ -460,11 +558,24 @@ export default function ConditionsScreen() {
 
         if (typeof values.windDirection === "number") {
           setCurrentWindDirection(degreesToCompass(values.windDirection));
+        } else {
+          setCurrentWindDirection(null);
         }
 
-        setUpdatedText(formatUpdatedText(result.data.time ?? new Date()));
+        setSourceUpdatedLabel(
+          typeof result.data.time === "string"
+            ? formatClockLabel(result.data.time)
+            : null,
+        );
+        setFallbackRefreshLabel(fallbackLabel);
       } catch (error) {
         console.log("Conditions screen weather fetch failed:", error);
+        if (!isActive) {
+          return;
+        }
+
+        setSourceUpdatedLabel(null);
+        setFallbackRefreshLabel(fallbackLabel);
       }
     }
 
@@ -485,7 +596,28 @@ export default function ConditionsScreen() {
       }),
     [selectedRange, currentTempF, currentWindMph, currentPrecipProbability, conditionLabel],
   );
-  const windDirectionLabel = currentWindDirection ?? preset.windDirection;
+  const viewModel = useMemo(
+    () =>
+      buildConditionsViewModel(selectedRange, {
+        currentTempF,
+        currentWindMph,
+        currentPrecipProbability,
+        conditionLabel,
+        fetchedWindDirection: currentWindDirection,
+        sourceUpdatedLabel,
+        fallbackRefreshLabel,
+      }),
+    [
+      selectedRange,
+      currentTempF,
+      currentWindMph,
+      currentPrecipProbability,
+      conditionLabel,
+      currentWindDirection,
+      sourceUpdatedLabel,
+      fallbackRefreshLabel,
+    ],
+  );
 
   return (
     <SafeAreaView edges={["top"]} style={styles.safeArea}>
@@ -509,7 +641,7 @@ export default function ConditionsScreen() {
               <Ionicons name="settings-outline" size={22} color="#475569" />
             </Pressable>
           </View>
-          <Text style={styles.updatedText}>{updatedText}</Text>
+          <Text style={styles.updatedText}>{viewModel.updatedLabel}</Text>
         </View>
 
         <ScrollView
@@ -544,7 +676,7 @@ export default function ConditionsScreen() {
           </View>
 
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryText}>{preset.summary}</Text>
+            <Text style={styles.summaryText}>{viewModel.summaryText}</Text>
           </View>
 
           <ChartCard
@@ -571,7 +703,7 @@ export default function ConditionsScreen() {
 
           <ChartCard
             title="Wind"
-            footer={<Text style={styles.footerLabel}>Direction: {windDirectionLabel}</Text>}
+            footer={<Text style={styles.footerLabel}>{viewModel.windDirectionFooter}</Text>}
           >
             <ConditionsLineChart
               height={100}
@@ -593,7 +725,7 @@ export default function ConditionsScreen() {
 
           <View style={styles.takeawayCard}>
             <Text style={styles.takeawayTitle}>Operational Takeaway</Text>
-            <Text style={styles.takeawayText}>{preset.takeaway}</Text>
+            <Text style={styles.takeawayText}>{viewModel.takeawayText}</Text>
           </View>
         </ScrollView>
       </View>
