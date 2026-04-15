@@ -308,7 +308,61 @@ export async function setPropertyLocation(locationId: string) {
   await persistStateSafely("Failed to persist property location:");
   emitChange();
 }
+export async function updateSavedLocation(
+  locationId: string,
+  updates: Pick<
+    AppLocation,
+    "name" | "city" | "state" | "latitude" | "longitude"
+  >,
+) {
+  const index = savedLocations.findIndex(
+    (location) => location.id === locationId,
+  );
 
+  if (index === -1) {
+    throw new Error("Location not found.");
+  }
+
+  const duplicate = savedLocations.find(
+    (location) =>
+      location.id !== locationId &&
+      location.name.trim().toLowerCase() ===
+        updates.name.trim().toLowerCase() &&
+      location.city.trim().toLowerCase() ===
+        updates.city.trim().toLowerCase() &&
+      location.state.trim().toLowerCase() ===
+        updates.state.trim().toLowerCase(),
+  );
+
+  if (duplicate) {
+    throw new Error("That location is already saved.");
+  }
+
+  const nextLocation: AppLocation = {
+    ...savedLocations[index],
+    name: updates.name,
+    city: updates.city,
+    state: updates.state,
+    latitude: updates.latitude,
+    longitude: updates.longitude,
+  };
+
+  savedLocations = savedLocations.map((location) =>
+    location.id === locationId ? nextLocation : location,
+  );
+
+  if (activeLocation?.id === locationId) {
+    activeLocation = nextLocation;
+  }
+
+  repairIdsIfNeeded();
+  repairActiveLocationIfNeeded();
+
+  await persistStateSafely("Failed to persist updated location:");
+  emitChange();
+
+  return nextLocation;
+}
 export async function addSavedLocation(input: {
   name: string;
   city: string;

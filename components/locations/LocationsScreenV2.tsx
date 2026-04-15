@@ -13,6 +13,7 @@ type LocationsScreenV2Props = {
   cards: LocationCard[];
   onPressSettings: () => void;
   onPressAdd: () => void;
+  onPressCard: (locationId: string) => void;
   onPressDelete: (locationId: string) => void;
 };
 
@@ -20,6 +21,7 @@ export default function LocationsScreenV2({
   cards,
   onPressSettings,
   onPressAdd,
+  onPressCard,
   onPressDelete,
 }: LocationsScreenV2Props) {
   return (
@@ -65,7 +67,12 @@ export default function LocationsScreenV2({
         ) : (
           <View style={styles.cardStack}>
             {cards.map((card) => (
-              <View key={card.id} style={styles.card}>
+              <Pressable
+                key={card.id}
+                accessibilityRole="button"
+                onPress={() => onPressCard(card.id)}
+                style={styles.card}
+              >
                 <View style={styles.cardHeader}>
                   <View style={styles.cardTextBlock}>
                     <Text style={styles.cardTitle}>{card.title}</Text>
@@ -74,6 +81,7 @@ export default function LocationsScreenV2({
 
                   {card.canDelete ? (
                     <Pressable
+                      accessibilityRole="button"
                       style={styles.deleteButton}
                       onPress={() => onPressDelete(card.id)}
                     >
@@ -85,7 +93,7 @@ export default function LocationsScreenV2({
                     </Pressable>
                   ) : null}
                 </View>
-              </View>
+              </Pressable>
             ))}
           </View>
         )}

@@ -18,6 +18,7 @@ import {
   addSavedLocation,
   deleteSavedLocation,
   formatCityState,
+  updateSavedLocation,
   useSavedLocations,
 } from "../../data/locationStore";
 import {
@@ -25,7 +26,9 @@ import {
   type GeocodingResult,
 } from "../../services/geocoding";
 
-function buildLocationCards(savedLocations: ReturnType<typeof useSavedLocations>): LocationCard[] {
+function buildLocationCards(
+  savedLocations: ReturnType<typeof useSavedLocations>,
+): LocationCard[] {
   return savedLocations.map((location) => ({
     id: location.id,
     title: location.name,
@@ -57,18 +60,27 @@ function getSearchSummary(
 export default function LocationsScreenContainer() {
   const router = useRouter();
   const savedLocations = useSavedLocations();
-  const cards = useMemo(() => buildLocationCards(savedLocations), [savedLocations]);
+  const cards = useMemo(
+    () => buildLocationCards(savedLocations),
+    [savedLocations],
+  );
 
   const [addModalVisible, setAddModalVisible] = useState(false);
+  const [editingLocationId, setEditingLocationId] = useState<string | null>(
+    null,
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<GeocodingResult[]>([]);
-  const [selectedResult, setSelectedResult] = useState<GeocodingResult | null>(null);
+  const [selectedResult, setSelectedResult] = useState<GeocodingResult | null>(
+    null,
+  );
   const [customLabel, setCustomLabel] = useState("");
   const [searching, setSearching] = useState(false);
   const [saving, setSaving] = useState(false);
   const [searchMessage, setSearchMessage] = useState<string | null>(null);
 
   function resetAddFlow() {
+    setEditingLocationId(null);
     setSearchQuery("");
     setSearchResults([]);
     setSelectedResult(null);
@@ -80,6 +92,32 @@ export default function LocationsScreenContainer() {
 
   function handlePressAdd() {
     resetAddFlow();
+    setAddModalVisible(true);
+  }
+
+  function handlePressCard(locationId: string) {
+    const location = savedLocations.find((item) => item.id === locationId);
+
+    if (!location) {
+      return;
+    }
+
+    setEditingLocationId(location.id);
+    setSearchQuery(`${location.city}, ${location.state}`);
+    setSearchResults([]);
+    setSelectedResult({
+      id: location.id,
+      name: location.name,
+      city: location.city,
+      state: location.state,
+      country: "US",
+      latitude: location.latitude,
+      longitude: location.longitude,
+    });
+    setCustomLabel(location.name);
+    setSearching(false);
+    setSaving(false);
+    setSearchMessage("Update the label or search for a replacement place.");
     setAddModalVisible(true);
   }
 
@@ -113,7 +151,9 @@ export default function LocationsScreenContainer() {
     } catch (error: any) {
       setSearchResults([]);
       setSelectedResult(null);
-      setSearchMessage(error?.message ?? "Location search is temporarily unavailable.");
+      setSearchMessage(
+        error?.message ?? "Location search is temporarily unavailable.",
+      );
     } finally {
       setSearching(false);
     }
@@ -141,13 +181,23 @@ export default function LocationsScreenContainer() {
     setSaving(true);
 
     try {
-      await addSavedLocation({
-        name: trimmedLabel,
-        city: selectedResult.city,
-        state: selectedResult.state,
-        latitude: selectedResult.latitude,
-        longitude: selectedResult.longitude,
-      });
+      if (editingLocationId) {
+        await updateSavedLocation(editingLocationId, {
+          name: trimmedLabel,
+          city: selectedResult.city,
+          state: selectedResult.state,
+          latitude: selectedResult.latitude,
+          longitude: selectedResult.longitude,
+        });
+      } else {
+        await addSavedLocation({
+          name: trimmedLabel,
+          city: selectedResult.city,
+          state: selectedResult.state,
+          latitude: selectedResult.latitude,
+          longitude: selectedResult.longitude,
+        });
+      }
 
       handleCloseAdd();
     } catch (error: any) {
@@ -196,6 +246,7 @@ export default function LocationsScreenContainer() {
         cards={cards}
         onPressSettings={() => router.push("/settings")}
         onPressAdd={handlePressAdd}
+        onPressCard={handlePressCard}
         onPressDelete={handleDelete}
       />
 
@@ -210,13 +261,20 @@ export default function LocationsScreenContainer() {
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderText}>
-                <Text style={styles.modalTitle}>Add Location</Text>
+                <Text style={styles.modalTitle}>
+                  {editingLocationId ? "Edit Location" : "Add Location"}
+                </Text>
                 <Text style={styles.modalSubtitle}>
-                  Search for a place, then save it using your own label.
+                  {editingLocationId
+                    ? "Update the saved label or choose a different place to replace it."
+                    : "Search for a place, then save it using your own label."}
                 </Text>
               </View>
 
-              <Pressable style={styles.modalCloseButton} onPress={handleCloseAdd}>
+              <Pressable
+                style={styles.modalCloseButton}
+                onPress={handleCloseAdd}
+              >
                 <Text style={styles.modalCloseButtonText}>Close</Text>
               </Pressable>
             </View>
@@ -251,7 +309,11 @@ export default function LocationsScreenContainer() {
                 </View>
 
                 <Text style={styles.helperText}>
-                  {getSearchSummary(searchQuery, selectedResult, searchResults.length)}
+                  {getSearchSummary(
+                    searchQuery,
+                    selectedResult,
+                    searchResults.length,
+                  )}
                 </Text>
 
                 {searchMessage ? (
@@ -277,14 +339,18 @@ export default function LocationsScreenContainer() {
                           ]}
                         >
                           <View style={styles.resultTextBlock}>
-                            <Text style={styles.resultTitle}>{result.name}</Text>
+                            <Text style={styles.resultTitle}>
+                              {result.name}
+                            </Text>
                             <Text style={styles.resultSubtitle}>
                               {result.city}, {result.state}
                             </Text>
                           </View>
 
                           {selected ? (
-                            <Text style={styles.resultSelectedText}>Selected</Text>
+                            <Text style={styles.resultSelectedText}>
+                              Selected
+                            </Text>
                           ) : null}
                         </Pressable>
                       );
@@ -305,7 +371,8 @@ export default function LocationsScreenContainer() {
                   value={customLabel}
                 />
                 <Text style={styles.helperText}>
-                  This label is what the app will show in Home, Road, Conditions, and Alerts.
+                  This label is what the app will show in Home, Road,
+                  Conditions, and Alerts.
                 </Text>
               </View>
             </ScrollView>
@@ -323,7 +390,9 @@ export default function LocationsScreenContainer() {
                 {saving ? (
                   <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
-                  <Text style={styles.saveButtonText}>Save location</Text>
+                  <Text style={styles.saveButtonText}>
+                    {editingLocationId ? "Save changes" : "Save location"}
+                  </Text>
                 )}
               </Pressable>
             </View>
