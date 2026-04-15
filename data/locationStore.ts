@@ -1,5 +1,5 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useSyncExternalStore } from 'react';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useSyncExternalStore } from "react";
 
 export type AppLocation = {
   id: string;
@@ -17,30 +17,30 @@ type PersistedLocationState = {
   propertyLocationId: string | null;
 };
 
-const STORAGE_KEY = 'weather-app-location-store-v2';
+const STORAGE_KEY = "weather-app-location-store-v2";
 
 const LEGACY_SEEDED_LOCATIONS: AppLocation[] = [
   {
-    id: 'home-nursery',
-    name: 'Home Nursery',
-    city: 'Wheatland',
-    state: 'WY',
+    id: "home-nursery",
+    name: "Home Nursery",
+    city: "Wheatland",
+    state: "WY",
     latitude: 42.0544,
     longitude: -104.9527,
   },
   {
-    id: 'cheyenne',
-    name: 'Cheyenne',
-    city: 'Cheyenne',
-    state: 'WY',
+    id: "cheyenne",
+    name: "Cheyenne",
+    city: "Cheyenne",
+    state: "WY",
     latitude: 41.14,
     longitude: -104.8202,
   },
   {
-    id: 'casper',
-    name: 'Casper',
-    city: 'Casper',
-    state: 'WY',
+    id: "casper",
+    name: "Casper",
+    city: "Casper",
+    state: "WY",
     latitude: 42.8501,
     longitude: -106.3252,
   },
@@ -86,6 +86,24 @@ function getFirstSavedLocation() {
   return savedLocations[0] ?? null;
 }
 
+function getEffectiveActiveLocation() {
+  if (activeLocation) {
+    const matchingSavedLocation = getLocationById(activeLocation.id);
+
+    if (matchingSavedLocation) {
+      return matchingSavedLocation;
+    }
+  }
+
+  const defaultLocation = getLocationById(defaultLocationId);
+
+  if (defaultLocation) {
+    return defaultLocation;
+  }
+
+  return getFirstSavedLocation();
+}
+
 function repairIdsIfNeeded() {
   if (
     defaultLocationId &&
@@ -102,20 +120,24 @@ function repairIdsIfNeeded() {
   }
 }
 
+function repairActiveLocationIfNeeded() {
+  activeLocation = getEffectiveActiveLocation();
+}
+
 function isValidAppLocation(value: unknown): value is AppLocation {
-  if (!value || typeof value !== 'object') {
+  if (!value || typeof value !== "object") {
     return false;
   }
 
   const candidate = value as Partial<AppLocation>;
 
   return (
-    typeof candidate.id === 'string' &&
-    typeof candidate.name === 'string' &&
-    typeof candidate.city === 'string' &&
-    typeof candidate.state === 'string' &&
-    typeof candidate.latitude === 'number' &&
-    typeof candidate.longitude === 'number'
+    typeof candidate.id === "string" &&
+    typeof candidate.name === "string" &&
+    typeof candidate.city === "string" &&
+    typeof candidate.state === "string" &&
+    typeof candidate.latitude === "number" &&
+    typeof candidate.longitude === "number"
   );
 }
 
@@ -136,7 +158,9 @@ function isLegacySeededLocation(location: AppLocation, index: number) {
 function isLegacySeededState(locations: AppLocation[]) {
   return (
     locations.length === LEGACY_SEEDED_LOCATIONS.length &&
-    locations.every((location, index) => isLegacySeededLocation(location, index))
+    locations.every((location, index) =>
+      isLegacySeededLocation(location, index),
+    )
   );
 }
 
@@ -149,6 +173,14 @@ async function persistState() {
   };
 
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+}
+
+async function persistStateSafely(errorMessage: string) {
+  try {
+    await persistState();
+  } catch (error) {
+    console.log(errorMessage, error);
+  }
 }
 
 async function loadPersistedState() {
@@ -167,38 +199,44 @@ async function loadPersistedState() {
       const parsed = JSON.parse(rawValue) as Partial<PersistedLocationState>;
 
       if (Array.isArray(parsed.savedLocations)) {
-        if (isLegacySeededState(parsed.savedLocations)) {
+        const validSavedLocations =
+          parsed.savedLocations.filter(isValidAppLocation);
+
+        if (isLegacySeededState(validSavedLocations)) {
           activeLocation = null;
           savedLocations = [];
           defaultLocationId = null;
           propertyLocationId = null;
         } else {
-          savedLocations = parsed.savedLocations;
+          savedLocations = validSavedLocations;
           activeLocation = isValidAppLocation(parsed.activeLocation)
             ? parsed.activeLocation
             : (() => {
                 const legacySelectedLocationId =
-                  typeof (parsed as { selectedLocationId?: unknown }).selectedLocationId === 'string'
-                    ? ((parsed as { selectedLocationId?: string }).selectedLocationId ?? null)
+                  typeof (parsed as { selectedLocationId?: unknown })
+                    .selectedLocationId === "string"
+                    ? ((parsed as { selectedLocationId?: string })
+                        .selectedLocationId ?? null)
                     : null;
 
                 return getLocationById(legacySelectedLocationId);
               })();
           defaultLocationId =
-            typeof parsed.defaultLocationId === 'string'
+            typeof parsed.defaultLocationId === "string"
               ? parsed.defaultLocationId
               : null;
           propertyLocationId =
-            typeof parsed.propertyLocationId === 'string'
+            typeof parsed.propertyLocationId === "string"
               ? parsed.propertyLocationId
               : null;
         }
 
         repairIdsIfNeeded();
+        repairActiveLocationIfNeeded();
         emitChange();
       }
     } catch (error) {
-      console.log('Failed to load saved locations:', error);
+      console.log("Failed to load saved locations:", error);
     }
   })();
 
@@ -213,6 +251,7 @@ export function getSavedLocations() {
 
 export function getSelectedLocation() {
   repairIdsIfNeeded();
+  repairActiveLocationIfNeeded();
   return activeLocation;
 }
 
@@ -227,16 +266,18 @@ export function getPropertyLocation() {
 }
 
 export async function setSelectedLocation(location: AppLocation) {
-  activeLocation = location;
+  const matchingSavedLocation = getLocationById(location.id);
 
-  repairIdsIfNeeded();
-
-  try {
-    await persistState();
-  } catch (error) {
-    console.log('Failed to persist selected location:', error);
+  if (!matchingSavedLocation) {
+    return;
   }
 
+  activeLocation = matchingSavedLocation;
+
+  repairIdsIfNeeded();
+  repairActiveLocationIfNeeded();
+
+  await persistStateSafely("Failed to persist selected location:");
   emitChange();
 }
 
@@ -250,12 +291,7 @@ export async function setDefaultLocation(locationId: string) {
   defaultLocationId = locationId;
   repairIdsIfNeeded();
 
-  try {
-    await persistState();
-  } catch (error) {
-    console.log('Failed to persist default location:', error);
-  }
-
+  await persistStateSafely("Failed to persist default location:");
   emitChange();
 }
 
@@ -269,12 +305,7 @@ export async function setPropertyLocation(locationId: string) {
   propertyLocationId = locationId;
   repairIdsIfNeeded();
 
-  try {
-    await persistState();
-  } catch (error) {
-    console.log('Failed to persist property location:', error);
-  }
-
+  await persistStateSafely("Failed to persist property location:");
   emitChange();
 }
 
@@ -308,24 +339,26 @@ export async function addSavedLocation(input: {
     propertyLocationId = newLocation.id;
   }
 
-  try {
-    await persistState();
-  } catch (error) {
-    console.log('Failed to persist new saved location:', error);
-  }
+  repairActiveLocationIfNeeded();
+
+  await persistStateSafely("Failed to persist new saved location:");
 
   emitChange();
   return newLocation;
 }
 
 export async function deleteSavedLocation(locationId: string) {
-  const locationToDelete = savedLocations.find((location) => location.id === locationId);
+  const locationToDelete = savedLocations.find(
+    (location) => location.id === locationId,
+  );
 
   if (!locationToDelete) {
     return;
   }
 
-  savedLocations = savedLocations.filter((location) => location.id !== locationId);
+  savedLocations = savedLocations.filter(
+    (location) => location.id !== locationId,
+  );
   const nextFallbackLocation = getFirstSavedLocation();
 
   if (defaultLocationId === locationId) {
@@ -337,12 +370,9 @@ export async function deleteSavedLocation(locationId: string) {
   }
 
   repairIdsIfNeeded();
+  repairActiveLocationIfNeeded();
 
-  try {
-    await persistState();
-  } catch (error) {
-    console.log('Failed to persist deleted location:', error);
-  }
+  await persistStateSafely("Failed to persist deleted location:");
 
   emitChange();
 }
