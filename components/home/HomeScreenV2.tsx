@@ -55,6 +55,8 @@ type HomeScreenV2Props = {
   monitoredLocationCard: HomeLocationCard;
   onPressSettings: () => void;
   onPressSwitchLocation: () => void;
+  onPressStatusAction: () => void;
+  onPressMonitoredLocation: () => void;
   onPressPrimaryAction: () => void;
   onPressSecondaryAction: () => void;
 };
@@ -98,6 +100,8 @@ export default function HomeScreenV2({
   monitoredLocationCard,
   onPressSettings,
   onPressSwitchLocation,
+  onPressStatusAction,
+  onPressMonitoredLocation,
   onPressPrimaryAction,
   onPressSecondaryAction,
 }: HomeScreenV2Props) {
@@ -145,9 +149,12 @@ export default function HomeScreenV2({
               </Text>
             </View>
 
-            <View style={styles.darkChip}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onPressStatusAction}
+              style={styles.darkChip}>
               <Text style={styles.darkChipText}>{statusBanner.actionLabel}</Text>
-            </View>
+            </Pressable>
           </View>
         </View>
 
@@ -191,10 +198,13 @@ export default function HomeScreenV2({
           <Text style={styles.sectionHeading}>Monitored locations</Text>
 
           <View style={styles.locationCard}>
-            <View style={styles.locationCardHeader}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onPressMonitoredLocation}
+              style={styles.locationCardHeader}>
               <Text style={styles.locationCardTitle}>{monitoredLocationCard.title}</Text>
               <Ionicons name="arrow-forward-outline" size={20} color="#3B82F6" />
-            </View>
+            </Pressable>
 
             <View style={styles.bulletsList}>
               {monitoredLocationCard.bullets.map((bullet) => (

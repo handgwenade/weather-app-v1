@@ -11,8 +11,8 @@ export type AppLocation = {
 };
 
 type PersistedLocationState = {
+  activeLocation: AppLocation | null;
   savedLocations: AppLocation[];
-  selectedLocationId: string | null;
   defaultLocationId: string | null;
   propertyLocationId: string | null;
 };
@@ -47,7 +47,7 @@ const LEGACY_SEEDED_LOCATIONS: AppLocation[] = [
 ];
 
 let savedLocations: AppLocation[] = [];
-let selectedLocationId: string | null = null;
+let activeLocation: AppLocation | null = null;
 let defaultLocationId: string | null = null;
 let propertyLocationId: string | null = null;
 let persistedStateLoadPromise: Promise<void> | null = null;
@@ -88,13 +88,6 @@ function getFirstSavedLocation() {
 
 function repairIdsIfNeeded() {
   if (
-    selectedLocationId &&
-    !savedLocations.some((location) => location.id === selectedLocationId)
-  ) {
-    selectedLocationId = null;
-  }
-
-  if (
     defaultLocationId &&
     !savedLocations.some((location) => location.id === defaultLocationId)
   ) {
@@ -107,6 +100,23 @@ function repairIdsIfNeeded() {
   ) {
     propertyLocationId = null;
   }
+}
+
+function isValidAppLocation(value: unknown): value is AppLocation {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Partial<AppLocation>;
+
+  return (
+    typeof candidate.id === 'string' &&
+    typeof candidate.name === 'string' &&
+    typeof candidate.city === 'string' &&
+    typeof candidate.state === 'string' &&
+    typeof candidate.latitude === 'number' &&
+    typeof candidate.longitude === 'number'
+  );
 }
 
 function isLegacySeededLocation(location: AppLocation, index: number) {
@@ -132,8 +142,8 @@ function isLegacySeededState(locations: AppLocation[]) {
 
 async function persistState() {
   const payload: PersistedLocationState = {
+    activeLocation,
     savedLocations,
-    selectedLocationId,
     defaultLocationId,
     propertyLocationId,
   };
@@ -158,16 +168,22 @@ async function loadPersistedState() {
 
       if (Array.isArray(parsed.savedLocations)) {
         if (isLegacySeededState(parsed.savedLocations)) {
+          activeLocation = null;
           savedLocations = [];
-          selectedLocationId = null;
           defaultLocationId = null;
           propertyLocationId = null;
         } else {
           savedLocations = parsed.savedLocations;
-          selectedLocationId =
-            typeof parsed.selectedLocationId === 'string'
-              ? parsed.selectedLocationId
-              : null;
+          activeLocation = isValidAppLocation(parsed.activeLocation)
+            ? parsed.activeLocation
+            : (() => {
+                const legacySelectedLocationId =
+                  typeof (parsed as { selectedLocationId?: unknown }).selectedLocationId === 'string'
+                    ? ((parsed as { selectedLocationId?: string }).selectedLocationId ?? null)
+                    : null;
+
+                return getLocationById(legacySelectedLocationId);
+              })();
           defaultLocationId =
             typeof parsed.defaultLocationId === 'string'
               ? parsed.defaultLocationId
@@ -197,7 +213,7 @@ export function getSavedLocations() {
 
 export function getSelectedLocation() {
   repairIdsIfNeeded();
-  return getLocationById(selectedLocationId);
+  return activeLocation;
 }
 
 export function getDefaultLocation() {
@@ -211,21 +227,7 @@ export function getPropertyLocation() {
 }
 
 export async function setSelectedLocation(location: AppLocation) {
-  const exists = savedLocations.some((item) => item.id === location.id);
-
-  if (!exists) {
-    savedLocations = [...savedLocations, location];
-  }
-
-  selectedLocationId = location.id;
-
-  if (!defaultLocationId) {
-    defaultLocationId = location.id;
-  }
-
-  if (!propertyLocationId) {
-    propertyLocationId = location.id;
-  }
+  activeLocation = location;
 
   repairIdsIfNeeded();
 
@@ -294,8 +296,8 @@ export async function addSavedLocation(input: {
 
   savedLocations = [...savedLocations, newLocation];
 
-  if (!selectedLocationId) {
-    selectedLocationId = newLocation.id;
+  if (!activeLocation) {
+    activeLocation = newLocation;
   }
 
   if (!defaultLocationId) {
@@ -325,10 +327,6 @@ export async function deleteSavedLocation(locationId: string) {
 
   savedLocations = savedLocations.filter((location) => location.id !== locationId);
   const nextFallbackLocation = getFirstSavedLocation();
-
-  if (selectedLocationId === locationId) {
-    selectedLocationId = nextFallbackLocation?.id ?? null;
-  }
 
   if (defaultLocationId === locationId) {
     defaultLocationId = nextFallbackLocation?.id ?? null;

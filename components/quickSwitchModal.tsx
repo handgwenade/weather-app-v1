@@ -6,7 +6,7 @@ type QuickSwitchModalProps = {
   visible: boolean;
   title: string;
   subtitle: string;
-  currentLocationId: string;
+  currentLocationId: string | null;
   savedLocations: AppLocation[];
   onClose: () => void;
   onSelectLocation: (locationId: string) => void | Promise<void>;

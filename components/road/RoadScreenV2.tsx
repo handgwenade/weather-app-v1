@@ -1,8 +1,10 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export type RoadTone = "good" | "caution" | "high" | "neutral";
+export type RoadActionDestination = "details" | "alerts" | "conditions";
 
 export type RoadMetric = {
   id: string;
@@ -34,6 +36,8 @@ type RoadScreenV2Props = {
   statusLabel: string;
   statusTone: RoadTone;
   actionLabel: string;
+  actionDestination: RoadActionDestination;
+  onPressAction: () => void;
   recommendationText: string;
   currentConditions: RoadMetric[];
   riskLevelLabel: string;
@@ -83,6 +87,8 @@ export default function RoadScreenV2({
   statusLabel,
   statusTone,
   actionLabel,
+  actionDestination,
+  onPressAction,
   recommendationText,
   currentConditions,
   riskLevelLabel,
@@ -91,6 +97,20 @@ export default function RoadScreenV2({
   outlookItems,
 }: RoadScreenV2Props) {
   const statusChipStyle = getStatusChipStyle(statusTone);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const [detailsSectionY, setDetailsSectionY] = useState(0);
+
+  function handleActionPress() {
+    if (actionDestination === "details") {
+      scrollViewRef.current?.scrollTo({
+        y: Math.max(detailsSectionY - 16, 0),
+        animated: true,
+      });
+      return;
+    }
+
+    onPressAction();
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -112,6 +132,7 @@ export default function RoadScreenV2({
       </View>
 
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
@@ -156,9 +177,13 @@ export default function RoadScreenV2({
               </Text>
             </View>
 
-            <View style={styles.actionChip}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={handleActionPress}
+              style={styles.actionChip}
+            >
               <Text style={styles.actionChipText}>{actionLabel}</Text>
-            </View>
+            </Pressable>
           </View>
         </View>
 
@@ -167,7 +192,12 @@ export default function RoadScreenV2({
           <Text style={styles.recommendationText}>{recommendationText}</Text>
         </View>
 
-        <View style={styles.conditionsCard}>
+        <View
+          style={styles.conditionsCard}
+          onLayout={(event) => {
+            setDetailsSectionY(event.nativeEvent.layout.y);
+          }}
+        >
           <Text style={styles.cardTitle}>Current Road Conditions</Text>
 
           <View style={styles.conditionsGrid}>
@@ -196,9 +226,13 @@ export default function RoadScreenV2({
             </View>
 
             <View style={styles.riskFooter}>
-              <View style={styles.actionChip}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={handleActionPress}
+                style={styles.actionChip}
+              >
                 <Text style={styles.actionChipText}>{actionLabel}</Text>
-              </View>
+              </Pressable>
 
               <Text style={styles.confidenceText}>{confidenceLabel}</Text>
             </View>

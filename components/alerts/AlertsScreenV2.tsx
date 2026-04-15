@@ -99,7 +99,12 @@ export default function AlertsScreenV2({
                         },
                       ]}
                     >
-                      <Text style={[styles.badgeText, { color: badgeStyle.textColor }]}>
+                      <Text
+                        style={[
+                          styles.badgeText,
+                          { color: badgeStyle.textColor },
+                        ]}
+                      >
                         {alert.badgeLabel}
                       </Text>
                     </View>
@@ -107,12 +112,6 @@ export default function AlertsScreenV2({
                     <Text style={styles.alertTitle}>{alert.title}</Text>
                     <Text style={styles.alertArea}>{alert.area}</Text>
                   </View>
-
-                  <Ionicons
-                    name="chevron-down-outline"
-                    size={20}
-                    color="#94A3B8"
-                  />
                 </View>
 
                 <View style={styles.timeRow}>
@@ -215,9 +214,7 @@ const styles = StyleSheet.create({
   },
   alertCardHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "flex-start",
-    gap: 12,
   },
   alertCopy: {
     flex: 1,
