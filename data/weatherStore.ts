@@ -1,5 +1,12 @@
-import type { AppLocation } from './locationStore';
-import { getCurrentWeather, getDailyForecast, getHourlyForecast } from '../services/tomorrow';
+import type { AppLocation } from "@/data/locationStore";
+import {
+  getCurrentWeather,
+  getDailyForecast,
+  getHourlyForecast,
+  type TomorrowDailyForecastResponse,
+  type TomorrowHourlyForecastResponse,
+  type TomorrowRealtimeResponse,
+} from "@/services/tomorrow";
 
 type WeatherCacheEntry<T> = {
   cacheKey: string;
@@ -11,9 +18,12 @@ const CURRENT_WEATHER_TTL_MS = 5 * 60 * 1000;
 const HOURLY_FORECAST_TTL_MS = 15 * 60 * 1000;
 const DAILY_FORECAST_TTL_MS = 30 * 60 * 1000;
 
-let cachedCurrentWeather: WeatherCacheEntry<any> | null = null;
-let cachedHourlyForecast: WeatherCacheEntry<any> | null = null;
-let cachedForecast: WeatherCacheEntry<any> | null = null;
+let cachedCurrentWeather: WeatherCacheEntry<TomorrowRealtimeResponse> | null =
+  null;
+let cachedHourlyForecast: WeatherCacheEntry<TomorrowHourlyForecastResponse> | null =
+  null;
+let cachedDailyForecast: WeatherCacheEntry<TomorrowDailyForecastResponse> | null =
+  null;
 
 function getLocationCacheKey(location: AppLocation) {
   return `${location.latitude},${location.longitude}`;
@@ -43,7 +53,9 @@ function buildCacheEntry<T>(cacheKey: string, data: T): WeatherCacheEntry<T> {
   };
 }
 
-export async function getSharedCurrentWeather(location: AppLocation) {
+export async function getSharedCurrentWeather(
+  location: AppLocation,
+): Promise<TomorrowRealtimeResponse> {
   const cacheKey = getLocationCacheKey(location);
   const cachedData = getFreshCachedData(
     cachedCurrentWeather,
@@ -61,7 +73,9 @@ export async function getSharedCurrentWeather(location: AppLocation) {
   return data;
 }
 
-export async function getSharedHourlyForecast(location: AppLocation) {
+export async function getSharedHourlyForecast(
+  location: AppLocation,
+): Promise<TomorrowHourlyForecastResponse> {
   const cacheKey = getLocationCacheKey(location);
   const cachedData = getFreshCachedData(
     cachedHourlyForecast,
@@ -79,10 +93,12 @@ export async function getSharedHourlyForecast(location: AppLocation) {
   return data;
 }
 
-export async function getSharedForecast(location: AppLocation) {
+export async function getSharedForecast(
+  location: AppLocation,
+): Promise<TomorrowDailyForecastResponse> {
   const cacheKey = getLocationCacheKey(location);
   const cachedData = getFreshCachedData(
-    cachedForecast,
+    cachedDailyForecast,
     cacheKey,
     DAILY_FORECAST_TTL_MS,
   );
@@ -92,7 +108,7 @@ export async function getSharedForecast(location: AppLocation) {
   }
 
   const data = await getDailyForecast(location);
-  cachedForecast = buildCacheEntry(cacheKey, data);
+  cachedDailyForecast = buildCacheEntry(cacheKey, data);
 
   return data;
 }
@@ -100,5 +116,5 @@ export async function getSharedForecast(location: AppLocation) {
 export function clearWeatherCache() {
   cachedCurrentWeather = null;
   cachedHourlyForecast = null;
-  cachedForecast = null;
+  cachedDailyForecast = null;
 }

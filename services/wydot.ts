@@ -1,4 +1,4 @@
-import type { AppLocation } from "../data/locationStore";
+import type { AppLocation } from "@/data/locationStore";
 
 export type WydotRouteSegment = {
   routeCode: string;
@@ -44,24 +44,17 @@ type WydotLocationMapping = {
   lookupKeys: string[];
 };
 
+type WydotHtmlCacheEntry = {
+  html: string;
+  fetchedAtMs: number;
+};
+
 const ROUTE_CACHE_TTL_MS = 10 * 60 * 1000;
 const STATION_CACHE_TTL_MS = 10 * 60 * 1000;
 
-const routePageCache = new Map<
-  string,
-  {
-    html: string;
-    fetchedAtMs: number;
-  }
->();
+const routePageCache = new Map<string, WydotHtmlCacheEntry>();
 
-const stationPageCache = new Map<
-  string,
-  {
-    html: string;
-    fetchedAtMs: number;
-  }
->();
+const stationPageCache = new Map<string, WydotHtmlCacheEntry>();
 
 const COORDINATE_MATCH_MAX_DISTANCE_MILES = 45;
 
@@ -591,18 +584,7 @@ function getWydotLocationMapping(
   );
 }
 
-async function fetchHtmlWithCache(
-  cacheKey: string,
-  cache: Map<string, { html: string; fetchedAtMs: number }>,
-  ttlMs: number,
-  url: string,
-) {
-  const existing = cache.get(cacheKey);
-
-  if (existing && Date.now() - existing.fetchedAtMs < ttlMs) {
-    return existing.html;
-  }
-
+async function fetchWydotHtml(url: string) {
   const response = await fetch(url, {
     headers: {
       Accept: "text/html,application/xhtml+xml",
@@ -614,7 +596,22 @@ async function fetchHtmlWithCache(
     throw new Error(`Failed to fetch WYDOT HTML: ${response.status}`);
   }
 
-  const html = await response.text();
+  return response.text();
+}
+
+async function fetchHtmlWithCache(
+  cacheKey: string,
+  cache: Map<string, WydotHtmlCacheEntry>,
+  ttlMs: number,
+  url: string,
+) {
+  const existing = cache.get(cacheKey);
+
+  if (existing && Date.now() - existing.fetchedAtMs < ttlMs) {
+    return existing.html;
+  }
+
+  const html = await fetchWydotHtml(url);
 
   cache.set(cacheKey, {
     html,

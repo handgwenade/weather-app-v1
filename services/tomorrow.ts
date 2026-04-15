@@ -1,6 +1,41 @@
-import type { AppLocation } from '../data/locationStore';
+import type { AppLocation } from "@/data/locationStore";
 
 const apiKey = process.env.EXPO_PUBLIC_TOMORROW_API_KEY;
+
+type TomorrowRealtimeValues = {
+  temperature?: number;
+  weatherCode?: number;
+  windSpeed?: number;
+  windDirection?: number;
+  windGust?: number;
+  precipitationProbability?: number;
+  humidity?: number;
+  visibility?: number;
+  temperatureApparent?: number;
+};
+
+export type TomorrowRealtimeResponse = {
+  data: {
+    time?: string;
+    values: TomorrowRealtimeValues;
+  };
+};
+
+export type TomorrowDailyForecastEntry = {
+  time: string;
+  values: {
+    temperatureMax?: number;
+    temperatureMin?: number;
+    weatherCodeMax?: number;
+    precipitationProbabilityAvg?: number;
+  };
+};
+
+export type TomorrowDailyForecastResponse = {
+  timelines?: {
+    daily?: TomorrowDailyForecastEntry[];
+  };
+};
 
 export type TomorrowHourlyForecastEntry = {
   time: string;
@@ -21,68 +56,69 @@ export type TomorrowHourlyForecastResponse = {
   };
 };
 
+function assertApiKey() {
+  if (!apiKey) {
+    throw new Error("Missing EXPO_PUBLIC_TOMORROW_API_KEY");
+  }
+
+  return apiKey;
+}
+
 function getLocationQuery(location: AppLocation) {
   return `${location.latitude},${location.longitude}`;
 }
 
-export async function getCurrentWeather(location: AppLocation) {
-  if (!apiKey) {
-    throw new Error('Missing EXPO_PUBLIC_TOMORROW_API_KEY');
-  }
-
+function buildTomorrowUrl(location: AppLocation, timesteps?: "1h" | "1d") {
+  const key = assertApiKey();
   const locationQuery = getLocationQuery(location);
+  const baseUrl = "https://api.tomorrow.io/v4/weather";
 
-  const url =
-    `https://api.tomorrow.io/v4/weather/realtime?location=${locationQuery}&apikey=${apiKey}`;
-
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch current weather data: ${response.status}`);
+  if (!timesteps) {
+    return `${baseUrl}/realtime?location=${locationQuery}&apikey=${key}`;
   }
 
-  const data = await response.json();
-  return data;
+  return `${baseUrl}/forecast?location=${locationQuery}&timesteps=${timesteps}&apikey=${key}`;
 }
 
-export async function getDailyForecast(location: AppLocation) {
-  if (!apiKey) {
-    throw new Error('Missing EXPO_PUBLIC_TOMORROW_API_KEY');
-  }
-
-  const locationQuery = getLocationQuery(location);
-
-  const url =
-    `https://api.tomorrow.io/v4/weather/forecast?location=${locationQuery}&timesteps=1d&apikey=${apiKey}`;
-
+async function fetchTomorrowJson<T>(
+  url: string,
+  errorLabel: string,
+): Promise<T> {
   const response = await fetch(url);
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch daily forecast data: ${response.status}`);
+    throw new Error(`${errorLabel}: ${response.status}`);
   }
 
-  const data = await response.json();
-  return data;
+  return (await response.json()) as T;
+}
+
+export async function getCurrentWeather(
+  location: AppLocation,
+): Promise<TomorrowRealtimeResponse> {
+  const url = buildTomorrowUrl(location);
+  return fetchTomorrowJson<TomorrowRealtimeResponse>(
+    url,
+    "Failed to fetch current weather data",
+  );
+}
+
+export async function getDailyForecast(
+  location: AppLocation,
+): Promise<TomorrowDailyForecastResponse> {
+  const url = buildTomorrowUrl(location, "1d");
+  return fetchTomorrowJson<TomorrowDailyForecastResponse>(
+    url,
+    "Failed to fetch daily forecast data",
+  );
 }
 
 export async function getHourlyForecast(
   location: AppLocation,
 ): Promise<TomorrowHourlyForecastResponse> {
-  if (!apiKey) {
-    throw new Error('Missing EXPO_PUBLIC_TOMORROW_API_KEY');
-  }
-
-  const locationQuery = getLocationQuery(location);
-
-  const url =
-    `https://api.tomorrow.io/v4/weather/forecast?location=${locationQuery}&timesteps=1h&apikey=${apiKey}`;
-
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch hourly forecast data: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return data;
+  const url = buildTomorrowUrl(location, "1h");
+  return fetchTomorrowJson<TomorrowHourlyForecastResponse>(
+    url,
+    "Failed to fetch hourly forecast data",
+  );
 }

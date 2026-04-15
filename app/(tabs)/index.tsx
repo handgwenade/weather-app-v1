@@ -551,11 +551,18 @@ function useHomeScreenData(
 
       if (currentResult.status === "fulfilled") {
         const values = currentResult.value.data.values;
-        const temperatureF = celsiusToFahrenheit(values.temperature);
-        const windSpeedMph = metersPerSecondToMph(values.windSpeed);
-        const precipProbability = Math.round(
-          values.precipitationProbability ?? 0,
-        );
+        const temperatureF =
+          typeof values.temperature === "number"
+            ? celsiusToFahrenheit(values.temperature)
+            : null;
+        const windSpeedMph =
+          typeof values.windSpeed === "number"
+            ? metersPerSecondToMph(values.windSpeed)
+            : null;
+        const precipProbability =
+          typeof values.precipitationProbability === "number"
+            ? Math.round(values.precipitationProbability)
+            : null;
         const weatherCode = values.weatherCode;
         const sourceTimestamp =
           typeof currentResult.value.data.time === "string"
@@ -566,7 +573,7 @@ function useHomeScreenData(
           : formatClockLabel(new Date());
 
         setCurrentWeather({
-          hasWeatherData: true,
+          hasWeatherData: temperatureF !== null || windSpeedMph !== null,
           temperatureF,
           windSpeedMph,
           precipProbability,
@@ -598,10 +605,13 @@ function useHomeScreenData(
         propertyResult.status === "fulfilled" &&
         propertyResult.value
       ) {
-        const firstDay = propertyResult.value.timelines.daily?.[0];
+        const firstDay = propertyResult.value.timelines?.daily?.[0];
+        const lowF =
+          firstDay && typeof firstDay.values.temperatureMin === "number"
+            ? celsiusToFahrenheit(firstDay.values.temperatureMin)
+            : null;
 
-        if (firstDay) {
-          const lowF = celsiusToFahrenheit(firstDay.values.temperatureMin);
+        if (lowF !== null) {
           setPropertyRisk(getFreezeRiskLabel(lowF));
           setPropertyForecastLowF(lowF);
         } else {

@@ -670,12 +670,24 @@ function useRoadScreenData(
 
       if (weatherResult.status === "fulfilled") {
         const values = weatherResult.value.data.values;
-        const temperatureF = celsiusToFahrenheit(values.temperature);
-        const windSpeedMph = metersPerSecondToMph(values.windSpeed);
+        const temperatureF =
+          typeof values.temperature === "number"
+            ? celsiusToFahrenheit(values.temperature)
+            : null;
+        const windSpeedMph =
+          typeof values.windSpeed === "number"
+            ? metersPerSecondToMph(values.windSpeed)
+            : null;
 
-        const cautionResult = getRoadCautionResult(temperatureF, windSpeedMph);
-        cautionLevel = cautionResult.level;
-        weatherMessage = cautionResult.message;
+        if (temperatureF !== null && windSpeedMph !== null) {
+          const cautionResult = getRoadCautionResult(
+            temperatureF,
+            windSpeedMph,
+          );
+          cautionLevel = cautionResult.level;
+          weatherMessage = cautionResult.message;
+        }
+
         weatherSourceUpdatedLabel = formatTimestampLabel(
           typeof weatherResult.value.data.time === "string"
             ? weatherResult.value.data.time
@@ -683,15 +695,16 @@ function useRoadScreenData(
         );
 
         setCurrentWeather({
-          temperatureLabel: `${temperatureF}°F`,
-          windLabel: `${windSpeedMph} mph`,
+          temperatureLabel: temperatureF === null ? "--" : `${temperatureF}°F`,
+          windLabel:
+            windSpeedMph === null ? "Not available" : `${windSpeedMph} mph`,
           precipProbability:
             typeof values.precipitationProbability === "number"
               ? Math.round(values.precipitationProbability)
               : null,
           sourceUpdatedLabel: weatherSourceUpdatedLabel,
           fallbackRefreshLabel: fallbackUpdatedLabel,
-          hasWeatherData: true,
+          hasWeatherData: temperatureF !== null || windSpeedMph !== null,
         });
       } else {
         console.log("Road screen weather fetch failed:", weatherResult.reason);
