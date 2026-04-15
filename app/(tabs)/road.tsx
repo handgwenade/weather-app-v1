@@ -28,6 +28,14 @@ import {
   getRoadCautionMessage,
   metersPerSecondToMph,
 } from "../../utils/weather";
+import {
+  evaluateSuggestions,
+  getSuggestionPresentation,
+  type RuleMatch,
+  type SuggestionDecision,
+  SuggestionCode,
+  type SuggestionInput,
+} from "../../utils/suggestions";
 
 type RoadCurrentWeatherSnapshot = {
   temperatureLabel: string;
@@ -115,62 +123,6 @@ function getOfficialConditionLabel(report: WydotRoadReport | null) {
   return report.primarySegment.officialCondition;
 }
 
-function getRoadRiskLabel(
-  report: WydotRoadReport | null,
-  weatherMessage: string,
-) {
-  if (report?.primarySegment.restriction !== "None") {
-    return "High risk";
-  }
-
-  if (report?.primarySegment.advisory !== "None") {
-    return "Use caution";
-  }
-
-  if (
-    report?.primarySegment.officialCondition &&
-    !["Dry", "None"].includes(report.primarySegment.officialCondition)
-  ) {
-    return "Use caution";
-  }
-
-  if (
-    weatherMessage.includes("freezing") ||
-    weatherMessage.includes("near freezing") ||
-    weatherMessage.includes("windy")
-  ) {
-    return "Use caution";
-  }
-
-  if (weatherMessage.includes("unavailable")) {
-    return "Unavailable";
-  }
-
-  if (report) {
-    return "Good";
-  }
-
-  return "Unavailable";
-}
-
-function getRoadRiskTone(label: string): RoadTone {
-  const normalized = label.toLowerCase();
-
-  if (normalized.includes("high risk")) {
-    return "high";
-  }
-
-  if (normalized.includes("use caution")) {
-    return "caution";
-  }
-
-  if (normalized.includes("good")) {
-    return "good";
-  }
-
-  return "neutral";
-}
-
 function buildWeatherCaution(weatherMessage: string) {
   if (weatherMessage === "Road conditions look okay right now") {
     return "No weather-based caution right now";
@@ -189,34 +141,6 @@ function getRoadTopTitle(routeLabel: string, locationLabel: string) {
   }
 
   return routeLabel.replace(" near ", " ");
-}
-
-function getRoadActionLabel(tone: RoadTone) {
-  if (tone === "high") {
-    return "Review now";
-  }
-
-  if (tone === "neutral") {
-    return "Check data";
-  }
-
-  return "Monitor";
-}
-
-function getRiskLevelLabel(tone: RoadTone) {
-  if (tone === "high") {
-    return "High";
-  }
-
-  if (tone === "caution") {
-    return "Moderate";
-  }
-
-  if (tone === "good") {
-    return "Low";
-  }
-
-  return "Unavailable";
 }
 
 function getConfidenceLabel(
@@ -331,6 +255,70 @@ function getRoadLocationLabel(location: AppLocation) {
   return formatCityState(location);
 }
 
+function getRoadStatusSubtitle(
+  primarySuggestion: RuleMatch,
+  params: {
+    advisory: string;
+    officialCondition: string;
+    restriction: string;
+    roadReport: WydotRoadReport | null;
+    weatherCaution: string;
+  },
+) {
+  const { advisory, officialCondition, restriction, roadReport, weatherCaution } = params;
+
+  switch (primarySuggestion.code) {
+    case SuggestionCode.ROAD_CLOSED:
+    case SuggestionCode.TRAVEL_RESTRICTION_POSTED:
+      return `Restriction: ${restriction}`;
+    case SuggestionCode.TRAVEL_ADVISORY_POSTED:
+      return `Advisory: ${advisory}`;
+    case SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE:
+      return primarySuggestion.whyBullets[0] ?? "Official guidance is active for this area.";
+    case SuggestionCode.HIGH_WIND_CAUTION:
+      return primarySuggestion.whyBullets[0] ?? "Observed wind is elevated.";
+    case SuggestionCode.DRIFTING_CONCERN:
+      return "Wind and snow-related conditions are supporting drifting concern.";
+    case SuggestionCode.USE_CAUTION:
+      return officialCondition !== "Unavailable" && officialCondition !== "None"
+        ? `Surface: ${officialCondition}`
+        : weatherCaution;
+    case SuggestionCode.ROAD_DATA_UNAVAILABLE:
+      return roadReport
+        ? primarySuggestion.whyBullets[0] ?? "Road guidance is limited."
+        : "WYDOT road data is limited for this location right now.";
+    case SuggestionCode.WEATHER_DATA_UNAVAILABLE:
+      return primarySuggestion.whyBullets[0] ?? "Weather guidance is limited for this location.";
+    case SuggestionCode.NO_ACTIVE_TRAVEL_IMPACTS:
+    default:
+      return "Conditions stable at this location.";
+  }
+}
+
+function buildRoadSuggestionBullets(
+  primarySuggestion: RuleMatch | null,
+  secondarySuggestions: RuleMatch[],
+  fallbackBullets: RoadBullet[],
+): RoadBullet[] {
+  if (!primarySuggestion) {
+    return fallbackBullets;
+  }
+
+  const bulletTexts = [
+    ...primarySuggestion.whyBullets,
+    ...secondarySuggestions.map((suggestion) => suggestion.title),
+  ];
+
+  if (bulletTexts.length === 0) {
+    return fallbackBullets;
+  }
+
+  return bulletTexts.slice(0, 3).map((text, index) => ({
+    id: `suggestion-${index}`,
+    text,
+  }));
+}
+
 function buildRoadViewModel(params: {
   selectedLocation: AppLocation;
   routeLabel: string;
@@ -346,6 +334,7 @@ function buildRoadViewModel(params: {
   stationWindAvg: string;
   stationWindGust: string;
   stationWindDirection: string;
+  suggestionDecision: SuggestionDecision | null;
   weatherCaution: string;
 }): RoadViewModel {
   const {
@@ -363,12 +352,9 @@ function buildRoadViewModel(params: {
     stationWindAvg,
     stationWindGust,
     stationWindDirection,
+    suggestionDecision,
     weatherCaution,
   } = params;
-  const statusBaseLabel = getRoadRiskLabel(roadReport, weatherCaution);
-  const statusTone = getRoadRiskTone(statusBaseLabel);
-  const riskLevelLabel = getRiskLevelLabel(statusTone);
-  const actionLabel = getRoadActionLabel(statusTone);
   const locationLabel = getRoadLocationLabel(selectedLocation);
   const topTitle = getRoadTopTitle(routeLabel, locationLabel);
   const locationFieldLabel = formatLocationFieldLabel(selectedLocation);
@@ -389,58 +375,6 @@ function buildRoadViewModel(params: {
     stationWindAvg !== "Unavailable" && stationWindDirection !== "Unavailable"
       ? `${stationWindAvg} ${stationWindDirection}`
       : currentWeather.windLabel;
-  const notices = [
-    !currentWeather.hasWeatherData ? "Road weather is temporarily unavailable." : null,
-    wydotNotice || null,
-  ].filter(Boolean) as string[];
-
-  const hasRestriction =
-    restriction !== "None reported" && restriction !== "Unavailable";
-  const hasAdvisory = advisory !== "None reported" && advisory !== "Unavailable";
-  const hasSurfaceIssue =
-    officialCondition !== "Unavailable" &&
-    !["Dry", "None"].includes(officialCondition);
-  const hasWeatherCaution =
-    weatherCaution !== "Loading weather guidance..." &&
-    weatherCaution !== "No weather-based caution right now" &&
-    weatherCaution !== "Road conditions temporarily unavailable";
-
-  const statusTitle = hasRestriction
-    ? "Travel restriction posted"
-    : hasAdvisory
-      ? "Travel advisory posted"
-      : hasSurfaceIssue
-        ? "Surface condition reported"
-        : hasWeatherCaution
-          ? "Weather caution active"
-          : roadReport
-            ? "No active travel impacts"
-            : "Road data unavailable";
-
-  const statusSubtitle = hasRestriction
-    ? `Restriction: ${restriction}`
-    : hasAdvisory
-      ? `Advisory: ${advisory}`
-      : hasSurfaceIssue
-        ? `Surface: ${officialCondition}`
-        : hasWeatherCaution
-          ? weatherCaution
-          : roadReport
-            ? "Conditions stable at this location."
-            : "WYDOT road data is limited for this location right now.";
-
-  const recommendationText = hasRestriction
-    ? "Restriction is active. Review WYDOT guidance before travel."
-    : hasAdvisory
-      ? "Advisory is active. Continue monitoring before travel."
-      : hasSurfaceIssue
-        ? "Surface conditions may affect travel. Use caution and keep monitoring."
-        : hasWeatherCaution
-          ? "Weather conditions may affect pavement. Continue monitoring before travel."
-          : roadReport
-            ? "No active travel impacts. Continue routine monitoring."
-            : "Road data is limited right now. Check again before travel.";
-
   const currentConditions: RoadMetric[] = [
     { id: "air", label: "Air Temp", value: stationAirTemp },
     { id: "road", label: "Road Temp", value: stationSurfaceTemp },
@@ -453,6 +387,42 @@ function buildRoadViewModel(params: {
     },
     { id: "updated", label: "Last Updated", value: lastUpdatedMetricValue },
   ];
+  const fallbackRiskBullets = buildRiskBullets(
+    roadReport,
+    officialCondition,
+    advisory,
+    restriction,
+    stationAirTemp,
+    currentWeather.temperatureLabel,
+    windMetricValue,
+    currentWeather.precipProbability,
+  );
+  const primarySuggestion = suggestionDecision?.primary ?? null;
+  const primaryPresentation = primarySuggestion
+    ? getSuggestionPresentation(primarySuggestion)
+    : null;
+  const notices = suggestionDecision
+    ? suggestionDecision.systemStates.map((match) => {
+        if (match.code === SuggestionCode.ROAD_DATA_UNAVAILABLE && wydotNotice) {
+          return wydotNotice;
+        }
+
+        return match.whyBullets[0] ?? match.title;
+      })
+    : [];
+  const statusTitle = primarySuggestion?.title ?? "Collecting road guidance";
+  const statusSubtitle = primarySuggestion
+    ? getRoadStatusSubtitle(primarySuggestion, {
+        advisory,
+        officialCondition,
+        restriction,
+        roadReport,
+        weatherCaution,
+      })
+    : "Checking current road and weather signals for this location.";
+  const recommendationText = primaryPresentation
+    ? primaryPresentation.recommendationText
+    : "Checking current road and weather signals for this location.";
 
   return {
     topTitle,
@@ -461,21 +431,16 @@ function buildRoadViewModel(params: {
     locationFieldLabel,
     statusTitle,
     statusSubtitle,
-    statusLabel: riskLevelLabel,
-    statusTone,
-    actionLabel,
+    statusLabel: primaryPresentation?.levelLabel ?? "Unavailable",
+    statusTone: primaryPresentation?.roadTone ?? "neutral",
+    actionLabel: primaryPresentation?.actionLabel ?? "Monitor",
     recommendationText,
     currentConditions,
-    riskLevelLabel,
-    riskBullets: buildRiskBullets(
-      roadReport,
-      officialCondition,
-      advisory,
-      restriction,
-      stationAirTemp,
-      currentWeather.temperatureLabel,
-      windMetricValue,
-      currentWeather.precipProbability,
+    riskLevelLabel: primaryPresentation?.levelLabel ?? "Unavailable",
+    riskBullets: buildRoadSuggestionBullets(
+      primarySuggestion,
+      suggestionDecision?.secondary ?? [],
+      fallbackRiskBullets,
     ),
     confidenceLabel: getConfidenceLabel(
       currentWeather.hasWeatherData,
@@ -563,12 +528,69 @@ export default function RoadScreen() {
   const [stationWindDirection, setStationWindDirection] =
     useState("Unavailable");
   const [switchModalVisible, setSwitchModalVisible] = useState(false);
+  const [roadSuggestionsReady, setRoadSuggestionsReady] = useState(false);
   const roadLocation = selectedLocation;
   const precipLabel = inferPrecipLabel(
     officialCondition,
     weatherCaution,
     roadSummary,
   );
+  const suggestionInput: SuggestionInput | null =
+    roadLocation && roadSuggestionsReady
+      ? {
+          road: {
+            available: !!roadReport,
+            mapped: !!roadReport,
+            restriction:
+              restriction === "Unavailable" ? null : restriction,
+            advisory: advisory === "Unavailable" ? null : advisory,
+            officialCondition:
+              officialCondition === "Unavailable" ? null : officialCondition,
+            fetchedAt: roadReport?.fetchedAt ?? null,
+            stationObservedAt:
+              stationObservedAt === "Unavailable" ? null : stationObservedAt,
+            windAvgMph: roadReport?.primaryStationObservation?.windAvgMph ?? null,
+            windGustMph: roadReport?.primaryStationObservation?.windGustMph ?? null,
+            windDirection:
+              roadReport?.primaryStationObservation?.windDirection ?? null,
+            visibilityFt:
+              roadReport?.primaryStationObservation?.visibilityFt ?? null,
+            airTempF: roadReport?.primaryStationObservation?.airTempF ?? null,
+            surfaceTempF:
+              roadReport?.primaryStationObservation?.surfaceTempF ?? null,
+          },
+          weather: {
+            available: currentWeather.hasWeatherData,
+            observedAt: currentWeather.sourceUpdatedLabel,
+            temperatureF:
+              currentWeather.temperatureLabel === "--"
+                ? null
+                : Number.parseInt(currentWeather.temperatureLabel, 10),
+            windSpeedMph:
+              currentWeather.windLabel === "Not available"
+                ? null
+                : Number.parseInt(currentWeather.windLabel, 10),
+            windDirection:
+              stationWindDirection === "Unavailable" ? null : stationWindDirection,
+            precipProbability: currentWeather.precipProbability,
+            weatherCode: null,
+          },
+          alerts: {
+            available: false,
+            hasActiveAlert: false,
+            primaryEvent: null,
+            primarySeverity: null,
+            primaryCertainty: null,
+          },
+          forecast: {
+            available: false,
+            dailyLowF: null,
+          },
+        }
+      : null;
+  const suggestionDecision = suggestionInput
+    ? evaluateSuggestions(suggestionInput)
+    : null;
   const roadViewModel = roadLocation
     ? buildRoadViewModel({
         selectedLocation: roadLocation,
@@ -585,6 +607,7 @@ export default function RoadScreen() {
         stationWindAvg,
         stationWindGust,
         stationWindDirection,
+        suggestionDecision,
         weatherCaution,
       })
     : null;
@@ -600,6 +623,8 @@ export default function RoadScreen() {
     let isActive = true;
 
     async function loadRoadConditions() {
+      setRoadSuggestionsReady(false);
+
       if (!roadLocation) {
         setRouteLabel("Add a location to view road conditions");
         setOfficialCondition("Unavailable");
@@ -759,6 +784,7 @@ export default function RoadScreen() {
 
       setRoadSummary(summary);
       setWeatherCaution(caution);
+      setRoadSuggestionsReady(true);
     }
 
     void loadRoadConditions();
