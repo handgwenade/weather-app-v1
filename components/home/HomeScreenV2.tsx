@@ -1,11 +1,11 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
-import type { ComponentProps } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import Ionicons from "@expo/vector-icons/Ionicons";
+import type { ComponentProps } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-export type HomeIconName = ComponentProps<typeof Ionicons>['name'];
+export type HomeIconName = ComponentProps<typeof Ionicons>["name"];
 
-type Tone = 'good' | 'neutral' | 'warning' | 'alert';
+type Tone = "good" | "neutral" | "warning" | "alert";
 
 export type HomeMetric = {
   label: string;
@@ -63,29 +63,29 @@ type HomeScreenV2Props = {
 
 function getStatusChipStyle(tone: Tone) {
   switch (tone) {
-    case 'alert':
+    case "alert":
       return {
-        backgroundColor: '#FEE2E2',
-        borderColor: '#FCA5A5',
-        textColor: '#991B1B',
+        backgroundColor: "#FEE2E2",
+        borderColor: "#FCA5A5",
+        textColor: "#991B1B",
       };
-    case 'warning':
+    case "warning":
       return {
-        backgroundColor: '#FEF3C7',
-        borderColor: '#FCD34D',
-        textColor: '#92400E',
+        backgroundColor: "#FEF3C7",
+        borderColor: "#FCD34D",
+        textColor: "#92400E",
       };
-    case 'neutral':
+    case "neutral":
       return {
-        backgroundColor: '#E2E8F0',
-        borderColor: '#CBD5E1',
-        textColor: '#334155',
+        backgroundColor: "#E2E8F0",
+        borderColor: "#CBD5E1",
+        textColor: "#334155",
       };
     default:
       return {
-        backgroundColor: '#DCFCE7',
-        borderColor: '#86EFAC',
-        textColor: '#166534',
+        backgroundColor: "#DCFCE7",
+        borderColor: "#86EFAC",
+        textColor: "#166534",
       };
   }
 }
@@ -106,7 +106,9 @@ export default function HomeScreenV2({
   onPressSecondaryAction,
 }: HomeScreenV2Props) {
   const bannerChipStyle = getStatusChipStyle(statusBanner.statusTone);
-  const locationChipStyle = getStatusChipStyle(monitoredLocationCard.statusTone);
+  const locationChipStyle = getStatusChipStyle(
+    monitoredLocationCard.statusTone,
+  );
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -130,7 +132,8 @@ export default function HomeScreenV2({
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
-        contentInsetAdjustmentBehavior="automatic">
+        contentInsetAdjustmentBehavior="automatic"
+      >
         <View style={styles.card}>
           <Text style={styles.bannerTitle}>{statusBanner.title}</Text>
           <Text style={styles.bannerSubtitle}>{statusBanner.subtitle}</Text>
@@ -143,8 +146,14 @@ export default function HomeScreenV2({
                   backgroundColor: bannerChipStyle.backgroundColor,
                   borderColor: bannerChipStyle.borderColor,
                 },
-              ]}>
-              <Text style={[styles.statusChipText, { color: bannerChipStyle.textColor }]}>
+              ]}
+            >
+              <Text
+                style={[
+                  styles.statusChipText,
+                  { color: bannerChipStyle.textColor },
+                ]}
+              >
                 {statusBanner.statusLabel}
               </Text>
             </View>
@@ -152,8 +161,11 @@ export default function HomeScreenV2({
             <Pressable
               accessibilityRole="button"
               onPress={onPressStatusAction}
-              style={styles.darkChip}>
-              <Text style={styles.darkChipText}>{statusBanner.actionLabel}</Text>
+              style={styles.darkChip}
+            >
+              <Text style={styles.darkChipText}>
+                {statusBanner.actionLabel}
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -177,7 +189,7 @@ export default function HomeScreenV2({
               <View key={item.id} style={styles.outlookItem}>
                 <Text style={styles.outlookTime}>{item.time}</Text>
                 <Text style={styles.outlookTemp}>{item.temperature}</Text>
-                <Text style={styles.outlookCondition} numberOfLines={1}>
+                <Text style={styles.outlookCondition} numberOfLines={2}>
                   {item.condition}
                 </Text>
               </View>
@@ -201,9 +213,16 @@ export default function HomeScreenV2({
             <Pressable
               accessibilityRole="button"
               onPress={onPressMonitoredLocation}
-              style={styles.locationCardHeader}>
-              <Text style={styles.locationCardTitle}>{monitoredLocationCard.title}</Text>
-              <Ionicons name="arrow-forward-outline" size={20} color="#3B82F6" />
+              style={styles.locationCardHeader}
+            >
+              <Text style={styles.locationCardTitle}>
+                {monitoredLocationCard.title}
+              </Text>
+              <Ionicons
+                name="arrow-forward-outline"
+                size={20}
+                color="#3B82F6"
+              />
             </Pressable>
 
             <View style={styles.bulletsList}>
@@ -223,23 +242,37 @@ export default function HomeScreenV2({
                     backgroundColor: locationChipStyle.backgroundColor,
                     borderColor: locationChipStyle.borderColor,
                   },
-                ]}>
-                <Text style={[styles.locationStatusText, { color: locationChipStyle.textColor }]}>
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.locationStatusText,
+                    { color: locationChipStyle.textColor },
+                  ]}
+                >
                   {monitoredLocationCard.statusLabel}
                 </Text>
               </View>
 
-              <Text style={styles.impactText}>{monitoredLocationCard.impactLabel}</Text>
+              <Text style={styles.impactText}>
+                {monitoredLocationCard.impactLabel}
+              </Text>
             </View>
           </View>
         </View>
 
         <View style={styles.buttonRow}>
-          <Pressable style={styles.primaryButton} onPress={onPressPrimaryAction}>
+          <Pressable
+            style={styles.primaryButton}
+            onPress={onPressPrimaryAction}
+          >
             <Text style={styles.primaryButtonText}>Open Conditions</Text>
           </Pressable>
 
-          <Pressable style={styles.secondaryButton} onPress={onPressSecondaryAction}>
+          <Pressable
+            style={styles.secondaryButton}
+            onPress={onPressSecondaryAction}
+          >
             <Text style={styles.secondaryButtonText}>Open Road</Text>
           </Pressable>
         </View>
@@ -251,51 +284,51 @@ export default function HomeScreenV2({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   topBar: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: '#CAD5E2',
+    borderBottomColor: "#CAD5E2",
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 13,
     gap: 4,
   },
   topBarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     minHeight: 28,
   },
   titleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
-    maxWidth: '82%',
+    maxWidth: "82%",
   },
   topTitle: {
-    color: '#0F172B',
+    color: "#0F172B",
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
     lineHeight: 28,
     letterSpacing: -0.44,
   },
   settingsButton: {
     width: 28,
     height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   updatedText: {
-    color: '#62748E',
+    color: "#62748E",
     fontSize: 14,
     lineHeight: 20,
     letterSpacing: -0.15,
   },
   scrollView: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   content: {
     paddingHorizontal: 16,
@@ -304,29 +337,29 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: 'rgba(202, 213, 226, 0.4)',
+    borderColor: "rgba(202, 213, 226, 0.4)",
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 16,
   },
   bannerTitle: {
-    color: '#0F172B',
+    color: "#0F172B",
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
     lineHeight: 28,
     letterSpacing: -0.45,
   },
   bannerSubtitle: {
-    color: '#45556C',
+    color: "#45556C",
     fontSize: 16,
     lineHeight: 24,
     letterSpacing: -0.31,
     marginTop: 4,
   },
   bannerActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
     marginTop: 12,
   },
@@ -335,157 +368,159 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13,
     borderRadius: 999,
     borderWidth: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   statusChipText: {
     fontSize: 14,
     lineHeight: 20,
-    fontWeight: '500',
+    fontWeight: "500",
     letterSpacing: -0.15,
   },
   darkChip: {
     minHeight: 32,
     paddingHorizontal: 12,
     borderRadius: 10,
-    backgroundColor: '#1D293D',
-    justifyContent: 'center',
+    backgroundColor: "#1D293D",
+    justifyContent: "center",
   },
   darkChipText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 14,
     lineHeight: 20,
-    fontWeight: '500',
+    fontWeight: "500",
     letterSpacing: -0.15,
   },
   metricsCard: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: "#F8FAFC",
     borderWidth: 1,
-    borderColor: 'rgba(202, 213, 226, 0.4)',
+    borderColor: "rgba(202, 213, 226, 0.4)",
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 16,
   },
   metricsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     rowGap: 12,
     columnGap: 12,
   },
   metricCell: {
-    width: '47%',
+    width: "47%",
     minHeight: 40,
   },
   metricLabel: {
-    color: '#62748E',
+    color: "#62748E",
     fontSize: 12,
     lineHeight: 16,
   },
   metricValue: {
-    color: '#0F172B',
+    color: "#0F172B",
     fontSize: 16,
     lineHeight: 24,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: -0.31,
     marginTop: 1,
   },
   sectionCardTitle: {
-    color: '#0F172B',
+    color: "#0F172B",
     fontSize: 18,
     lineHeight: 27,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: -0.44,
     marginBottom: 12,
   },
   outlookRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     gap: 8,
   },
   outlookItem: {
-    width: 48,
-    alignItems: 'center',
+    flex: 1,
+    minWidth: 0,
+    alignItems: "center",
   },
   outlookTime: {
-    color: '#62748E',
+    color: "#62748E",
     fontSize: 12,
     lineHeight: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   outlookTemp: {
-    color: '#0F172B',
+    color: "#0F172B",
     fontSize: 16,
     lineHeight: 24,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: -0.31,
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: 4,
   },
   outlookCondition: {
-    color: '#45556C',
+    color: "#45556C",
     fontSize: 12,
     lineHeight: 16,
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: 4,
+    width: "100%",
   },
   sectionBlock: {
     gap: 12,
   },
   sectionHeading: {
-    color: '#0F172B',
+    color: "#0F172B",
     fontSize: 18,
     lineHeight: 27,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: -0.44,
   },
   monitoringCard: {
-    backgroundColor: '#E3F4EA',
+    backgroundColor: "#E3F4EA",
     borderWidth: 1,
-    borderColor: 'rgba(202, 213, 226, 0.4)',
+    borderColor: "rgba(202, 213, 226, 0.4)",
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 16,
     minHeight: 92,
   },
   monitoringTitle: {
-    color: '#0F172B',
+    color: "#0F172B",
     fontSize: 18,
     lineHeight: 27,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: -0.44,
   },
   monitoringBody: {
-    color: '#314158',
+    color: "#314158",
     fontSize: 14,
     lineHeight: 20,
     letterSpacing: -0.15,
     marginTop: 4,
-    maxWidth: '88%',
+    maxWidth: "88%",
   },
   locationCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: 'rgba(212, 212, 212, 0.4)',
+    borderColor: "rgba(212, 212, 212, 0.4)",
     borderRadius: 16,
     paddingHorizontal: 20,
     paddingTop: 18,
     paddingBottom: 16,
-    shadowColor: '#000000',
+    shadowColor: "#000000",
     shadowOpacity: 0.05,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     elevation: 1,
   },
   locationCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 16,
   },
   locationCardTitle: {
-    color: '#1C304F',
+    color: "#1C304F",
     fontSize: 18,
     lineHeight: 27,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: -0.44,
   },
   bulletsList: {
@@ -494,27 +529,27 @@ const styles = StyleSheet.create({
     paddingRight: 18,
   },
   bulletRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: 8,
   },
   bulletDot: {
-    color: '#A1A1A1',
+    color: "#A1A1A1",
     fontSize: 14,
     lineHeight: 20,
     marginTop: -1,
   },
   bulletText: {
     flex: 1,
-    color: 'rgba(28, 48, 79, 0.7)',
+    color: "rgba(28, 48, 79, 0.7)",
     fontSize: 12,
     lineHeight: 20,
     letterSpacing: -0.15,
   },
   locationFooter: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
     gap: 8,
   },
   locationStatusChip: {
@@ -522,56 +557,56 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 28,
     borderWidth: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   locationStatusText: {
     fontSize: 12,
     lineHeight: 20,
-    fontWeight: '500',
+    fontWeight: "500",
     letterSpacing: -0.15,
   },
   impactText: {
-    color: '#59595B',
+    color: "#59595B",
     fontSize: 12,
     lineHeight: 20,
     letterSpacing: -0.15,
   },
   buttonRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
   },
   primaryButton: {
     flex: 1,
     height: 46,
     borderRadius: 30,
-    backgroundColor: '#2F7FD8',
+    backgroundColor: "#2F7FD8",
     borderWidth: 1,
-    borderColor: '#CAD5E2',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: "#CAD5E2",
+    alignItems: "center",
+    justifyContent: "center",
   },
   primaryButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 14,
     lineHeight: 20,
-    fontWeight: '500',
+    fontWeight: "500",
     letterSpacing: -0.15,
   },
   secondaryButton: {
     flex: 1,
     height: 46,
     borderRadius: 27,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: "#F1F5F9",
     borderWidth: 1,
-    borderColor: '#CAD5E2',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: "#CAD5E2",
+    alignItems: "center",
+    justifyContent: "center",
   },
   secondaryButtonText: {
-    color: '#0F172B',
+    color: "#0F172B",
     fontSize: 14,
     lineHeight: 20,
-    fontWeight: '500',
+    fontWeight: "500",
     letterSpacing: -0.15,
   },
 });

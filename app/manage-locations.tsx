@@ -1,11 +1,5 @@
-import LocationsScreenContainer from "@/components/locations/LocationsScreenContainer";
-import { Stack } from "expo-router";
+import { Redirect } from "expo-router";
 
 export default function ManageLocationsScreen() {
-  return (
-    <>
-      <Stack.Screen options={{ headerShown: false }} />
-      <LocationsScreenContainer />
-    </>
-  );
+  return <Redirect href="/(tabs)/locations" />;
 }

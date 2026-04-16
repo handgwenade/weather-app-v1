@@ -135,6 +135,45 @@ function formatTimestampLabel(value: string | null | undefined) {
   });
 }
 
+function formatUpdatedLabel(
+  sourceTimestamp: string | null,
+  fallbackLabel: string | null,
+) {
+  if (sourceTimestamp) {
+    const date = new Date(sourceTimestamp);
+
+    if (!Number.isNaN(date.getTime())) {
+      const now = new Date();
+      const isSameDay =
+        date.getFullYear() === now.getFullYear() &&
+        date.getMonth() === now.getMonth() &&
+        date.getDate() === now.getDate();
+
+      const formatted = isSameDay
+        ? date.toLocaleTimeString("en-US", {
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          })
+        : date.toLocaleString("en-US", {
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          });
+
+      return `Updated ${formatted}`;
+    }
+  }
+
+  if (fallbackLabel) {
+    return `Updated ${fallbackLabel}`;
+  }
+
+  return "Updated";
+}
+
 function formatLocationFieldLabel(location: AppLocation) {
   const cityState = formatCityState(location);
 
@@ -442,16 +481,13 @@ function buildRoadViewModel(params: {
   const effectiveSourceUpdatedLabel =
     formatTimestampLabel(roadReport?.fetchedAt ?? undefined) ??
     currentWeather.sourceUpdatedLabel;
-  const updatedLabel = effectiveSourceUpdatedLabel
-    ? `Updated ${effectiveSourceUpdatedLabel}`
-    : currentWeather.fallbackRefreshLabel
-      ? `Last refresh ${currentWeather.fallbackRefreshLabel}`
-      : "Update time unavailable";
+  const updatedLabel = formatUpdatedLabel(
+    roadReport?.fetchedAt ?? currentWeather.sourceUpdatedLabel,
+    currentWeather.fallbackRefreshLabel,
+  );
   const lastUpdatedMetricValue = effectiveSourceUpdatedLabel
     ? effectiveSourceUpdatedLabel
-    : currentWeather.fallbackRefreshLabel
-      ? `Last refresh ${currentWeather.fallbackRefreshLabel}`
-      : "Unavailable";
+    : (currentWeather.fallbackRefreshLabel ?? "Unavailable");
   const windMetricValue =
     stationWindAvg !== "Unavailable" && stationWindDirection !== "Unavailable"
       ? `${stationWindAvg} ${stationWindDirection}`

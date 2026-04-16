@@ -139,6 +139,45 @@ function formatClockLabel(value: string | Date) {
   });
 }
 
+function formatUpdatedLabel(
+  sourceTimestamp: string | null,
+  fallbackLabel: string | null,
+) {
+  if (sourceTimestamp) {
+    const date = new Date(sourceTimestamp);
+
+    if (!Number.isNaN(date.getTime())) {
+      const now = new Date();
+      const isSameDay =
+        date.getFullYear() === now.getFullYear() &&
+        date.getMonth() === now.getMonth() &&
+        date.getDate() === now.getDate();
+
+      const formatted = isSameDay
+        ? date.toLocaleTimeString("en-US", {
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          })
+        : date.toLocaleString("en-US", {
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          });
+
+      return `Updated ${formatted}`;
+    }
+  }
+
+  if (fallbackLabel) {
+    return `Updated ${fallbackLabel}`;
+  }
+
+  return "Updated";
+}
+
 function formatHourLabel(value: string) {
   const formatted = formatClockLabel(value);
   return formatted ?? "Time unavailable";
@@ -327,21 +366,10 @@ function buildHomeViewModel(params: {
     { label: "Humidity", value: formatPercentValue(currentWeather.humidity) },
   ];
 
-  const updatedLabel = (() => {
-    const sourceLabel = currentWeather.sourceTimestamp
-      ? formatClockLabel(currentWeather.sourceTimestamp)
-      : null;
-
-    if (sourceLabel) {
-      return sourceLabel;
-    }
-
-    if (currentWeather.refreshFallbackLabel) {
-      return `Last refresh ${currentWeather.refreshFallbackLabel}`;
-    }
-
-    return "Waiting for data";
-  })();
+  const updatedLabel = formatUpdatedLabel(
+    currentWeather.sourceTimestamp,
+    currentWeather.refreshFallbackLabel,
+  );
 
   const statusBanner: HomeStatusBanner = (() => {
     if (!suggestionDecision?.primary) {

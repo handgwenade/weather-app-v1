@@ -152,6 +152,45 @@ function formatClockLabel(value: string | Date) {
   });
 }
 
+function formatUpdatedLabel(
+  sourceTimestamp: string | null,
+  fallbackLabel: string | null,
+) {
+  if (sourceTimestamp) {
+    const date = new Date(sourceTimestamp);
+
+    if (!Number.isNaN(date.getTime())) {
+      const now = new Date();
+      const isSameDay =
+        date.getFullYear() === now.getFullYear() &&
+        date.getMonth() === now.getMonth() &&
+        date.getDate() === now.getDate();
+
+      const formatted = isSameDay
+        ? date.toLocaleTimeString("en-US", {
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          })
+        : date.toLocaleString("en-US", {
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          });
+
+      return `Updated ${formatted}`;
+    }
+  }
+
+  if (fallbackLabel) {
+    return `Updated ${fallbackLabel}`;
+  }
+
+  return "Updated";
+}
+
 function degreesToCompass(degrees: number) {
   const directions = [
     "N",
@@ -349,11 +388,10 @@ function buildConditionsViewModel(params: {
     fallbackRefreshLabel,
   } = params;
 
-  const updatedLabel = sourceUpdatedLabel
-    ? `Updated ${sourceUpdatedLabel}`
-    : fallbackRefreshLabel
-      ? `Last refresh ${fallbackRefreshLabel}`
-      : "Update time unavailable";
+  const updatedLabel = formatUpdatedLabel(
+    sourceUpdatedLabel,
+    fallbackRefreshLabel,
+  );
 
   if (hourlyStatus === "loading" && hourlyEntries.length === 0) {
     return {
