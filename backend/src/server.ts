@@ -45,30 +45,77 @@ function computeImpact(primaryStation: SegmentPrimaryStation | null) {
     };
   }
 
-  if (primaryStation.windGustMph !== null && primaryStation.windGustMph >= 45) {
+  const {
+    windSpeedMph,
+    windGustMph,
+    visibilityMi,
+    roadStateCode,
+    roadStateLabel,
+    roadSurfaceTempF,
+  } = primaryStation;
+
+  const nonDryRoad = roadStateCode !== null && roadStateCode !== 1;
+  const lowVisibility = visibilityMi !== null && visibilityMi < 2;
+  const strongSustainedWind = windSpeedMph !== null && windSpeedMph >= 25;
+  const highWindGust = windGustMph !== null && windGustMph >= 40;
+  const nearFreezingSurface =
+    roadSurfaceTempF !== null && roadSurfaceTempF <= 34;
+
+  if (
+    highWindGust ||
+    (nonDryRoad && nearFreezingSurface) ||
+    (lowVisibility && strongSustainedWind)
+  ) {
+    if (highWindGust) {
+      return {
+        level: "high",
+        reason: `High wind gusts at ${Math.round(windGustMph!)} mph`,
+      };
+    }
+
+    if (nonDryRoad && nearFreezingSurface) {
+      return {
+        level: "high",
+        reason: `Road surface near freezing with ${roadStateLabel ?? "non-dry"} conditions`,
+      };
+    }
+
     return {
       level: "high",
-      reason: `High wind gusts at ${Math.round(primaryStation.windGustMph)} mph`,
+      reason: "Reduced visibility combined with strong wind",
     };
   }
 
   if (
-    primaryStation.windSpeedMph !== null &&
-    primaryStation.windSpeedMph >= 25
+    strongSustainedWind ||
+    lowVisibility ||
+    nonDryRoad ||
+    (windGustMph !== null && windGustMph >= 30)
   ) {
-    return {
-      level: "moderate",
-      reason: `Sustained wind near ${Math.round(primaryStation.windSpeedMph)} mph`,
-    };
-  }
+    if (strongSustainedWind) {
+      return {
+        level: "moderate",
+        reason: `Sustained wind near ${Math.round(windSpeedMph!)} mph`,
+      };
+    }
 
-  if (
-    primaryStation.roadStateCode !== null &&
-    primaryStation.roadStateCode !== 1
-  ) {
+    if (windGustMph !== null && windGustMph >= 30) {
+      return {
+        level: "moderate",
+        reason: `Wind gusts at ${Math.round(windGustMph)} mph`,
+      };
+    }
+
+    if (lowVisibility) {
+      return {
+        level: "moderate",
+        reason: `Visibility reduced to ${visibilityMi!.toFixed(1)} miles`,
+      };
+    }
+
     return {
       level: "moderate",
-      reason: primaryStation.roadStateLabel ?? "Non-dry road state reported",
+      reason: roadStateLabel ?? "Non-dry road state reported",
     };
   }
 
@@ -213,6 +260,100 @@ app.get("/api/road/stations/:stationId", (req, res) => {
   res.json(row);
 });
 
+app.get("/api/road/segments", (_req, res) => {
+  const rows = db
+    .prepare(
+      `
+    SELECT
+      rs.segment_id AS segmentId,
+      rs.route_name AS routeName,
+      rs.direction AS direction,
+      rs.from_label AS fromLabel,
+      rs.to_label AS toLabel,
+      rs.primary_station_id AS primaryStationId,
+      rs.district_id AS districtId,
+      rs.notes AS notes,
+      s.station_id AS stationId,
+      s.station_name AS stationName,
+      s.latitude AS latitude,
+      s.longitude AS longitude,
+      s.observed_at AS observedAt,
+      s.air_temp_f AS airTempF,
+      s.wind_speed_mph AS windSpeedMph,
+      s.wind_gust_mph AS windGustMph,
+      s.visibility_mi AS visibilityMi,
+      s.road_surface_temp_f AS roadSurfaceTempF,
+      s.road_state_code AS roadStateCode,
+      s.road_state_label AS roadStateLabel,
+      s.source_provider AS sourceProvider
+    FROM route_segments rs
+    LEFT JOIN station_observations_latest s
+      ON s.station_id = rs.primary_station_id
+    ORDER BY route_name ASC, from_label ASC, to_label ASC
+  `,
+    )
+    .all() as Array<{
+    segmentId: string;
+    routeName: string;
+    direction: string | null;
+    fromLabel: string;
+    toLabel: string;
+    primaryStationId: string;
+    districtId: string | null;
+    notes: string | null;
+    stationId: string | null;
+    stationName: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    observedAt: string | null;
+    airTempF: number | null;
+    windSpeedMph: number | null;
+    windGustMph: number | null;
+    visibilityMi: number | null;
+    roadSurfaceTempF: number | null;
+    roadStateCode: number | null;
+    roadStateLabel: string | null;
+    sourceProvider: string | null;
+  }>;
+
+  res.json(
+    rows.map((row) => {
+      const impact = computeImpact(
+        row.stationId
+          ? {
+              stationId: row.stationId,
+              stationName: row.stationName,
+              latitude: row.latitude,
+              longitude: row.longitude,
+              observedAt: row.observedAt,
+              airTempF: row.airTempF,
+              windSpeedMph: row.windSpeedMph,
+              windGustMph: row.windGustMph,
+              visibilityMi: row.visibilityMi,
+              roadSurfaceTempF: row.roadSurfaceTempF,
+              roadStateCode: row.roadStateCode,
+              roadStateLabel: row.roadStateLabel,
+              sourceProvider: row.sourceProvider,
+            }
+          : null,
+      );
+
+      return {
+        segmentId: row.segmentId,
+        routeName: row.routeName,
+        direction: row.direction,
+        fromLabel: row.fromLabel,
+        toLabel: row.toLabel,
+        primaryStationId: row.primaryStationId,
+        districtId: row.districtId,
+        notes: row.notes,
+        impactLevel: impact.level,
+        impactReason: impact.reason,
+      };
+    }),
+  );
+});
+
 app.get("/api/road/segment/:segmentId", (req, res) => {
   const row = db
     .prepare(
@@ -307,7 +448,6 @@ app.get("/api/road/segment/:segmentId", (req, res) => {
     },
     primaryStation,
     impact: computeImpact(primaryStation),
-    debugVersion: "impact-v1",
   });
 });
 

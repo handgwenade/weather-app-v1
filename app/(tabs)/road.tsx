@@ -1,4 +1,5 @@
 import QuickSwitchModal from "@/components/quickSwitchModal";
+import RoadSegmentsPrototype from "@/components/road/RoadSegmentsPrototype";
 import RoadScreenV2, {
   type RoadActionDestination,
   type RoadBullet,
@@ -1053,141 +1054,25 @@ export default function RoadScreen() {
     }
   }
 
-  if (!selectedLocation || !roadViewModel) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
-        <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
-          <View
-            style={{
-              borderBottomWidth: 1,
-              borderBottomColor: "#CAD5E2",
-              paddingTop: 12,
-              paddingHorizontal: 16,
-              paddingBottom: 10,
-              backgroundColor: "#FFFFFF",
-            }}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 18,
-                  lineHeight: 28,
-                  fontWeight: "700",
-                  color: "#0F172B",
-                  letterSpacing: -0.44,
-                }}
-              >
-                Road
-              </Text>
-              <Pressable onPress={() => router.push("/settings")}>
-                <Ionicons name="settings-outline" size={22} color="#475569" />
-              </Pressable>
-            </View>
-          </View>
-
-          <View
-            style={{
-              flex: 1,
-              alignItems: "center",
-              justifyContent: "center",
-              paddingHorizontal: 24,
-            }}
-          >
-            <Text
-              style={{
-                color: "#0F172B",
-                fontSize: 22,
-                lineHeight: 30,
-                fontWeight: "700",
-                textAlign: "center",
-              }}
-            >
-              No active location selected
-            </Text>
-            <Text
-              style={{
-                color: "#556274",
-                fontSize: 15,
-                lineHeight: 22,
-                textAlign: "center",
-                marginTop: 8,
-                maxWidth: 280,
-              }}
-            >
-              Choose a location to see local conditions here.
-            </Text>
-            <Pressable
-              onPress={() => router.push("/manage-locations")}
-              style={{
-                marginTop: 20,
-                minHeight: 44,
-                borderRadius: 12,
-                backgroundColor: "#2E6FC7",
-                paddingHorizontal: 18,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Text
-                style={{
-                  color: "#FFFFFF",
-                  fontSize: 14,
-                  fontWeight: "600",
-                  lineHeight: 20,
-                }}
-              >
-                Manage Locations
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
-    <>
-      <RoadScreenV2
-        topTitle={roadViewModel.topTitle}
-        updatedLabel={roadViewModel.updatedLabel}
-        notices={roadViewModel.notices}
-        locationFieldLabel={roadViewModel.locationFieldLabel}
-        onPressSettings={() => router.push("/settings")}
-        onPressLocationSearch={() => setSwitchModalVisible(true)}
-        statusTitle={roadViewModel.statusTitle}
-        statusSubtitle={roadViewModel.statusSubtitle}
-        statusLabel={roadViewModel.statusLabel}
-        statusTone={roadViewModel.statusTone}
-        actionLabel={roadViewModel.actionLabel}
-        actionDestination={actionDestination}
-        onPressAction={handleRoadAction}
-        recommendationText={roadViewModel.recommendationText}
-        currentConditions={roadViewModel.currentConditions}
-        riskLevelLabel={roadViewModel.riskLevelLabel}
-        riskBullets={roadViewModel.riskBullets}
-        confidenceLabel={roadViewModel.confidenceLabel}
-        outlookItems={outlookItems}
-      />
-
-      <QuickSwitchModal
-        visible={switchModalVisible}
-        title="Select Saved Road Location"
-        subtitle="Choose which saved place Road should monitor right now."
-        currentLocationId={selectedLocation.id}
-        savedLocations={savedLocations}
-        onClose={() => setSwitchModalVisible(false)}
-        onSelectLocation={handleQuickSwitch}
-        onManageLocations={() => {
-          setSwitchModalVisible(false);
-          router.push("/manage-locations");
-        }}
-      />
-    </>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12 }}>
+        <Text>
+          Title: {roadViewModel?.topTitle ?? selectedLocation?.name ?? "Road"}
+        </Text>
+        <Text>
+          Updated:{" "}
+          {roadViewModel?.updatedLabel ??
+            (selectedLocation
+              ? formatCityState(selectedLocation)
+              : "No active location selected")}
+        </Text>
+        <Text>Status: {roadViewModel?.statusTitle ?? "Collecting road guidance"}</Text>
+      </View>
+      <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+        <Text>---</Text>
+      </View>
+      <RoadSegmentsPrototype />
+    </SafeAreaView>
   );
 }

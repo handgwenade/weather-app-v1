@@ -952,22 +952,24 @@ export default function HomeScreen() {
   }
 
   return (
-    <>
-      <HomeScreenV2
-        topTitle={topTitle}
-        updatedLabel={homeViewModel.updatedLabel}
-        statusBanner={homeViewModel.statusBanner}
-        metrics={homeViewModel.metrics}
-        outlookItems={outlookItems}
-        monitoringCard={homeViewModel.monitoringCard}
-        monitoredLocationCard={homeViewModel.monitoredLocationCard}
-        onPressSettings={() => router.push("/settings")}
-        onPressSwitchLocation={() => setSwitchModalVisible(true)}
-        onPressStatusAction={handleStatusAction}
-        onPressMonitoredLocation={handleOpenMonitoredLocation}
-        onPressPrimaryAction={() => router.push("/conditions")}
-        onPressSecondaryAction={() => router.push("/road")}
-      />
+    <View style={{ flex: 1 }}>
+      <View style={{ flex: 1 }}>
+        <HomeScreenV2
+          topTitle={topTitle}
+          updatedLabel={homeViewModel.updatedLabel}
+          statusBanner={homeViewModel.statusBanner}
+          metrics={homeViewModel.metrics}
+          outlookItems={outlookItems}
+          monitoringCard={homeViewModel.monitoringCard}
+          monitoredLocationCard={homeViewModel.monitoredLocationCard}
+          onPressSettings={() => router.push("/settings")}
+          onPressSwitchLocation={() => setSwitchModalVisible(true)}
+          onPressStatusAction={handleStatusAction}
+          onPressMonitoredLocation={handleOpenMonitoredLocation}
+          onPressPrimaryAction={() => router.push("/conditions")}
+          onPressSecondaryAction={() => router.push("/road")}
+        />
+      </View>
 
       <QuickSwitchModal
         visible={switchModalVisible}
@@ -982,6 +984,6 @@ export default function HomeScreen() {
           router.push("/manage-locations");
         }}
       />
-    </>
+    </View>
   );
 }
