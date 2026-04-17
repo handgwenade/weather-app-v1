@@ -42,3 +42,6 @@ app-example
 # generated native folders
 /ios
 /android
+
+# local data snapshots
+20260416_0400
