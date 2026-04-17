@@ -137,7 +137,9 @@ db.exec(`
     notes TEXT
   );
 
-  INSERT OR IGNORE INTO route_segments (
+  DELETE FROM route_segments;
+
+  INSERT INTO route_segments (
     segment_id,
     route_name,
     direction,
@@ -148,44 +150,374 @@ db.exec(`
     notes
   ) VALUES
   (
-    'i80-arlington-wagonhound-eb',
+    'i80-evanston-bear-river',
     'I-80',
-    'EB',
-    'Arlington',
-    'Wagonhound',
-    'WY21',
-    'D1',
+    NULL,
+    'Evanston',
+    'Bear River Drive',
+    'WY58',
+    'D3',
+    'Wind exposure'
+  ),
+  (
+    'i80-bear-river-painter',
+    'I-80',
+    NULL,
+    'Bear River Drive',
+    'Painter',
+    'WY57',
+    'D3',
+    'Wind exposure'
+  ),
+  (
+    'i80-painter-first-divide',
+    'I-80',
+    NULL,
+    'Painter',
+    'First Divide',
+    'WY31',
+    'D3',
+    'Pass exposure'
+  ),
+  (
+    'i80-first-divide-green-river-tunnel',
+    'I-80',
+    NULL,
+    'First Divide',
+    'Green River Tunnel East',
+    'KFIR',
+    'D3',
+    'Pass exposure'
+  ),
+  (
+    'i80-green-river-tunnel-bitter-creek',
+    'I-80',
+    NULL,
+    'Green River Tunnel East',
+    'Bitter Creek',
+    'KPER',
+    'D3',
+    'Tunnel / canyon exposure'
+  ),
+  (
+    'i80-bitter-creek-point-of-rocks',
+    'I-80',
+    NULL,
+    'Bitter Creek',
+    'Point of Rocks',
+    'KBIT',
+    'D3',
+    'Open prairie exposure'
+  ),
+  (
+    'i80-point-of-rocks-tipton',
+    'I-80',
+    NULL,
+    'Point of Rocks',
+    'Tipton',
+    'WY12',
+    'D3',
     'High wind corridor'
   ),
   (
-    'i80-wagonhound-elk-mountain-eb',
+    'i80-tipton-walcott-junction',
     'I-80',
-    'EB',
-    'Wagonhound',
+    NULL,
+    'Tipton',
+    'Walcott Junction',
+    'WY13',
+    'D3',
+    'Open prairie exposure'
+  ),
+  (
+    'i80-walcott-junction-elk-mountain',
+    'I-80',
+    NULL,
+    'Walcott Junction',
     'Elk Mountain',
+    'WY15',
+    'D3',
+    'High wind corridor'
+  ),
+  (
+    'i80-elk-mountain-foote-creek',
+    'I-80',
+    NULL,
+    'Elk Mountain',
+    'Foote Creek',
     'WY19',
     'D1',
     'High wind corridor'
   ),
   (
-    'i80-elk-mountain-foote-creek-eb',
+    'i80-foote-creek-arlington',
     'I-80',
-    'EB',
-    'Elk Mountain',
+    NULL,
     'Foote Creek',
+    'Arlington',
     'WY22',
     'D1',
     'High wind corridor'
   ),
   (
-    'i25-bordeaux-twenty-mile-hill-nb',
+    'i80-arlington-vedauwoo',
+    'I-80',
+    NULL,
+    'Arlington',
+    'Vedauwoo',
+    'KARL',
+    'D1',
+    'High wind corridor'
+  ),
+  (
+    'i80-vedauwoo-summit-east',
+    'I-80',
+    NULL,
+    'Vedauwoo',
+    'Summit East',
+    'KVDW',
+    'D1',
+    'High wind corridor'
+  ),
+  (
+    'i80-summit-east-cheyenne-east',
+    'I-80',
+    NULL,
+    'Summit East',
+    'Cheyenne East',
+    'WY28',
+    'D1',
+    'Wind exposure'
+  ),
+  (
+    'i25-bordeaux-bear-creek',
     'I-25',
-    'NB',
+    NULL,
     'Bordeaux',
-    'Twenty Mile Hill',
-    'KTMH',
+    'Bear Creek',
+    'KBRX',
     'D2',
     'Wind exposure'
+  ),
+  (
+    'i25-bear-creek-platte-converse',
+    'I-25',
+    NULL,
+    'Bear Creek',
+    'Platte/Converse',
+    'WY40',
+    'D2',
+    'Open prairie exposure'
+  ),
+  (
+    'i25-platte-converse-twenty-mile-hill',
+    'I-25',
+    NULL,
+    'Platte/Converse',
+    'Twenty Mile Hill',
+    'WY56',
+    'D2',
+    'Wind exposure'
+  ),
+  (
+    'i25-twenty-mile-hill-tisdale-divide',
+    'I-25',
+    NULL,
+    'Twenty Mile Hill',
+    'Tisdale Divide',
+    'KTMH',
+    'D2',
+    'High wind corridor'
+  ),
+  (
+    'i25-tisdale-divide-smokey-gap',
+    'I-25',
+    NULL,
+    'Tisdale Divide',
+    'Smokey Gap',
+    'WY63',
+    'D2',
+    'Open prairie exposure'
+  ),
+  (
+    'i25-smokey-gap-hat-six',
+    'I-25',
+    NULL,
+    'Smokey Gap',
+    'Hat Six',
+    'WY62',
+    'D2',
+    'Open prairie exposure'
+  ),
+  (
+    'i25-hat-six-coleman',
+    'I-25',
+    NULL,
+    'Hat Six',
+    'Coleman',
+    'WY61',
+    'D2',
+    'Wind exposure'
+  ),
+  (
+    'i90-buffalo-dead-horse',
+    'I-90',
+    NULL,
+    'Buffalo',
+    'Dead Horse',
+    'KDHS',
+    'D4',
+    'Open prairie exposure'
+  ),
+  (
+    'i90-buffalo-indian-creek',
+    'I-90',
+    NULL,
+    'Buffalo',
+    'Indian Creek Road',
+    'WY3',
+    'D4',
+    'Wind exposure'
+  ),
+  (
+    'i90-sheridan-pompey-creek',
+    'I-90',
+    NULL,
+    'Sheridan',
+    'Pompey Creek',
+    'WY55',
+    'D4',
+    'Wind exposure'
+  ),
+  (
+    'i90-gillette-mile-marker-108',
+    'I-90',
+    NULL,
+    'Gillette',
+    'Mile Marker 108',
+    'WY4',
+    'D4',
+    'Open prairie exposure'
+  ),
+  (
+    'i90-sundance-inyan-kara',
+    'I-90',
+    NULL,
+    'Sundance',
+    'Inyan Kara',
+    'KIKA',
+    'D4',
+    'Open prairie exposure'
+  ),
+  (
+    'i90-beulah-state-line',
+    'I-90',
+    NULL,
+    'Beulah Interchange',
+    'South Dakota line',
+    'WY6',
+    'D4',
+    'Wind exposure'
+  ),
+  (
+    'us14-granite-pass',
+    'US-14',
+    NULL,
+    'Bighorn foothills',
+    'Granite Pass',
+    'WY52',
+    'D4',
+    'Pass exposure'
+  ),
+  (
+    'us14-16-ucross',
+    'US-14/16',
+    NULL,
+    'Sheridan',
+    'Ucross',
+    'WY59',
+    'D4',
+    'Open prairie exposure'
+  ),
+  (
+    'us20-26-hiland',
+    'US-20/26',
+    NULL,
+    'Casper east',
+    'Hiland',
+    'KHLD',
+    'D2',
+    'Open prairie exposure'
+  ),
+  (
+    'us30-sage-junction',
+    'US-30',
+    NULL,
+    'Kemmerer',
+    'Sage Junction',
+    'KSGE',
+    'D3',
+    'Wind exposure'
+  ),
+  (
+    'us30-nugget-canyon',
+    'US-30',
+    NULL,
+    'Rock Springs',
+    'Nugget Canyon',
+    'WY30',
+    'D3',
+    'Tunnel / canyon exposure'
+  ),
+  (
+    'us85-gun-barrel',
+    'US-85',
+    NULL,
+    'Cheyenne north',
+    'Gun Barrel',
+    'KGUN',
+    'D1',
+    'Wind exposure'
+  ),
+  (
+    'us85-four-corners',
+    'US-85',
+    NULL,
+    'Gillette north',
+    'Four Corners',
+    'WY64',
+    'D4',
+    'Open prairie exposure'
+  ),
+  (
+    'us191-farson',
+    'US-191',
+    NULL,
+    'Farson',
+    'Green River Basin',
+    'WY42',
+    'D3',
+    'Open prairie exposure'
+  ),
+  (
+    'us287-pumpkin-vine',
+    'US-287',
+    NULL,
+    'South Pass approach',
+    'Pumpkin Vine',
+    'KPUM',
+    'D5',
+    'Wind exposure'
+  ),
+  (
+    'wy22-teton-pass',
+    'WY-22',
+    NULL,
+    'Wilson',
+    'Teton Pass',
+    'KTET',
+    'D5',
+    'Pass exposure'
   ),
   (
     'wy28-south-pass-red-canyon',
@@ -195,7 +527,67 @@ db.exec(`
     'Lower Red Canyon',
     'KREC',
     'D5',
-    'Wind-prone'
+    'Pass exposure'
+  ),
+  (
+    'wy220-pathfinder',
+    'WY-220',
+    NULL,
+    'Casper south',
+    'Pathfinder',
+    'KPAT',
+    'D2',
+    'Open prairie exposure'
+  ),
+  (
+    'wy372-shute-creek',
+    'WY-372',
+    NULL,
+    'Green River Basin',
+    'Shute Creek',
+    'KSHC',
+    'D3',
+    'Wind exposure'
+  ),
+  (
+    'wy387-pine-tree-junction',
+    'WY-387',
+    NULL,
+    'Pine Tree Junction',
+    'central WY-387',
+    'WY5',
+    'D2',
+    'Open prairie exposure'
+  ),
+  (
+    'wy487-shirley-rim',
+    'WY-487',
+    NULL,
+    'Shirley Basin',
+    'Shirley Rim',
+    'WY44',
+    'D2',
+    'Wind exposure'
+  ),
+  (
+    'wy120-meeteetse-rim',
+    'WY-120',
+    NULL,
+    'Meeteetse',
+    'Meeteetse Rim',
+    'KMTR',
+    'D4',
+    'Wind exposure'
+  ),
+  (
+    'wy210-wildcat-trail',
+    'WY-210',
+    NULL,
+    'Cheyenne',
+    'Wildcat Trail',
+    'WY48',
+    'D1',
+    'Wind exposure'
   );
 `);
 
@@ -347,6 +739,8 @@ app.get("/api/road/segments", (_req, res) => {
         primaryStationId: row.primaryStationId,
         districtId: row.districtId,
         notes: row.notes,
+        latitude: row.latitude,
+        longitude: row.longitude,
         impactLevel: impact.level,
         impactReason: impact.reason,
       };

@@ -10,6 +10,7 @@ import {
   getSharedHourlyForecast,
 } from "@/data/weatherStore";
 import type { TomorrowHourlyForecastEntry } from "@/services/tomorrow";
+import { formatTime24Hour, formatUpdatedTimeLabel } from "@/utils/dateTime";
 import { celsiusToFahrenheit, metersPerSecondToMph } from "@/utils/weather";
 
 type HourlyForecastStatus = "loading" | "ready" | "unavailable";
@@ -140,55 +141,17 @@ function getConditionLabel(weatherCode?: number) {
 }
 
 function formatClockLabel(value: string | Date) {
-  const date = typeof value === "string" ? new Date(value) : value;
-
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  return date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return formatTime24Hour(value);
 }
 
 function formatUpdatedLabel(
   sourceTimestamp: string | null,
   fallbackLabel: string | null,
 ) {
-  if (sourceTimestamp) {
-    const date = new Date(sourceTimestamp);
-
-    if (!Number.isNaN(date.getTime())) {
-      const now = new Date();
-      const isSameDay =
-        date.getFullYear() === now.getFullYear() &&
-        date.getMonth() === now.getMonth() &&
-        date.getDate() === now.getDate();
-
-      const formatted = isSameDay
-        ? date.toLocaleTimeString("en-US", {
-            hour: "numeric",
-            minute: "2-digit",
-            hour12: true,
-          })
-        : date.toLocaleString("en-US", {
-            month: "short",
-            day: "numeric",
-            hour: "numeric",
-            minute: "2-digit",
-            hour12: true,
-          });
-
-      return `Updated ${formatted}`;
-    }
-  }
-
-  if (fallbackLabel) {
-    return `Updated ${fallbackLabel}`;
-  }
-
-  return "Updated";
+  return formatUpdatedTimeLabel({
+    sourceTimestamp,
+    fallbackLabel,
+  });
 }
 
 function degreesToCompass(degrees: number) {

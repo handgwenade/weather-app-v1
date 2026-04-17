@@ -172,6 +172,10 @@ const CONFIDENCE_ORDER: Record<SuggestionConfidence, number> = {
 };
 
 const CLOSURE_REGEX = /\b(closed|closure|road closed|impassable)\b/i;
+const VEHICLE_SPECIFIC_RESTRICTION_REGEX =
+  /\b(high-?profile|light trailer|light trailers|trailers?\b|vehicles?\s+under|weight threshold|gross vehicle|gvw|semi|tractor trailer|commercial vehicles?|commercial traffic|oversize|overweight|hazmat|motorcycles?)\b/i;
+const GENERAL_TRAVEL_CLOSURE_REGEX =
+  /\b(road closed|highway closed|interstate closed|closed to all|closed for all|all vehicles|all traffic|through traffic|general travel|no travel|closed both directions|closed in both directions|full closure|fully closed|impassable|road closure)\b/i;
 const SNOW_CONTEXT_REGEX = /\b(snow|blowing snow|drifting|slick|icy|ice)\b/i;
 
 function isNeutralRoadCondition(value: string | null) {
@@ -180,6 +184,30 @@ function isNeutralRoadCondition(value: string | null) {
   }
 
   return ["dry", "none", "clear"].includes(value.trim().toLowerCase());
+}
+
+function isVehicleSpecificRestriction(value: string | null) {
+  if (!value) {
+    return false;
+  }
+
+  return VEHICLE_SPECIFIC_RESTRICTION_REGEX.test(value);
+}
+
+function isGeneralTravelClosure(value: string | null) {
+  if (!value) {
+    return false;
+  }
+
+  if (isVehicleSpecificRestriction(value)) {
+    return false;
+  }
+
+  if (GENERAL_TRAVEL_CLOSURE_REGEX.test(value)) {
+    return true;
+  }
+
+  return CLOSURE_REGEX.test(value) && !/\bclosed to\b/i.test(value);
 }
 
 function buildRuleMatch(
@@ -213,7 +241,7 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
         return null;
       }
 
-      if (!CLOSURE_REGEX.test(restriction)) {
+      if (!isGeneralTravelClosure(restriction)) {
         return null;
       }
 
@@ -221,7 +249,7 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
         OBSERVATION_RULES[0],
         SuggestionConfidence.HIGH,
         [
-          "WYDOT restriction indicates closure",
+          "WYDOT restriction indicates full road closure",
           "Travel should not continue on this segment",
         ],
       );
@@ -237,7 +265,11 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
     blockers: [SuggestionCode.ROAD_CLOSED],
     evaluate: ({ input }) => {
       const restriction = input.road.restriction?.trim() ?? "";
-      if (!restriction || restriction === "None" || CLOSURE_REGEX.test(restriction)) {
+      if (
+        !restriction ||
+        restriction === "None" ||
+        isGeneralTravelClosure(restriction)
+      ) {
         return null;
       }
 
@@ -245,7 +277,9 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
         OBSERVATION_RULES[1],
         SuggestionConfidence.HIGH,
         [
-          "WYDOT restriction is active",
+          isVehicleSpecificRestriction(restriction)
+            ? "WYDOT restriction limits travel for some vehicle classes"
+            : "WYDOT restriction limits travel on this segment",
           "Travel is limited on this segment",
         ],
       );
@@ -654,7 +688,8 @@ export function getSuggestionPresentation(match: RuleMatch): SuggestionPresentat
     case SuggestionCode.TRAVEL_RESTRICTION_POSTED:
       return {
         actionLabel: "Review now",
-        recommendationText: "Restriction is active. Review WYDOT guidance before travel.",
+        recommendationText:
+          "Travel restriction is posted. Review WYDOT guidance before travel.",
         levelLabel: "High",
         homeTone: "alert",
         roadTone: "high",

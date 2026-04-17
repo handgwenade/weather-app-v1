@@ -4,9 +4,10 @@ import AlertsScreenV2, {
 } from "@/components/alerts/AlertsScreenV2";
 import { useSelectedLocation } from "@/data/locationStore";
 import { getActiveAlertsForLocation } from "@/services/nws";
+import { formatMonthDayTime24Hour } from "@/utils/dateTime";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -41,23 +42,7 @@ function formatAlertCount(count: number, alertsAvailable: boolean) {
 }
 
 function formatAlertTime(value?: string) {
-  if (!value) {
-    return "Not available";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Not available";
-  }
-
-  return date.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
+  return formatMonthDayTime24Hour(value) ?? "Not available";
 }
 
 function getAlertTone(
@@ -221,6 +206,9 @@ export default function AlertsScreen() {
   const selectedLocation = useSelectedLocation();
 
   const { alerts, alertsAvailable } = useAlertsScreenData(selectedLocation);
+  const fallbackMessage = alertsAvailable
+    ? "No official alerts are active for this location right now."
+    : "Official alerts are temporarily unavailable for this location.";
 
   if (!selectedLocation) {
     return (
@@ -321,14 +309,6 @@ export default function AlertsScreen() {
       </SafeAreaView>
     );
   }
-
-  const fallbackMessage = useMemo(
-    () =>
-      alertsAvailable
-        ? "No official alerts are active for this location right now."
-        : "Official alerts are temporarily unavailable for this location.",
-    [alertsAvailable],
-  );
 
   return (
     <AlertsScreenV2

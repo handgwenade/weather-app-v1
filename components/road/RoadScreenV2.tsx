@@ -1,5 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -44,6 +44,7 @@ type RoadScreenV2Props = {
   riskBullets: RoadBullet[];
   confidenceLabel: string;
   outlookItems: RoadOutlookItem[];
+  extraSection?: ReactNode;
 };
 
 function getStatusChipStyle(tone: RoadTone) {
@@ -95,6 +96,7 @@ export default function RoadScreenV2({
   riskBullets,
   confidenceLabel,
   outlookItems,
+  extraSection,
 }: RoadScreenV2Props) {
   const statusChipStyle = getStatusChipStyle(statusTone);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -252,6 +254,8 @@ export default function RoadScreenV2({
             ))}
           </View>
         </View>
+
+        {extraSection ? extraSection : null}
       </ScrollView>
     </SafeAreaView>
   );
