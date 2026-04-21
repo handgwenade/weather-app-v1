@@ -18,6 +18,7 @@ type PersistedLocationState = {
 };
 
 const STORAGE_KEY = "weather-app-location-store-v2";
+const CURRENT_LOCATION_ID = "current-device-location";
 
 const LEGACY_SEEDED_LOCATIONS: AppLocation[] = [
   {
@@ -51,6 +52,7 @@ let activeLocation: AppLocation | null = null;
 let defaultLocationId: string | null = null;
 let propertyLocationId: string | null = null;
 let persistedStateLoadPromise: Promise<void> | null = null;
+let persistedStateLoaded = false;
 
 const listeners = new Set<() => void>();
 
@@ -164,7 +166,15 @@ function isLegacySeededState(locations: AppLocation[]) {
   );
 }
 
+function canUsePersistedStorage() {
+  return process.env.EXPO_OS !== "web" || typeof window !== "undefined";
+}
+
 async function persistState() {
+  if (!canUsePersistedStorage()) {
+    return;
+  }
+
   const payload: PersistedLocationState = {
     activeLocation,
     savedLocations,
@@ -186,6 +196,11 @@ async function persistStateSafely(errorMessage: string) {
 async function loadPersistedState() {
   if (persistedStateLoadPromise) {
     return persistedStateLoadPromise;
+  }
+
+  if (!canUsePersistedStorage()) {
+    persistedStateLoaded = true;
+    return Promise.resolve();
   }
 
   persistedStateLoadPromise = (async () => {
@@ -237,13 +252,18 @@ async function loadPersistedState() {
       }
     } catch (error) {
       console.log("Failed to load saved locations:", error);
+    } finally {
+      persistedStateLoaded = true;
+      emitChange();
     }
   })();
 
   return persistedStateLoadPromise;
 }
 
-void loadPersistedState();
+if (canUsePersistedStorage()) {
+  void loadPersistedState();
+}
 
 export function getSavedLocations() {
   return savedLocations;
@@ -253,6 +273,10 @@ export function getSelectedLocation() {
   repairIdsIfNeeded();
   repairActiveLocationIfNeeded();
   return activeLocation;
+}
+
+export function getLocationStoreReady() {
+  return persistedStateLoaded;
 }
 
 export function getDefaultLocation() {
@@ -401,6 +425,52 @@ export async function addSavedLocation(input: {
   return newLocation;
 }
 
+export async function upsertCurrentLocationSelection(input: {
+  name: string;
+  city: string;
+  state: string;
+  latitude: number;
+  longitude: number;
+}) {
+  const nextLocation: AppLocation = {
+    id: CURRENT_LOCATION_ID,
+    name: input.name.trim(),
+    city: input.city.trim(),
+    state: normalizeState(input.state),
+    latitude: input.latitude,
+    longitude: input.longitude,
+  };
+  const existingIndex = savedLocations.findIndex(
+    (location) => location.id === CURRENT_LOCATION_ID,
+  );
+
+  if (existingIndex === -1) {
+    savedLocations = [...savedLocations, nextLocation];
+  } else {
+    savedLocations = savedLocations.map((location) =>
+      location.id === CURRENT_LOCATION_ID ? nextLocation : location,
+    );
+  }
+
+  activeLocation = nextLocation;
+
+  if (!defaultLocationId) {
+    defaultLocationId = nextLocation.id;
+  }
+
+  if (!propertyLocationId) {
+    propertyLocationId = nextLocation.id;
+  }
+
+  repairIdsIfNeeded();
+  repairActiveLocationIfNeeded();
+
+  await persistStateSafely("Failed to persist current location selection:");
+  emitChange();
+
+  return nextLocation;
+}
+
 export async function deleteSavedLocation(locationId: string) {
   const locationToDelete = savedLocations.find(
     (location) => location.id === locationId,
@@ -437,6 +507,10 @@ export function useSavedLocations() {
 
 export function useSelectedLocation() {
   return useSyncExternalStore(subscribe, getSelectedLocation);
+}
+
+export function useLocationStoreReady() {
+  return useSyncExternalStore(subscribe, getLocationStoreReady);
 }
 
 export function useDefaultLocation() {

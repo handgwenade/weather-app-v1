@@ -737,7 +737,8 @@ export function getSuggestionPresentation(match: RuleMatch): SuggestionPresentat
     case SuggestionCode.ROAD_DATA_UNAVAILABLE:
       return {
         actionLabel: "Check data",
-        recommendationText: "Road-specific guidance is limited right now. Check again before travel.",
+        recommendationText:
+          "Road-specific WYDOT data could not be retrieved right now. Use alerts and weather as supplemental guidance.",
         levelLabel: "Unavailable",
         homeTone: "neutral",
         roadTone: "neutral",

@@ -1,16 +1,19 @@
 {
   "expo": {
-    "name": "weather-app",
-    "slug": "weather-app",
+    "name": "RoadSignal",
+    "slug": "roadsignal",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "weatherapp",
+    "scheme": "roadsignal",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.weatherapp"
+      "bundleIdentifier": "com.gwendolynh.roadsignal",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,10 +24,18 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.weatherapp"
+      "package": "com.gwendolynh.roadsignal",
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
+      "bundler": "metro",
+      "name": "RoadSignal",
+      "shortName": "RoadSignal",
       "output": "static",
+      "themeColor": "#2F7FD8",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -44,7 +55,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Allow Weather App to use your location so Road can show nearby weather and WYDOT travel conditions."
+          "locationWhenInUsePermission": "Allow RoadSignal to use your location so Road can show nearby weather and WYDOT travel conditions."
         }
       ],
       "@rnmapbox/maps"

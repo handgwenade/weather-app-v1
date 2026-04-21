@@ -585,6 +585,15 @@ function getWydotLocationMapping(
 }
 
 async function fetchWydotHtml(url: string) {
+  if (process.env.EXPO_OS === "web") {
+    // WYDOT serves HTML without CORS headers, so a browser build cannot read the
+    // response body directly from wyoroad.info. Web support requires a same-origin
+    // backend or proxy that fetches the HTML server-side and relays structured data.
+    throw new Error(
+      "WYDOT web fetch is blocked because wyoroad.info does not allow browser cross-origin reads.",
+    );
+  }
+
   const response = await fetch(url, {
     headers: {
       Accept: "text/html,application/xhtml+xml",
