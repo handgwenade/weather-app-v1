@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { type ReactNode, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useScrollToTopOnFocus } from "@/hooks/useScrollToTopOnFocus";
 
 export type RoadTone = "good" | "caution" | "high" | "neutral";
 export type RoadActionDestination = "details" | "alerts" | "conditions";
@@ -101,6 +102,8 @@ export default function RoadScreenV2({
   const statusChipStyle = getStatusChipStyle(statusTone);
   const scrollViewRef = useRef<ScrollView>(null);
   const [detailsSectionY, setDetailsSectionY] = useState(0);
+
+  useScrollToTopOnFocus(scrollViewRef);
 
   function handleActionPress() {
     if (actionDestination === "details") {

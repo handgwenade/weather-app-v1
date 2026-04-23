@@ -1,7 +1,15 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { BarChart, LineChart } from "react-native-chart-kit";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useSelectedLocation } from "@/data/locationStore";
@@ -9,26 +17,40 @@ import {
   getSharedCurrentWeather,
   getSharedHourlyForecast,
 } from "@/data/weatherStore";
+import { useScrollToTopOnFocus } from "@/hooks/useScrollToTopOnFocus";
 import type { TomorrowHourlyForecastEntry } from "@/services/tomorrow";
 import { formatTime24Hour, formatUpdatedTimeLabel } from "@/utils/dateTime";
 import { celsiusToFahrenheit, metersPerSecondToMph } from "@/utils/weather";
 
 type HourlyForecastStatus = "loading" | "ready" | "unavailable";
 
-type HourlyConditionsRow = {
+type HourlyChartPoint = {
   id: string;
   timeLabel: string;
-  conditionLabel: string;
-  temperatureText: string;
-  windText: string;
-  precipText: string;
+  temperatureF: number | null;
+  windSpeedMph: number | null;
+  precipitationProbability: number | null;
+};
+
+type ConditionsChartCardModel = {
+  id: string;
+  title: string;
+  chartType: "line" | "bar";
+  labels: string[];
+  values: number[];
+  valueOffset: number;
+  segments: number;
+  emptyText: string;
+  noteText: string | null;
+  yAxisSuffix: string;
+  color: string;
 };
 
 type ConditionsViewModel = {
   updatedLabel: string;
   summaryText: string;
   takeawayText: string;
-  rows: HourlyConditionsRow[];
+  chartCards: ConditionsChartCardModel[];
 };
 
 type UseConditionsScreenDataResult = {
@@ -43,7 +65,7 @@ type ConditionsScreenV2Props = {
   updatedLabel: string;
   summaryText: string;
   takeawayText: string;
-  rows: HourlyConditionsRow[];
+  chartCards: ConditionsChartCardModel[];
   onPressSettings: () => void;
   onPressLocationSearch: () => void;
 };
@@ -52,10 +74,16 @@ function ConditionsScreenV2({
   updatedLabel,
   summaryText,
   takeawayText,
-  rows,
+  chartCards,
   onPressSettings,
   onPressLocationSearch,
 }: ConditionsScreenV2Props) {
+  const { width: screenWidth } = useWindowDimensions();
+  const chartWidth = Math.max(screenWidth - 72, 260);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  useScrollToTopOnFocus(scrollViewRef);
+
   return (
     <SafeAreaView edges={["top"]} style={styles.safeArea}>
       <View style={styles.screen}>
@@ -82,6 +110,7 @@ function ConditionsScreenV2({
         </View>
 
         <ScrollView
+          ref={scrollViewRef}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
@@ -92,15 +121,14 @@ function ConditionsScreenV2({
           <View style={styles.sectionCard}>
             <Text style={styles.cardTitle}>Next 12 Hours</Text>
 
-            {rows.length > 0 ? (
-              <View style={styles.hourlyList}>
-                {rows.map((row, index) => (
-                  <View key={row.id}>
-                    <HourlyRow row={row} />
-                    {index < rows.length - 1 ? (
-                      <View style={styles.hourlyDivider} />
-                    ) : null}
-                  </View>
+            {chartCards.length > 0 ? (
+              <View style={styles.chartStack}>
+                {chartCards.map((card) => (
+                  <ConditionsChartCard
+                    key={card.id}
+                    card={card}
+                    chartWidth={chartWidth}
+                  />
                 ))}
               </View>
             ) : (
@@ -154,71 +182,118 @@ function formatUpdatedLabel(
   });
 }
 
-function degreesToCompass(degrees: number) {
-  const directions = [
-    "N",
-    "NNE",
-    "NE",
-    "ENE",
-    "E",
-    "ESE",
-    "SE",
-    "SSE",
-    "S",
-    "SSW",
-    "SW",
-    "WSW",
-    "W",
-    "WNW",
-    "NW",
-    "NNW",
-  ];
-  const normalized = ((degrees % 360) + 360) % 360;
-  const index = Math.round(normalized / 22.5) % directions.length;
-  return directions[index];
+function getNextTwelveHours(hourlyEntries: TomorrowHourlyForecastEntry[]) {
+  return hourlyEntries.slice(0, 12);
 }
 
-function formatTemperatureText(value?: number) {
-  return typeof value === "number"
-    ? `${Math.round(celsiusToFahrenheit(value))}°F`
-    : "--";
-}
-
-function formatWindText(speed?: number, direction?: number) {
-  if (typeof speed !== "number") {
-    return "--";
-  }
-
-  const speedText = `${Math.round(metersPerSecondToMph(speed))} mph`;
-
-  if (typeof direction !== "number") {
-    return speedText;
-  }
-
-  return `${speedText} ${degreesToCompass(direction)}`;
-}
-
-function formatPrecipText(value?: number) {
-  return typeof value === "number" ? `${Math.round(value)}%` : "--";
-}
-
-function buildHourlyConditionsRows(
+function buildHourlyChartPoints(
   hourlyEntries: TomorrowHourlyForecastEntry[],
-): HourlyConditionsRow[] {
-  return hourlyEntries.slice(0, 12).map((entry, index) => ({
+): HourlyChartPoint[] {
+  return getNextTwelveHours(hourlyEntries).map((entry, index) => ({
     id: `${entry.time}-${index}`,
     timeLabel: formatClockLabel(entry.time) ?? "Time unavailable",
-    conditionLabel:
-      typeof entry.values.weatherCode === "number"
-        ? getConditionLabel(entry.values.weatherCode)
-        : "Unavailable",
-    temperatureText: formatTemperatureText(entry.values.temperature),
-    windText: formatWindText(
-      entry.values.windSpeed,
-      entry.values.windDirection,
-    ),
-    precipText: formatPrecipText(entry.values.precipitationProbability),
+    temperatureF:
+      typeof entry.values.temperature === "number"
+        ? celsiusToFahrenheit(entry.values.temperature)
+        : null,
+    windSpeedMph:
+      typeof entry.values.windSpeed === "number"
+        ? metersPerSecondToMph(entry.values.windSpeed)
+        : null,
+    precipitationProbability:
+      typeof entry.values.precipitationProbability === "number"
+        ? entry.values.precipitationProbability
+        : null,
   }));
+}
+
+function buildChartLabels(labels: string[]) {
+  return labels.map((label, index) => (index % 2 === 0 ? label : ""));
+}
+
+function buildLineChartCard(params: {
+  id: string;
+  title: string;
+  points: HourlyChartPoint[];
+  emptyText: string;
+  yAxisSuffix: string;
+  color: string;
+  valueSelector: (point: HourlyChartPoint) => number | null;
+}) {
+  const { id, title, points, emptyText, yAxisSuffix, color, valueSelector } =
+    params;
+  const availablePoints = points.filter((point) => {
+    const value = valueSelector(point);
+    return typeof value === "number" && Number.isFinite(value);
+  });
+
+  if (availablePoints.length === 0) {
+    return {
+      id,
+      title,
+      chartType: "line",
+      labels: [],
+      values: [],
+      valueOffset: 0,
+      segments: 3,
+      emptyText,
+      noteText: null,
+      yAxisSuffix,
+      color,
+    } satisfies ConditionsChartCardModel;
+  }
+
+  const actualValues = availablePoints.map((point) =>
+    Math.round(valueSelector(point) ?? 0),
+  );
+  const minValue = Math.min(...actualValues);
+  const maxValue = Math.max(...actualValues);
+  const missingCount = points.length - availablePoints.length;
+
+  return {
+    id,
+    title,
+    chartType: "line",
+    labels: buildChartLabels(availablePoints.map((point) => point.timeLabel)),
+    values: actualValues,
+    valueOffset: 0,
+    segments: 3,
+    emptyText,
+    noteText:
+      missingCount > 0
+        ? `Showing ${availablePoints.length} of ${points.length} available hourly points.`
+        : `Visible range ${minValue}${yAxisSuffix} to ${maxValue}${yAxisSuffix}.`,
+    yAxisSuffix,
+    color,
+  } satisfies ConditionsChartCardModel;
+}
+
+function buildPrecipChartCard(points: HourlyChartPoint[]) {
+  const values = points.map((point) =>
+    point.precipitationProbability === null
+      ? 0
+      : Math.round(point.precipitationProbability),
+  );
+  const availableCount = points.filter(
+    (point) => point.precipitationProbability !== null,
+  ).length;
+
+  return {
+    id: "precip",
+    title: "Precip Probability",
+    chartType: "line",
+    labels: buildChartLabels(points.map((point) => point.timeLabel)),
+    values,
+    valueOffset: 0,
+    segments: 4,
+    emptyText: "Precipitation probability is unavailable for the next 12 hours.",
+    noteText:
+      availableCount < points.length
+        ? `Across all ${points.length} visible hours. Missing precip values are shown on the 0% baseline.`
+        : `Across all ${points.length} visible hours. Flat periods indicate 0% precip probability.`,
+    yAxisSuffix: "%",
+    color: "#0F766E",
+  } satisfies ConditionsChartCardModel;
 }
 
 function buildSummaryText(hourlyEntries: TomorrowHourlyForecastEntry[]) {
@@ -226,7 +301,7 @@ function buildSummaryText(hourlyEntries: TomorrowHourlyForecastEntry[]) {
     return "Hourly forecast is unavailable right now.";
   }
 
-  const nextTwelveHours = hourlyEntries.slice(0, 12);
+  const nextTwelveHours = getNextTwelveHours(hourlyEntries);
   const firstEntry = nextTwelveHours[0];
   const temperatures = nextTwelveHours
     .map((entry) =>
@@ -277,7 +352,7 @@ function buildTakeawayText(hourlyEntries: TomorrowHourlyForecastEntry[]) {
     return "Hourly forecast is unavailable, so no forward-looking weather takeaway is available right now.";
   }
 
-  const nextTwelveHours = hourlyEntries.slice(0, 12);
+  const nextTwelveHours = getNextTwelveHours(hourlyEntries);
   const minTempF = nextTwelveHours.reduce<number | null>((lowest, entry) => {
     if (typeof entry.values.temperature !== "number") {
       return lowest;
@@ -324,18 +399,23 @@ function buildTakeawayText(hourlyEntries: TomorrowHourlyForecastEntry[]) {
     maxPrecipProbability >= 50 &&
     hasWetSignal
   ) {
-    return `Precipitation probability reaches ${Math.round(maxPrecipProbability)}% in the next 12 hours. Weather-sensitive work should stay under watch.`;
+    return `Forecast precipitation probability reaches ${Math.round(maxPrecipProbability)}% in the next 12 hours, with rain or wintry signals in the hourly outlook.`;
   }
 
   if (minTempF !== null && minTempF <= 32) {
-    return `Hourly forecast temperatures dip to ${Math.round(minTempF)}°F in the next 12 hours. Cold weather is the main factor to watch.`;
+    return `Hourly forecast temperatures dip to ${Math.round(minTempF)}°F in the next 12 hours.`;
   }
 
   if (maxWindMph !== null && maxWindMph >= 25) {
-    return `Hourly wind peaks near ${Math.round(maxWindMph)} mph in the next 12 hours. Wind is the main weather factor to watch.`;
+    return `Hourly forecast wind peaks near ${Math.round(maxWindMph)} mph in the next 12 hours.`;
   }
 
-  return "No major weather issues are indicated in the next 12 hours.";
+  const minPrecipText =
+    maxPrecipProbability !== null ? `${Math.round(maxPrecipProbability)}%` : "--";
+  const minTempText = minTempF !== null ? `${Math.round(minTempF)}°F` : "--";
+  const maxWindText = maxWindMph !== null ? `${Math.round(maxWindMph)} mph` : "--";
+
+  return `Next-12-hour forecast keeps precipitation probability at or below ${minPrecipText}, temperatures above ${minTempText}, and wind below ${maxWindText}.`;
 }
 
 function buildConditionsViewModel(params: {
@@ -361,15 +441,37 @@ function buildConditionsViewModel(params: {
       updatedLabel,
       summaryText: "Loading hourly forecast for this location.",
       takeawayText: "Collecting hourly weather guidance now.",
-      rows: [],
+      chartCards: [],
     };
   }
+
+  const chartPoints = buildHourlyChartPoints(hourlyEntries);
 
   return {
     updatedLabel,
     summaryText: buildSummaryText(hourlyEntries),
     takeawayText: buildTakeawayText(hourlyEntries),
-    rows: buildHourlyConditionsRows(hourlyEntries),
+    chartCards: [
+      buildLineChartCard({
+        id: "temperature",
+        title: "Temperature",
+        points: chartPoints,
+        emptyText: "Temperature data is unavailable for the next 12 hours.",
+        yAxisSuffix: "°F",
+        color: "#C2410C",
+        valueSelector: (point) => point.temperatureF,
+      }),
+      buildLineChartCard({
+        id: "wind",
+        title: "Wind",
+        points: chartPoints,
+        emptyText: "Wind data is unavailable for the next 12 hours.",
+        yAxisSuffix: " mph",
+        color: "#1D4ED8",
+        valueSelector: (point) => point.windSpeedMph,
+      }),
+      buildPrecipChartCard(chartPoints),
+    ],
   };
 }
 
@@ -415,7 +517,7 @@ function useConditionsScreenData(
       if (currentResult.status === "fulfilled") {
         setSourceUpdatedLabel(
           typeof currentResult.value.data.time === "string"
-            ? formatClockLabel(currentResult.value.data.time)
+            ? currentResult.value.data.time
             : null,
         );
         setFallbackRefreshLabel(
@@ -434,6 +536,17 @@ function useConditionsScreenData(
 
       if (hourlyResult.status === "fulfilled") {
         const nextHourly = hourlyResult.value.timelines?.hourly ?? [];
+        console.log(
+          "[Conditions] Hourly payload sample",
+          nextHourly.slice(0, 12).map((entry) => ({
+            time: entry.time,
+            temperature: entry.values.temperature ?? null,
+            windSpeed: entry.values.windSpeed ?? null,
+            windGust: entry.values.windGust ?? null,
+            precipitationProbability:
+              entry.values.precipitationProbability ?? null,
+          })),
+        );
         setHourlyForecast(nextHourly);
         setHourlyStatus(nextHourly.length > 0 ? "ready" : "unavailable");
       } else {
@@ -461,28 +574,100 @@ function useConditionsScreenData(
   };
 }
 
-function HourlyRow({ row }: { row: HourlyConditionsRow }) {
+function ConditionsChartCard({
+  card,
+  chartWidth,
+}: {
+  card: ConditionsChartCardModel;
+  chartWidth: number;
+}) {
+  const chartConfig = {
+    backgroundColor: "#FFFFFF",
+    backgroundGradientFrom: "#FFFFFF",
+    backgroundGradientTo: "#FFFFFF",
+    decimalPlaces: 0,
+    formatYLabel: (value: string) =>
+      `${Math.round(Number(value) + card.valueOffset)}`,
+    color: () => card.color,
+    labelColor: () => "#556274",
+    fillShadowGradientFrom: card.color,
+    fillShadowGradientTo: card.color,
+    fillShadowGradientFromOpacity: 0.12,
+    fillShadowGradientToOpacity: 0.12,
+    propsForBackgroundLines: {
+      stroke: "#E2E8F0",
+      strokeWidth: 1,
+    },
+    propsForLabels: {
+      fontSize: 10,
+    },
+    propsForDots: {
+      r: "3",
+      strokeWidth: "1",
+      stroke: card.color,
+    },
+    barPercentage: 0.6,
+  };
+
   return (
-    <View style={styles.hourlyRow}>
-      <View style={styles.hourlyTimeBlock}>
-        <Text style={styles.hourlyTime}>{row.timeLabel}</Text>
-        <Text style={styles.hourlyCondition}>{row.conditionLabel}</Text>
-      </View>
+    <View style={styles.chartCard}>
+      <Text style={styles.chartTitle}>{card.title}</Text>
+      {card.noteText ? <Text style={styles.chartNote}>{card.noteText}</Text> : null}
 
-      <View style={styles.hourlyMetricBlock}>
-        <Text style={styles.hourlyMetricLabel}>Air Temp</Text>
-        <Text style={styles.hourlyMetricValue}>{row.temperatureText}</Text>
-      </View>
-
-      <View style={styles.hourlyMetricBlock}>
-        <Text style={styles.hourlyMetricLabel}>Wind</Text>
-        <Text style={styles.hourlyMetricValue}>{row.windText}</Text>
-      </View>
-
-      <View style={styles.hourlyMetricBlock}>
-        <Text style={styles.hourlyMetricLabel}>Precip Prob</Text>
-        <Text style={styles.hourlyMetricValue}>{row.precipText}</Text>
-      </View>
+      {card.values.length === 0 ? (
+        <Text style={styles.unavailableText}>{card.emptyText}</Text>
+      ) : card.chartType === "line" ? (
+        <LineChart
+          data={{
+            labels: card.labels,
+            datasets: [
+              {
+                data: card.values,
+                color: () => card.color,
+                strokeWidth: 2,
+              },
+            ],
+          }}
+          width={chartWidth}
+          height={220}
+          yAxisLabel=""
+          yAxisSuffix={card.yAxisSuffix}
+          chartConfig={chartConfig}
+          bezier={false}
+          withShadow={false}
+          withInnerLines={false}
+          withOuterLines
+          withVerticalLines={false}
+          withHorizontalLines
+          transparent
+          fromZero
+          style={styles.chart}
+        />
+      ) : (
+        <BarChart
+          data={{
+            labels: card.labels,
+            datasets: [
+              {
+                data: card.values,
+              },
+            ],
+          }}
+          width={chartWidth}
+          height={220}
+          yAxisLabel=""
+          yAxisSuffix={card.yAxisSuffix}
+          chartConfig={chartConfig}
+          withInnerLines={false}
+          withHorizontalLabels
+          withVerticalLabels
+          fromZero
+          showBarTops={false}
+          showValuesOnTopOfBars={false}
+          flatColor
+          style={styles.chart}
+        />
+      )}
     </View>
   );
 }
@@ -553,7 +738,7 @@ export default function ConditionsScreen() {
       updatedLabel={viewModel.updatedLabel}
       summaryText={viewModel.summaryText}
       takeawayText={viewModel.takeawayText}
-      rows={viewModel.rows}
+      chartCards={viewModel.chartCards}
       onPressSettings={() => router.push("/settings")}
       onPressLocationSearch={() => router.push("/manage-locations")}
     />
@@ -678,50 +863,33 @@ const styles = StyleSheet.create({
     color: "#0F172B",
     letterSpacing: -0.44,
   },
-  hourlyList: {
-    gap: 0,
+  chartStack: {
+    gap: 16,
   },
-  hourlyRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 12,
+  chartCard: {
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
-  hourlyDivider: {
-    height: 1,
-    backgroundColor: "#E2E8F0",
-  },
-  hourlyTimeBlock: {
-    flex: 1.4,
-    gap: 4,
-  },
-  hourlyTime: {
-    fontSize: 14,
-    lineHeight: 20,
+  chartTitle: {
+    fontSize: 15,
+    lineHeight: 22,
     fontWeight: "700",
     color: "#0F172B",
   },
-  hourlyCondition: {
-    fontSize: 13,
-    lineHeight: 18,
+  chartNote: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 16,
     color: "#556274",
   },
-  hourlyMetricBlock: {
-    flex: 1,
-    gap: 4,
-  },
-  hourlyMetricLabel: {
-    fontSize: 11,
-    lineHeight: 14,
-    textTransform: "uppercase",
-    letterSpacing: 0.3,
-    color: "#64748B",
-  },
-  hourlyMetricValue: {
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: "600",
-    color: "#0F172B",
+  chart: {
+    marginTop: 8,
+    marginLeft: -14,
   },
   unavailableText: {
     fontSize: 14,

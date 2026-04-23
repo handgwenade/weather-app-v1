@@ -1,19 +1,19 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useRef } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useScrollToTopOnFocus } from "@/hooks/useScrollToTopOnFocus";
 
 export type SettingsDefaultView = "home" | "conditions" | "road";
 
 type SettingsScreenV2Props = {
   defaultView: SettingsDefaultView;
-  showConfidenceLevels: boolean;
   autoRefreshData: boolean;
   versionText: string;
   lastSyncText: string;
   onPressClose: () => void;
   onPressManageOperationalLocations: () => void;
   onSelectDefaultView: (value: SettingsDefaultView) => void;
-  onToggleShowConfidenceLevels: () => void;
   onToggleAutoRefreshData: () => void;
 };
 
@@ -30,16 +30,18 @@ const RADIO_OPTIONS: RadioOption[] = [
 
 export default function SettingsScreenV2({
   defaultView,
-  showConfidenceLevels,
   autoRefreshData,
   versionText,
   lastSyncText,
   onPressClose,
   onPressManageOperationalLocations,
   onSelectDefaultView,
-  onToggleShowConfidenceLevels,
   onToggleAutoRefreshData,
 }: SettingsScreenV2Props) {
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  useScrollToTopOnFocus(scrollViewRef);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.topBar}>
@@ -53,6 +55,7 @@ export default function SettingsScreenV2({
       </View>
 
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
@@ -118,19 +121,6 @@ export default function SettingsScreenV2({
           <Text style={styles.cardTitle}>Display Options</Text>
 
           <View style={styles.toggleList}>
-            <Pressable
-              style={styles.toggleRow}
-              onPress={onToggleShowConfidenceLevels}
-            >
-              <Text style={styles.toggleLabel}>Show confidence levels</Text>
-
-              <View style={styles.checkboxShell}>
-                {showConfidenceLevels ? (
-                  <Ionicons name="checkmark" size={18} color="#2E6FC7" />
-                ) : null}
-              </View>
-            </Pressable>
-
             <Pressable
               style={styles.toggleRow}
               onPress={onToggleAutoRefreshData}

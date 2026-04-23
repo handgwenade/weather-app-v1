@@ -1,7 +1,9 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { ComponentProps } from "react";
+import { useRef } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useScrollToTopOnFocus } from "@/hooks/useScrollToTopOnFocus";
 
 export type HomeIconName = ComponentProps<typeof Ionicons>["name"];
 
@@ -109,6 +111,9 @@ export default function HomeScreenV2({
   const locationChipStyle = getStatusChipStyle(
     monitoredLocationCard.statusTone,
   );
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  useScrollToTopOnFocus(scrollViewRef);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -130,6 +135,7 @@ export default function HomeScreenV2({
       </View>
 
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"

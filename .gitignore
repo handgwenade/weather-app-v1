@@ -45,3 +45,6 @@ app-example
 
 # local data snapshots
 20260416_0400
+
+# Local Netlify folder
+.netlify

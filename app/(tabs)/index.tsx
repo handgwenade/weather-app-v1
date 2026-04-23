@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -37,7 +37,6 @@ import {
 import { formatTime24Hour, formatUpdatedTimeLabel } from "@/utils/dateTime";
 import {
   celsiusToFahrenheit,
-  getFreezeRiskLabel,
   metersPerSecondToMph,
 } from "@/utils/weather";
 
@@ -779,6 +778,25 @@ function useHomeScreenData(
   >(null);
   const [lastSuccessfulHomeWeatherFetchAtMs, setLastSuccessfulHomeWeatherFetchAtMs] =
     useState<number | null>(null);
+  const currentWeatherRef = useRef(currentWeather);
+  const hourlyForecastRef = useRef(hourlyForecast);
+  const weatherSnapshotLocationKeyRef = useRef(weatherSnapshotLocationKey);
+  const lastSuccessfulHomeWeatherFetchAtMsRef = useRef(
+    lastSuccessfulHomeWeatherFetchAtMs,
+  );
+
+  useEffect(() => {
+    currentWeatherRef.current = currentWeather;
+    hourlyForecastRef.current = hourlyForecast;
+    weatherSnapshotLocationKeyRef.current = weatherSnapshotLocationKey;
+    lastSuccessfulHomeWeatherFetchAtMsRef.current =
+      lastSuccessfulHomeWeatherFetchAtMs;
+  }, [
+    currentWeather,
+    hourlyForecast,
+    weatherSnapshotLocationKey,
+    lastSuccessfulHomeWeatherFetchAtMs,
+  ]);
 
   useEffect(() => {
     let isActive = true;
@@ -801,13 +819,22 @@ function useHomeScreenData(
 
       const selectedLocationWeatherKey =
         getHomeWeatherSnapshotKey(selectedLocation);
+      const latestCurrentWeather = currentWeatherRef.current;
+      const latestHourlyForecast = hourlyForecastRef.current;
+      const latestWeatherSnapshotLocationKey =
+        weatherSnapshotLocationKeyRef.current;
+      const latestLastSuccessfulHomeWeatherFetchAtMs =
+        lastSuccessfulHomeWeatherFetchAtMsRef.current;
       const hasValidWeatherSnapshotForLocation =
-        weatherSnapshotLocationKey === selectedLocationWeatherKey &&
-        hasValidHomeWeatherSnapshot(currentWeather, hourlyForecast);
+        latestWeatherSnapshotLocationKey === selectedLocationWeatherKey &&
+        hasValidHomeWeatherSnapshot(
+          latestCurrentWeather,
+          latestHourlyForecast,
+        );
       const hasFreshHomeWeatherSnapshot =
         hasValidWeatherSnapshotForLocation &&
-        lastSuccessfulHomeWeatherFetchAtMs !== null &&
-        Date.now() - lastSuccessfulHomeWeatherFetchAtMs <
+        latestLastSuccessfulHomeWeatherFetchAtMs !== null &&
+        Date.now() - latestLastSuccessfulHomeWeatherFetchAtMs <
           HOME_WEATHER_REFRESH_INTERVAL_MS;
       const shouldFetchWeather = !hasFreshHomeWeatherSnapshot;
 
@@ -827,9 +854,14 @@ function useHomeScreenData(
         pendingRequests: [
           ...(shouldFetchWeather ? ["currentAndHourlyWeather"] : []),
           "alerts",
-          "roadReport",
+          ...(process.env.EXPO_OS === "web" ? [] : ["roadReport"]),
         ],
       });
+
+      const roadReportRequest =
+        process.env.EXPO_OS === "web"
+          ? Promise.resolve<WydotRoadReport | null>(null)
+          : getWydotRoadReport(selectedLocation);
 
       const [weatherResult, alertsResult, roadResult] = await Promise.allSettled([
         shouldFetchWeather
@@ -839,7 +871,7 @@ function useHomeScreenData(
           selectedLocation.latitude,
           selectedLocation.longitude,
         ),
-        getWydotRoadReport(selectedLocation),
+        roadReportRequest,
       ]);
 
       if (!isActive) {
@@ -963,9 +995,9 @@ function useHomeScreenData(
 
       console.log("[Home] Weather decision", {
         selectedLocationWeatherKey,
-        weatherSnapshotLocationKey,
+        weatherSnapshotLocationKey: latestWeatherSnapshotLocationKey,
         priorSnapshotMatchesLocation:
-          weatherSnapshotLocationKey === selectedLocationWeatherKey,
+          latestWeatherSnapshotLocationKey === selectedLocationWeatherKey,
         reusingSnapshot: reusedWeatherSnapshot,
         skippedDueToFreshness: hasFreshHomeWeatherSnapshot,
         retryingDueToMissingData: !hasValidWeatherSnapshotForLocation,
@@ -975,11 +1007,12 @@ function useHomeScreenData(
         weatherFetchRejectedReason: weatherRejectedReason,
         combinedWeatherPromotedToScreenState:
           promotedCombinedWeatherToScreenState,
-        priorHasWeatherData: currentWeather.hasWeatherData,
-        priorTemperatureF: currentWeather.temperatureF,
-        priorSourceTimestamp: currentWeather.sourceTimestamp,
-        priorHourlyCount: hourlyForecast.length,
-        lastSuccessfulHomeWeatherFetchAtMs,
+        priorHasWeatherData: latestCurrentWeather.hasWeatherData,
+        priorTemperatureF: latestCurrentWeather.temperatureF,
+        priorSourceTimestamp: latestCurrentWeather.sourceTimestamp,
+        priorHourlyCount: latestHourlyForecast.length,
+        lastSuccessfulHomeWeatherFetchAtMs:
+          latestLastSuccessfulHomeWeatherFetchAtMs,
       });
 
       console.log("[Home] Property forecast deferred on Home", {

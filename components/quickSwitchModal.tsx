@@ -46,8 +46,11 @@ export default function QuickSwitchModal({
               const isCurrent = location.id === currentLocationId;
 
               return (
-                <View
+                <Pressable
                   key={location.id}
+                  accessibilityRole={isCurrent ? undefined : "button"}
+                  disabled={isCurrent}
+                  onPress={() => void onSelectLocation(location.id)}
                   style={[
                     styles.modalLocationRow,
                     isCurrent ? styles.modalLocationRowActive : null,
@@ -67,19 +70,15 @@ export default function QuickSwitchModal({
                       <Text style={styles.modalCurrentBadgeText}>Current</Text>
                     </View>
                   ) : (
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => void onSelectLocation(location.id)}
-                      style={styles.modalSelectButton}
-                    >
+                    <View style={styles.modalSelectButton}>
                       <Ionicons
                         name="chevron-forward-outline"
                         size={18}
                         color="#8fa3c2"
                       />
-                    </Pressable>
+                    </View>
                   )}
-                </View>
+                </Pressable>
               );
             })}
           </View>

@@ -17,7 +17,8 @@ type PersistedLocationState = {
   propertyLocationId: string | null;
 };
 
-const STORAGE_KEY = "weather-app-location-store-v2";
+const STORAGE_KEY = "roadsignal-location-store-v2";
+const LEGACY_STORAGE_KEYS = ["weather-app-location-store-v2"];
 const CURRENT_LOCATION_ID = "current-device-location";
 
 const LEGACY_SEEDED_LOCATIONS: AppLocation[] = [
@@ -185,6 +186,25 @@ async function persistState() {
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
 }
 
+async function getPersistedStateRawValue() {
+  const primaryValue = await AsyncStorage.getItem(STORAGE_KEY);
+
+  if (primaryValue) {
+    return primaryValue;
+  }
+
+  for (const legacyStorageKey of LEGACY_STORAGE_KEYS) {
+    const legacyValue = await AsyncStorage.getItem(legacyStorageKey);
+
+    if (legacyValue) {
+      await AsyncStorage.setItem(STORAGE_KEY, legacyValue);
+      return legacyValue;
+    }
+  }
+
+  return null;
+}
+
 async function persistStateSafely(errorMessage: string) {
   try {
     await persistState();
@@ -205,7 +225,7 @@ async function loadPersistedState() {
 
   persistedStateLoadPromise = (async () => {
     try {
-      const rawValue = await AsyncStorage.getItem(STORAGE_KEY);
+      const rawValue = await getPersistedStateRawValue();
 
       if (!rawValue) {
         return;

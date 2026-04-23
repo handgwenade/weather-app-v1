@@ -10,7 +10,6 @@ export default function SettingsScreen() {
 
   const [defaultView, setDefaultView] =
     useState<SettingsDefaultView>("home");
-  const [showConfidenceLevels, setShowConfidenceLevels] = useState(false);
   const [autoRefreshData, setAutoRefreshData] = useState(true);
   const sampleLastSyncDate = new Date();
   sampleLastSyncDate.setHours(6, 42, 0, 0);
@@ -19,7 +18,6 @@ export default function SettingsScreen() {
   return (
     <SettingsScreenV2
       defaultView={defaultView}
-      showConfidenceLevels={showConfidenceLevels}
       autoRefreshData={autoRefreshData}
       versionText="1.2.4"
       lastSyncText={lastSyncText}
@@ -28,9 +26,6 @@ export default function SettingsScreen() {
         router.push("/manage-locations")
       }
       onSelectDefaultView={setDefaultView}
-      onToggleShowConfidenceLevels={() =>
-        setShowConfidenceLevels((current) => !current)
-      }
       onToggleAutoRefreshData={() =>
         setAutoRefreshData((current) => !current)
       }

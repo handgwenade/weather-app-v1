@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.gwendolynh.roadsignal",
+      "bundleIdentifier": "com.roadsignal.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -67,7 +67,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "fc19fcc6-3af6-4a5b-a9e3-e67feadab9a8"
+        "projectId": "8c502ccd-0632-4b07-aaa1-d75879becfec"
       }
     },
     "owner": "handgwenade"

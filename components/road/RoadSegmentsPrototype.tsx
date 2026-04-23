@@ -1,8 +1,8 @@
+import { formatMonthDayTime24Hour } from "@/utils/dateTime";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { formatMonthDayTime24Hour } from "@/utils/dateTime";
 
 type RoadSegmentListItem = {
   segmentId: string;
@@ -40,18 +40,43 @@ function getRoadApiBaseUrl() {
   const baseUrl = process.env.EXPO_PUBLIC_ROAD_API_BASE_URL;
 
   if (!baseUrl) {
-    throw new Error("Missing EXPO_PUBLIC_ROAD_API_BASE_URL");
+    return null;
   }
 
   return baseUrl.replace(/\/+$/, "");
 }
 
 function buildRoadApiUrl(path: string) {
-  return `${getRoadApiBaseUrl()}${path}`;
+  const baseUrl = getRoadApiBaseUrl();
+
+  if (!baseUrl) {
+    return null;
+  }
+
+  return `${baseUrl}${path}`;
+}
+
+function formatCoordinatesForLog(
+  coordinates: { latitude: number; longitude: number } | null,
+) {
+  if (!coordinates) {
+    return null;
+  }
+
+  return {
+    latitude: Number(coordinates.latitude.toFixed(4)),
+    longitude: Number(coordinates.longitude.toFixed(4)),
+  };
 }
 
 async function fetchRoadJson<T>(path: string, errorLabel: string): Promise<T> {
-  const response = await fetch(buildRoadApiUrl(path));
+  const requestUrl = buildRoadApiUrl(path);
+
+  if (!requestUrl) {
+    throw new Error("Road segment service is unavailable right now.");
+  }
+
+  const response = await fetch(requestUrl);
 
   if (!response.ok) {
     throw new Error(`${errorLabel}: ${response.status}`);
@@ -194,7 +219,7 @@ type RoadSegmentsPrototypeProps = {
 };
 
 export default function RoadSegmentsPrototype({
-  defaultSortMode = "highest-impact",
+  defaultSortMode = "nearest",
   listLabel = "Road segments",
   selectedCoordinates = null,
   fallbackObservation = null,
@@ -208,9 +233,9 @@ export default function RoadSegmentsPrototype({
     latitude: number;
     longitude: number;
   } | null>(null);
-  const [locationFallbackNote, setLocationFallbackNote] = useState<string | null>(
-    null,
-  );
+  const [locationFallbackNote, setLocationFallbackNote] = useState<
+    string | null
+  >(null);
   const [selectedSegment, setSelectedSegment] =
     useState<RoadSegmentDetail | null>(null);
   const [selectedSegmentLoadingId, setSelectedSegmentLoadingId] = useState<
@@ -224,15 +249,32 @@ export default function RoadSegmentsPrototype({
     let isActive = true;
 
     async function loadSegments() {
+      const requestPath = "/api/road/segments";
+      const requestUrl = buildRoadApiUrl(requestPath) ?? "unconfigured";
+
+      console.log("[RoadSegments] Fetch request", {
+        requestPath,
+        requestUrl,
+        requestParams: null,
+      });
+
       try {
         const data = await fetchRoadJson<RoadSegmentListItem[]>(
-          "/api/road/segments",
+          requestPath,
           "Unable to load segments",
         );
         if (!isActive) {
           return;
         }
 
+        console.log("[RoadSegments] Fetch response", {
+          requestPath,
+          requestUrl,
+          rawBackendResponseCount: Array.isArray(data) ? data.length : null,
+          sampleSegmentIds: Array.isArray(data)
+            ? data.slice(0, 5).map((segment) => segment.segmentId)
+            : [],
+        });
         setSegments(data);
         setSegmentsError(null);
       } catch (error) {
@@ -240,6 +282,11 @@ export default function RoadSegmentsPrototype({
           return;
         }
 
+        console.log("[RoadSegments] Fetch failed", {
+          requestPath,
+          requestUrl,
+          error: error instanceof Error ? error.message : String(error),
+        });
         setSegments([]);
         setSegmentsError(
           error instanceof Error ? error.message : "Unable to load segments",
@@ -288,19 +335,22 @@ export default function RoadSegmentsPrototype({
             return;
           }
 
-          setLocationFallbackNote("Location unavailable; using Highest impact.");
+          setLocationFallbackNote(
+            "Location unavailable; using Highest impact.",
+          );
           return;
         }
 
-        const permission =
-          await Location.requestForegroundPermissionsAsync();
+        const permission = await Location.requestForegroundPermissionsAsync();
 
         if (!isActive) {
           return;
         }
 
         if (permission.status !== "granted") {
-          setLocationFallbackNote("Location unavailable; using Highest impact.");
+          setLocationFallbackNote(
+            "Location unavailable; using Highest impact.",
+          );
           return;
         }
 
@@ -368,96 +418,159 @@ export default function RoadSegmentsPrototype({
   const referenceCoordinates = selectedCoordinates ?? userCoordinates;
   const useNearestSorting = sortMode === "nearest" && !!referenceCoordinates;
   const hasNoMappedSegments = !segmentsError && segments.length === 0;
+  const segmentIdSample = segments
+    .slice(0, 5)
+    .map((segment) => segment.segmentId)
+    .join(",");
 
-  const visibleSegments = segments
-    .map((segment, index) => ({ segment, index }))
-    .filter(({ segment }) => {
-      if (filterMode === "all") {
-        return true;
-      }
+  const mappedSegments = segments.map((segment, index) => ({ segment, index }));
+  const filteredSegments = mappedSegments.filter(({ segment }) => {
+    if (filterMode === "all") {
+      return true;
+    }
 
-      if (filterMode === "wind-prone") {
-        return /wind/i.test(segment.notes ?? "");
-      }
+    if (filterMode === "wind-prone") {
+      return /wind/i.test(segment.notes ?? "");
+    }
 
-      return segment.impactLevel === "high";
-    })
-    .sort((a, b) => {
-      if (useNearestSorting && referenceCoordinates) {
-        const aHasCoordinates =
-          typeof a.segment.latitude === "number" &&
-          typeof a.segment.longitude === "number";
-        const bHasCoordinates =
-          typeof b.segment.latitude === "number" &&
-          typeof b.segment.longitude === "number";
+    return segment.impactLevel === "high";
+  });
+  const sortedSegments = [...filteredSegments].sort((a, b) => {
+    if (useNearestSorting && referenceCoordinates) {
+      const aHasCoordinates =
+        typeof a.segment.latitude === "number" &&
+        typeof a.segment.longitude === "number";
+      const bHasCoordinates =
+        typeof b.segment.latitude === "number" &&
+        typeof b.segment.longitude === "number";
 
-        if (aHasCoordinates && bHasCoordinates) {
-          const distanceDelta =
-            getDistanceMiles(
-              referenceCoordinates.latitude,
-              referenceCoordinates.longitude,
-              a.segment.latitude!,
-              a.segment.longitude!,
-            ) -
-            getDistanceMiles(
-              referenceCoordinates.latitude,
-              referenceCoordinates.longitude,
-              b.segment.latitude!,
-              b.segment.longitude!,
-            );
+      if (aHasCoordinates && bHasCoordinates) {
+        const distanceDelta =
+          getDistanceMiles(
+            referenceCoordinates.latitude,
+            referenceCoordinates.longitude,
+            a.segment.latitude!,
+            a.segment.longitude!,
+          ) -
+          getDistanceMiles(
+            referenceCoordinates.latitude,
+            referenceCoordinates.longitude,
+            b.segment.latitude!,
+            b.segment.longitude!,
+          );
 
-          if (distanceDelta !== 0) {
-            return distanceDelta;
-          }
-        } else if (aHasCoordinates !== bHasCoordinates) {
-          return aHasCoordinates ? -1 : 1;
+        if (distanceDelta !== 0) {
+          return distanceDelta;
         }
-
-        return a.index - b.index;
-      }
-
-      const severityDelta =
-        getImpactSeverityOrder(a.segment.impactLevel) -
-        getImpactSeverityOrder(b.segment.impactLevel);
-
-      if (severityDelta !== 0) {
-        return severityDelta;
-      }
-
-      if (selectedCoordinates) {
-        const aHasCoordinates =
-          typeof a.segment.latitude === "number" &&
-          typeof a.segment.longitude === "number";
-        const bHasCoordinates =
-          typeof b.segment.latitude === "number" &&
-          typeof b.segment.longitude === "number";
-
-        if (aHasCoordinates && bHasCoordinates) {
-          const distanceDelta =
-            getDistanceMiles(
-              selectedCoordinates.latitude,
-              selectedCoordinates.longitude,
-              a.segment.latitude!,
-              a.segment.longitude!,
-            ) -
-            getDistanceMiles(
-              selectedCoordinates.latitude,
-              selectedCoordinates.longitude,
-              b.segment.latitude!,
-              b.segment.longitude!,
-            );
-
-          if (distanceDelta !== 0) {
-            return distanceDelta;
-          }
-        } else if (aHasCoordinates !== bHasCoordinates) {
-          return aHasCoordinates ? -1 : 1;
-        }
+      } else if (aHasCoordinates !== bHasCoordinates) {
+        return aHasCoordinates ? -1 : 1;
       }
 
       return a.index - b.index;
-    })
-    .map(({ segment }) => segment);
+    }
+
+    const severityDelta =
+      getImpactSeverityOrder(a.segment.impactLevel) -
+      getImpactSeverityOrder(b.segment.impactLevel);
+
+    if (severityDelta !== 0) {
+      return severityDelta;
+    }
+
+    if (selectedCoordinates) {
+      const aHasCoordinates =
+        typeof a.segment.latitude === "number" &&
+        typeof a.segment.longitude === "number";
+      const bHasCoordinates =
+        typeof b.segment.latitude === "number" &&
+        typeof b.segment.longitude === "number";
+
+      if (aHasCoordinates && bHasCoordinates) {
+        const distanceDelta =
+          getDistanceMiles(
+            selectedCoordinates.latitude,
+            selectedCoordinates.longitude,
+            a.segment.latitude!,
+            a.segment.longitude!,
+          ) -
+          getDistanceMiles(
+            selectedCoordinates.latitude,
+            selectedCoordinates.longitude,
+            b.segment.latitude!,
+            b.segment.longitude!,
+          );
+
+        if (distanceDelta !== 0) {
+          return distanceDelta;
+        }
+      } else if (aHasCoordinates !== bHasCoordinates) {
+        return aHasCoordinates ? -1 : 1;
+      }
+    }
+
+    return a.index - b.index;
+  });
+  const visibleSegments = sortedSegments.map(({ segment }) => segment);
+  const finalSegmentIdSample = visibleSegments
+    .slice(0, 5)
+    .map((segment) => segment.segmentId)
+    .join(",");
+  const pipelineLog = useMemo(
+    () => ({
+      requestPath: "/api/road/segments",
+      requestParams: null,
+      selectedCoordinatesUsedForRequest: null,
+      selectedCoordinatesUsedForSorting:
+        formatCoordinatesForLog(selectedCoordinates),
+      userCoordinatesUsedForSorting: formatCoordinatesForLog(userCoordinates),
+      referenceCoordinates: formatCoordinatesForLog(referenceCoordinates),
+      filterMode,
+      filterLabel: formatFilterMode(filterMode),
+      sortMode,
+      sortLabel: formatSortMode(sortMode),
+      useNearestSorting,
+      rawBackendResponseCount: segmentsError ? null : segments.length,
+      transformedSegmentCount: segmentsError ? 0 : mappedSegments.length,
+      filteredCount: segmentsError ? 0 : filteredSegments.length,
+      windProneCount: segmentsError ? 0 : windProneCount,
+      highImpactCount: segmentsError ? 0 : highImpactCount,
+      sortedCount: segmentsError ? 0 : sortedSegments.length,
+      finalRenderedCount: segmentsError ? 0 : visibleSegments.length,
+      hasNoMappedSegments,
+      backendRowsDisappearInFrontend:
+        !segmentsError && segments.length > 0 && visibleSegments.length === 0,
+      sampleSegmentIds: segmentsError
+        ? []
+        : segmentIdSample.split(",").filter(Boolean),
+      finalSegmentIds: segmentsError
+        ? []
+        : finalSegmentIdSample.split(",").filter(Boolean),
+      segmentsError,
+    }),
+    [
+      filterMode,
+      finalSegmentIdSample,
+      filteredSegments.length,
+      hasNoMappedSegments,
+      highImpactCount,
+      mappedSegments.length,
+      referenceCoordinates,
+      segmentIdSample,
+      segments.length,
+      segmentsError,
+      selectedCoordinates,
+      sortMode,
+      sortedSegments.length,
+      useNearestSorting,
+      userCoordinates,
+      visibleSegments.length,
+      windProneCount,
+    ],
+  );
+
+  useEffect(() => {
+    console.log("[RoadSegments] Pipeline", pipelineLog);
+  }, [pipelineLog]);
 
   return (
     <View style={styles.container}>
@@ -539,7 +652,9 @@ export default function RoadSegmentsPrototype({
                 style={styles.sortDropdownOption}
                 onPress={() => handleSelectSortMode("highest-impact")}
               >
-                <Text style={styles.sortDropdownOptionText}>Highest impact</Text>
+                <Text style={styles.sortDropdownOptionText}>
+                  Highest impact
+                </Text>
                 <Ionicons
                   name={
                     sortMode === "highest-impact"
@@ -600,7 +715,9 @@ export default function RoadSegmentsPrototype({
             </Text>
           </View>
         ) : null}
-        {!segmentsError && !hasNoMappedSegments && visibleSegments.length === 0 ? (
+        {!segmentsError &&
+        !hasNoMappedSegments &&
+        visibleSegments.length === 0 ? (
           <Text style={styles.messageText}>No road segments available.</Text>
         ) : null}
         {visibleSegments.map((segment) => (

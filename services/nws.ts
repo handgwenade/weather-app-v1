@@ -30,7 +30,9 @@ async function fetchNwsJson<T>(url: string, errorLabel: string): Promise<T> {
   const response = await fetch(url, {
     headers: {
       Accept: "application/geo+json",
-      "User-Agent": "weather-app-learning-project",
+      ...(process.env.EXPO_OS === "web"
+        ? null
+        : { "User-Agent": "roadsignal-app" }),
     },
   });
 

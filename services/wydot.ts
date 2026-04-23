@@ -597,7 +597,7 @@ async function fetchWydotHtml(url: string) {
   const response = await fetch(url, {
     headers: {
       Accept: "text/html,application/xhtml+xml",
-      "User-Agent": "weather-app-learning-project",
+      "User-Agent": "roadsignal-app",
     },
   });
 

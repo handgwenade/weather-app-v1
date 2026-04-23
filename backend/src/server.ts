@@ -1,8 +1,14 @@
 import Database from "better-sqlite3";
 import express from "express";
+import path from "node:path";
 
+const dbPath = path.resolve(__dirname, "..", "weatherapp.db");
 const app = express();
-const db = new Database("weatherapp.db");
+const db = new Database(dbPath);
+
+console.log("[Server] Opening SQLite database", {
+  dbPath,
+});
 const STATION_SELECT = `
   SELECT
     station_id AS stationId,
@@ -653,9 +659,10 @@ app.get("/api/road/stations/:stationId", (req, res) => {
 });
 
 app.get("/api/road/segments", (_req, res) => {
-  const rows = db
-    .prepare(
-      `
+  try {
+    const rows = db
+      .prepare(
+        `
     SELECT
       rs.segment_id AS segmentId,
       rs.route_name AS routeName,
@@ -683,33 +690,32 @@ app.get("/api/road/segments", (_req, res) => {
       ON s.station_id = rs.primary_station_id
     ORDER BY route_name ASC, from_label ASC, to_label ASC
   `,
-    )
-    .all() as Array<{
-    segmentId: string;
-    routeName: string;
-    direction: string | null;
-    fromLabel: string;
-    toLabel: string;
-    primaryStationId: string;
-    districtId: string | null;
-    notes: string | null;
-    stationId: string | null;
-    stationName: string | null;
-    latitude: number | null;
-    longitude: number | null;
-    observedAt: string | null;
-    airTempF: number | null;
-    windSpeedMph: number | null;
-    windGustMph: number | null;
-    visibilityMi: number | null;
-    roadSurfaceTempF: number | null;
-    roadStateCode: number | null;
-    roadStateLabel: string | null;
-    sourceProvider: string | null;
-  }>;
+      )
+      .all() as {
+      segmentId: string;
+      routeName: string;
+      direction: string | null;
+      fromLabel: string;
+      toLabel: string;
+      primaryStationId: string;
+      districtId: string | null;
+      notes: string | null;
+      stationId: string | null;
+      stationName: string | null;
+      latitude: number | null;
+      longitude: number | null;
+      observedAt: string | null;
+      airTempF: number | null;
+      windSpeedMph: number | null;
+      windGustMph: number | null;
+      visibilityMi: number | null;
+      roadSurfaceTempF: number | null;
+      roadStateCode: number | null;
+      roadStateLabel: string | null;
+      sourceProvider: string | null;
+    }[];
 
-  res.json(
-    rows.map((row) => {
+    const responsePayload = rows.map((row) => {
       const impact = computeImpact(
         row.stationId
           ? {
@@ -744,8 +750,21 @@ app.get("/api/road/segments", (_req, res) => {
         impactLevel: impact.level,
         impactReason: impact.reason,
       };
-    }),
-  );
+    });
+
+    console.log("[RoadSegmentsAPI] Returning segments", {
+      rowCount: responsePayload.length,
+      sampleSegmentIds: responsePayload.slice(0, 5).map((row) => row.segmentId),
+    });
+
+    res.json(responsePayload);
+  } catch (error) {
+    console.log("[RoadSegmentsAPI] Query failed", {
+      dbPath,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
 });
 
 app.get("/api/road/segment/:segmentId", (req, res) => {
@@ -845,6 +864,8 @@ app.get("/api/road/segment/:segmentId", (req, res) => {
   });
 });
 
-app.listen(3000, () => {
-  console.log("Server running on http://localhost:3000");
+const port = Number(process.env.PORT ?? 3000);
+
+app.listen(port, () => {
+  console.log(`Server running on http://localhost:${port}`);
 });

@@ -20,6 +20,7 @@ type WeatherFailureEntry = {
   failedAtMs: number;
 };
 
+const REQUEST_DEDUPE_WINDOW_MS = 60 * 1000;
 const CURRENT_WEATHER_TTL_MS = 5 * 60 * 1000;
 const HOURLY_FORECAST_TTL_MS = 15 * 60 * 1000;
 const DAILY_FORECAST_TTL_MS = 30 * 60 * 1000;
@@ -30,8 +31,10 @@ type CombinedCurrentAndHourlyWeather = {
   hourlyForecast: TomorrowHourlyForecastResponse;
 };
 
-let cachedCurrentAndHourlyWeather: WeatherCacheEntry<CombinedCurrentAndHourlyWeather> | null =
-  null;
+const cachedCurrentAndHourlyWeather = new Map<
+  string,
+  WeatherCacheEntry<CombinedCurrentAndHourlyWeather>
+>();
 
 const inFlightCurrentAndHourlyWeather = new Map<
   string,
@@ -40,12 +43,18 @@ const inFlightCurrentAndHourlyWeather = new Map<
 
 const failedCurrentAndHourlyWeather = new Map<string, WeatherFailureEntry>();
 
-let cachedCurrentWeather: WeatherCacheEntry<TomorrowRealtimeResponse> | null =
-  null;
-let cachedHourlyForecast: WeatherCacheEntry<TomorrowHourlyForecastResponse> | null =
-  null;
-let cachedDailyForecast: WeatherCacheEntry<TomorrowDailyForecastResponse> | null =
-  null;
+const cachedCurrentWeather = new Map<
+  string,
+  WeatherCacheEntry<TomorrowRealtimeResponse>
+>();
+const cachedHourlyForecast = new Map<
+  string,
+  WeatherCacheEntry<TomorrowHourlyForecastResponse>
+>();
+const cachedDailyForecast = new Map<
+  string,
+  WeatherCacheEntry<TomorrowDailyForecastResponse>
+>();
 
 const inFlightCurrentWeather = new Map<
   string,
@@ -69,15 +78,18 @@ function getLocationCacheKey(location: AppLocation) {
 }
 
 function getFreshCachedData<T>(
-  entry: WeatherCacheEntry<T> | null,
+  entries: Map<string, WeatherCacheEntry<T>>,
   cacheKey: string,
   ttlMs: number,
 ) {
-  if (!entry || entry.cacheKey !== cacheKey) {
+  const entry = entries.get(cacheKey);
+
+  if (!entry) {
     return null;
   }
 
   if (Date.now() - entry.fetchedAtMs >= ttlMs) {
+    entries.delete(cacheKey);
     return null;
   }
 
@@ -112,17 +124,17 @@ function getRecentFailure(
 
 async function getSharedWeatherData<T>(params: {
   cacheKey: string;
-  cachedEntry: WeatherCacheEntry<T> | null;
+  cacheEntries: Map<string, WeatherCacheEntry<T>>;
   ttlMs: number;
   fetcher: () => Promise<T>;
-  onCache: (entry: WeatherCacheEntry<T>) => void;
   inFlight: Map<string, Promise<T>>;
   failures: Map<string, WeatherFailureEntry>;
 }) {
-  const { cacheKey, cachedEntry, ttlMs, fetcher, onCache, inFlight, failures } =
+  const { cacheKey, cacheEntries, ttlMs, fetcher, inFlight, failures } =
     params;
+  const reuseWindowMs = Math.max(ttlMs, REQUEST_DEDUPE_WINDOW_MS);
 
-  const cachedData = getFreshCachedData(cachedEntry, cacheKey, ttlMs);
+  const cachedData = getFreshCachedData(cacheEntries, cacheKey, reuseWindowMs);
 
   if (cachedData) {
     return cachedData;
@@ -142,7 +154,7 @@ async function getSharedWeatherData<T>(params: {
 
   const request = fetcher()
     .then((data) => {
-      onCache(buildCacheEntry(cacheKey, data));
+      cacheEntries.set(cacheKey, buildCacheEntry(cacheKey, data));
       failures.delete(cacheKey);
       return data;
     })
@@ -170,12 +182,9 @@ export async function getSharedCurrentWeather(
   const cacheKey = getLocationCacheKey(location);
   return getSharedWeatherData({
     cacheKey,
-    cachedEntry: cachedCurrentWeather,
+    cacheEntries: cachedCurrentWeather,
     ttlMs: CURRENT_WEATHER_TTL_MS,
     fetcher: () => getCurrentWeather(location),
-    onCache: (entry) => {
-      cachedCurrentWeather = entry;
-    },
     inFlight: inFlightCurrentWeather,
     failures: failedCurrentWeather,
   });
@@ -187,12 +196,9 @@ export async function getSharedHourlyForecast(
   const cacheKey = getLocationCacheKey(location);
   return getSharedWeatherData({
     cacheKey,
-    cachedEntry: cachedHourlyForecast,
+    cacheEntries: cachedHourlyForecast,
     ttlMs: HOURLY_FORECAST_TTL_MS,
     fetcher: () => getHourlyForecast(location),
-    onCache: (entry) => {
-      cachedHourlyForecast = entry;
-    },
     inFlight: inFlightHourlyForecast,
     failures: failedHourlyForecast,
   });
@@ -210,7 +216,7 @@ export async function getSharedCurrentAndHourlyWeather(
   const cachedData = getFreshCachedData(
     cachedCurrentAndHourlyWeather,
     cacheKey,
-    COMBINED_CURRENT_HOURLY_TTL_MS,
+    Math.max(COMBINED_CURRENT_HOURLY_TTL_MS, REQUEST_DEDUPE_WINDOW_MS),
   );
 
   if (cachedData) {
@@ -234,7 +240,7 @@ export async function getSharedCurrentAndHourlyWeather(
 
   const request = getCurrentAndHourlyWeather(location)
     .then((data: CombinedCurrentAndHourlyWeather) => {
-      cachedCurrentAndHourlyWeather = buildCacheEntry(cacheKey, data);
+      cachedCurrentAndHourlyWeather.set(cacheKey, buildCacheEntry(cacheKey, data));
       failedCurrentAndHourlyWeather.delete(cacheKey);
       return data;
     })
@@ -262,22 +268,19 @@ export async function getSharedForecast(
   const cacheKey = getLocationCacheKey(location);
   return getSharedWeatherData({
     cacheKey,
-    cachedEntry: cachedDailyForecast,
+    cacheEntries: cachedDailyForecast,
     ttlMs: DAILY_FORECAST_TTL_MS,
     fetcher: () => getDailyForecast(location),
-    onCache: (entry) => {
-      cachedDailyForecast = entry;
-    },
     inFlight: inFlightDailyForecast,
     failures: failedDailyForecast,
   });
 }
 
 export function clearWeatherCache() {
-  cachedCurrentWeather = null;
-  cachedHourlyForecast = null;
-  cachedDailyForecast = null;
-  cachedCurrentAndHourlyWeather = null;
+  cachedCurrentWeather.clear();
+  cachedHourlyForecast.clear();
+  cachedDailyForecast.clear();
+  cachedCurrentAndHourlyWeather.clear();
   inFlightCurrentWeather.clear();
   inFlightHourlyForecast.clear();
   inFlightDailyForecast.clear();

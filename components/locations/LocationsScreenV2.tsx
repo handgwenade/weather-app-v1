@@ -1,6 +1,8 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useRef } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useScrollToTopOnFocus } from "@/hooks/useScrollToTopOnFocus";
 
 export type LocationCard = {
   id: string;
@@ -24,6 +26,10 @@ export default function LocationsScreenV2({
   onPressCard,
   onPressDelete,
 }: LocationsScreenV2Props) {
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  useScrollToTopOnFocus(scrollViewRef);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.topBar}>
@@ -37,6 +43,7 @@ export default function LocationsScreenV2({
       </View>
 
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"

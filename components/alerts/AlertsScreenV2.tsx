@@ -1,6 +1,8 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useRef } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useScrollToTopOnFocus } from "@/hooks/useScrollToTopOnFocus";
 
 export type AlertTone = "warning" | "advisory" | "watch" | "neutral";
 
@@ -62,6 +64,10 @@ export default function AlertsScreenV2({
   fallbackMessage,
   onPressSettings,
 }: AlertsScreenV2Props) {
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  useScrollToTopOnFocus(scrollViewRef);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.topBar}>
@@ -78,6 +84,7 @@ export default function AlertsScreenV2({
       </View>
 
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
