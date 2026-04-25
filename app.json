@@ -2,7 +2,7 @@
   "expo": {
     "name": "RoadSignal",
     "slug": "roadsignal",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "roadsignal",
@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.roadsignal.app",
-      "buildNumber": "2",
+      "buildNumber": "6",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -56,7 +56,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Allow RoadSignal to use your location so Road can show nearby weather and WYDOT travel conditions."
+          "locationWhenInUsePermission": "Allow RoadSignal to use your location so RoadSignal can show nearby weather and WYDOT travel conditions."
         }
       ],
       "@rnmapbox/maps"
