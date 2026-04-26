@@ -222,6 +222,17 @@ type TomorrowHourlyTimelinesResponse = {
   };
 };
 
+app.get("/", (_req, res) => {
+  res.json({
+    ok: true,
+    service: "roadsignal-backend",
+  });
+});
+
+app.get("/health", (_req, res) => {
+  res.json({ ok: true });
+});
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS route_segments (
     segment_id TEXT PRIMARY KEY,
