@@ -1488,44 +1488,46 @@ export default function RoadScreen() {
     : null;
 
   const prototypeSection = (
-    <View
-      style={{
-        backgroundColor: "#FFFFFF",
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: "rgba(202, 213, 226, 0.4)",
-        paddingHorizontal: 17,
-        paddingTop: 17,
-        paddingBottom: 16,
-      }}
-    >
+    <View style={{ gap: 16 }}>
       <RoadMapPreviewCard routeLabel={routeLabel} />
-      <View style={{ height: 16 }} />
-      <Text
+
+      <View
         style={{
-          color: "#0F172B",
-          fontSize: 18,
-          fontWeight: "700",
-          lineHeight: 27,
-          letterSpacing: -0.44,
+          backgroundColor: "#FFFFFF",
+          borderRadius: 10,
+          borderWidth: 1,
+          borderColor: "rgba(202, 213, 226, 0.4)",
+          paddingHorizontal: 17,
+          paddingTop: 17,
+          paddingBottom: 16,
         }}
       >
-        Road conditions
-      </Text>
-      <View style={{ marginTop: 12 }}>
-        <RoadSegmentsPrototype
-          defaultSortMode="nearest"
-          listLabel="Road conditions"
-          selectedCoordinates={
-            roadLocation
-              ? {
-                  latitude: roadLocation.latitude,
-                  longitude: roadLocation.longitude,
-                }
-              : null
-          }
-          fallbackObservation={prototypeFallbackObservation}
-        />
+        <Text
+          style={{
+            color: "#0F172B",
+            fontSize: 18,
+            fontWeight: "700",
+            lineHeight: 27,
+            letterSpacing: -0.44,
+          }}
+        >
+          Road conditions
+        </Text>
+        <View style={{ marginTop: 12 }}>
+          <RoadSegmentsPrototype
+            defaultSortMode="nearest"
+            listLabel="Road conditions"
+            selectedCoordinates={
+              roadLocation
+                ? {
+                    latitude: roadLocation.latitude,
+                    longitude: roadLocation.longitude,
+                  }
+                : null
+            }
+            fallbackObservation={prototypeFallbackObservation}
+          />
+        </View>
       </View>
     </View>
   );

@@ -22,29 +22,38 @@ export function RoadMapPreviewCard({ routeLabel }: RoadMapPreviewCardProps) {
           <Text style={styles.title}>Monitored routes</Text>
         </View>
         <View style={styles.badge}>
-          <Text style={styles.badgeText}>Preview</Text>
+          <Text style={styles.badgeText}>Map</Text>
         </View>
       </View>
 
-      <View style={styles.mapMock}>
-        <View style={[styles.routeLine, styles.routeLineTop]} />
-        <View style={[styles.routeLine, styles.routeLineMiddle]} />
-        <View style={[styles.routeLine, styles.routeLineBottom]} />
-        <View style={[styles.statusDot, styles.statusDotNormal]} />
-        <View style={[styles.statusDot, styles.statusDotCaution]} />
-        <View style={[styles.statusDot, styles.statusDotElevated]} />
+      <View style={styles.legendStrip}>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, styles.legendDotNormal]} />
+          <Text style={styles.legendText}>Normal</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, styles.legendDotElevated]} />
+          <Text style={styles.legendText}>Elevated</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, styles.legendDotHigh]} />
+          <Text style={styles.legendText}>High</Text>
+        </View>
       </View>
 
       <Text style={styles.body}>
-        Map layer will show monitored road segments in green, with caution and
-        elevated-risk areas highlighted as conditions change.
+        View monitored WYDOT route coverage and current weather-based risk
+        markers.
       </Text>
 
       {routeLabel ? (
         <Text style={styles.routeLabel}>Current route focus: {routeLabel}</Text>
       ) : null}
 
-      <Text style={styles.openHint}>Open road map →</Text>
+      <View style={styles.openButton}>
+        <Text style={styles.openButtonText}>Open road map</Text>
+        <Text style={styles.openButtonArrow}>→</Text>
+      </View>
     </Pressable>
   );
 }
@@ -95,57 +104,40 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
   },
-  mapMock: {
-    backgroundColor: "#ecfdf5",
-    borderColor: "#bbf7d0",
-    borderRadius: 18,
+  legendStrip: {
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
+    borderColor: "#dbe4ee",
+    borderRadius: 16,
     borderWidth: 1,
-    height: 128,
-    overflow: "hidden",
-    position: "relative",
+    flexDirection: "row",
+    gap: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  routeLine: {
-    backgroundColor: "#22c55e",
+  legendItem: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  legendDot: {
     borderRadius: 999,
-    height: 8,
-    left: 18,
-    position: "absolute",
-    right: 18,
-    transform: [{ rotate: "-13deg" }],
+    height: 10,
+    width: 10,
   },
-  routeLineTop: {
-    top: 34,
-  },
-  routeLineMiddle: {
-    opacity: 0.75,
-    top: 61,
-  },
-  routeLineBottom: {
-    opacity: 0.5,
-    top: 88,
-  },
-  statusDot: {
-    borderColor: "#ffffff",
-    borderRadius: 999,
-    borderWidth: 3,
-    height: 22,
-    position: "absolute",
-    width: 22,
-  },
-  statusDotNormal: {
+  legendDotNormal: {
     backgroundColor: "#22c55e",
-    left: 60,
-    top: 41,
   },
-  statusDotCaution: {
-    backgroundColor: "#facc15",
-    right: 78,
-    top: 62,
-  },
-  statusDotElevated: {
+  legendDotElevated: {
     backgroundColor: "#f97316",
-    left: 138,
-    top: 84,
+  },
+  legendDotHigh: {
+    backgroundColor: "#dc2626",
+  },
+  legendText: {
+    color: "#475569",
+    fontSize: 12,
+    fontWeight: "700",
   },
   body: {
     color: "#475569",
@@ -157,9 +149,25 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
   },
-  openHint: {
-    color: "#0369a1",
+  openButton: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: "#0f172a",
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  openButtonText: {
+    color: "#ffffff",
     fontSize: 13,
     fontWeight: "800",
+  },
+  openButtonArrow: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "900",
+    marginTop: -1,
   },
 });
