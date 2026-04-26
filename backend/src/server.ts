@@ -824,46 +824,75 @@ app.get("/api/weather/current-hourly", async (req, res) => {
 
   try {
     const url = `${TOMORROW_TIMELINES_URL}?apikey=${encodeURIComponent(apiKey)}`;
-    const requestBody = {
+    const baseRequestBody = {
       location: `${coordinates.lat},${coordinates.lon}`,
       fields: [...COMBINED_CURRENT_AND_HOURLY_FIELDS],
       units: "metric",
-      timesteps: ["current", "1h"],
       startTime: "now",
+    };
+    const currentRequestBody = {
+      ...baseRequestBody,
+      timesteps: ["current"],
+    };
+    const hourlyRequestBody = {
+      ...baseRequestBody,
+      timesteps: ["1h"],
       endTime: "nowPlus12h",
     };
 
-    console.log("[WeatherAPI] Combined current/hourly Tomorrow request", {
-      location: requestBody.location,
-      fields: requestBody.fields,
-      timesteps: requestBody.timesteps,
-      startTime: requestBody.startTime,
-      endTime: requestBody.endTime,
+    console.log("[WeatherAPI] Combined current/hourly Tomorrow requests", {
+      location: baseRequestBody.location,
+      fields: baseRequestBody.fields,
+      currentTimesteps: currentRequestBody.timesteps,
+      hourlyTimesteps: hourlyRequestBody.timesteps,
+      startTime: hourlyRequestBody.startTime,
+      hourlyEndTime: hourlyRequestBody.endTime,
     });
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
+    const [currentResponse, hourlyResponse] = await Promise.all([
+      fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(currentRequestBody),
+      }),
+      fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(hourlyRequestBody),
+      }),
+    ]);
 
-    if (!response.ok) {
-      const responseText = await response.text();
+    if (!currentResponse.ok) {
+      const responseText = await currentResponse.text();
       throw new Error(
-        `Tomorrow.io timelines request failed: ${response.status} ${responseText}`,
+        `Tomorrow.io current timelines request failed: ${currentResponse.status} ${responseText}`,
       );
     }
 
-    const payload = (await response.json()) as TomorrowCombinedForecastResponse;
-    const timelines = payload.data?.timelines ?? [];
-    const currentEntry = timelines.find(
+    if (!hourlyResponse.ok) {
+      const responseText = await hourlyResponse.text();
+      throw new Error(
+        `Tomorrow.io hourly timelines request failed: ${hourlyResponse.status} ${responseText}`,
+      );
+    }
+
+    const currentPayload =
+      (await currentResponse.json()) as TomorrowCombinedForecastResponse;
+    const hourlyPayload =
+      (await hourlyResponse.json()) as TomorrowHourlyTimelinesResponse;
+    const currentEntry = currentPayload.data?.timelines?.find(
       (timeline) => timeline.timestep === "current",
     )?.intervals?.[0];
     const hourlyEntries =
-      timelines.find((timeline) => timeline.timestep === "1h")?.intervals ?? [];
+      hourlyPayload.data?.timelines?.find(
+        (timeline) => timeline.timestep === "1h",
+      )?.intervals ?? [];
 
     console.log(
       "[WeatherAPI] Combined current/hourly Tomorrow response sample",
