@@ -1,3 +1,4 @@
+import { RoadMapView } from "@/components/road/RoadMapView";
 import { router } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -36,18 +37,7 @@ export default function RoadMapScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.mapPanel}>
-          <View style={[styles.routeLine, styles.routeLineOne]} />
-          <View style={[styles.routeLine, styles.routeLineTwo]} />
-          <View style={[styles.routeLine, styles.routeLineThree]} />
-          <View style={[styles.marker, styles.markerNormal]} />
-          <View style={[styles.marker, styles.markerCaution]} />
-          <View style={[styles.marker, styles.markerElevated]} />
-          <View style={[styles.marker, styles.markerHigh]} />
-          <Text style={styles.mapLabel}>
-            Live Mapbox layer will render here
-          </Text>
-        </View>
+        <RoadMapView />
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Layer plan</Text>
@@ -130,78 +120,6 @@ const styles = StyleSheet.create({
     gap: 16,
     padding: 20,
     paddingBottom: 40,
-  },
-  mapPanel: {
-    backgroundColor: "#ecfdf5",
-    borderColor: "#bbf7d0",
-    borderRadius: 24,
-    borderWidth: 1,
-    height: 360,
-    overflow: "hidden",
-    position: "relative",
-  },
-  routeLine: {
-    backgroundColor: "#22c55e",
-    borderRadius: 999,
-    height: 10,
-    left: -40,
-    position: "absolute",
-    right: -40,
-  },
-  routeLineOne: {
-    top: 92,
-    transform: [{ rotate: "-16deg" }],
-  },
-  routeLineTwo: {
-    opacity: 0.75,
-    top: 170,
-    transform: [{ rotate: "9deg" }],
-  },
-  routeLineThree: {
-    opacity: 0.55,
-    top: 248,
-    transform: [{ rotate: "-8deg" }],
-  },
-  marker: {
-    borderColor: "#ffffff",
-    borderRadius: 999,
-    borderWidth: 4,
-    height: 28,
-    position: "absolute",
-    width: 28,
-  },
-  markerNormal: {
-    backgroundColor: "#22c55e",
-    left: 74,
-    top: 102,
-  },
-  markerCaution: {
-    backgroundColor: "#facc15",
-    right: 80,
-    top: 158,
-  },
-  markerElevated: {
-    backgroundColor: "#f97316",
-    left: 132,
-    top: 231,
-  },
-  markerHigh: {
-    backgroundColor: "#dc2626",
-    right: 132,
-    top: 262,
-  },
-  mapLabel: {
-    alignSelf: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.86)",
-    borderRadius: 999,
-    bottom: 18,
-    color: "#0f172a",
-    fontSize: 13,
-    fontWeight: "800",
-    overflow: "hidden",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    position: "absolute",
   },
   card: {
     backgroundColor: "#ffffff",
