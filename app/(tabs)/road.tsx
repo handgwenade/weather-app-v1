@@ -1,4 +1,5 @@
 import QuickSwitchModal from "@/components/quickSwitchModal";
+import { RoadMapPreviewCard } from "@/components/road/RoadMapPreviewCard";
 import RoadScreenV2, {
   type RoadActionDestination,
   type RoadBullet,
@@ -1498,6 +1499,8 @@ export default function RoadScreen() {
         paddingBottom: 16,
       }}
     >
+      <RoadMapPreviewCard routeLabel={routeLabel} />
+      <View style={{ height: 16 }} />
       <Text
         style={{
           color: "#0F172B",
