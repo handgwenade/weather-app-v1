@@ -1,8 +1,16 @@
 import Database from "better-sqlite3";
 import express from "express";
+import fs from "node:fs";
 import path from "node:path";
 
 const dbPath = path.resolve(__dirname, "..", "weatherapp.db");
+const roadGeometryPath = path.resolve(
+  __dirname,
+  "..",
+  "..",
+  "data",
+  "road-geometry.cleaned.geojson",
+);
 const app = express();
 const db = new Database(dbPath);
 const TOMORROW_API_KEY = process.env.TOMORROW_API_KEY;
@@ -1076,6 +1084,19 @@ app.get("/api/road/stations/:stationId", (req, res) => {
   }
 
   res.json(row);
+});
+
+app.get("/api/road/geometry", (_req, res) => {
+  try {
+    const geoJson = JSON.parse(fs.readFileSync(roadGeometryPath, "utf8"));
+    res.json(geoJson);
+  } catch (error) {
+    console.log("[RoadGeometryAPI] Failed to load road geometry", {
+      roadGeometryPath,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({ error: "Failed to load road geometry" });
+  }
 });
 
 app.get("/api/road/segments", (_req, res) => {
