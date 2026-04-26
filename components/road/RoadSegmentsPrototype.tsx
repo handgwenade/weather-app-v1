@@ -116,7 +116,7 @@ function formatFilterMode(mode: SegmentFilterMode): string {
     case "wind-prone":
       return "Wind-prone";
     case "high-impact":
-      return "High impact";
+      return "High risk";
     default:
       return "All";
   }
@@ -127,7 +127,7 @@ function formatSortMode(mode: SegmentSortMode): string {
     case "nearest":
       return "Nearest";
     default:
-      return "Highest impact";
+      return "Highest risk";
   }
 }
 
@@ -335,9 +335,7 @@ export default function RoadSegmentsPrototype({
             return;
           }
 
-          setLocationFallbackNote(
-            "Location unavailable; using Highest impact.",
-          );
+          setLocationFallbackNote("Location unavailable; using Highest risk.");
           return;
         }
 
@@ -348,9 +346,7 @@ export default function RoadSegmentsPrototype({
         }
 
         if (permission.status !== "granted") {
-          setLocationFallbackNote(
-            "Location unavailable; using Highest impact.",
-          );
+          setLocationFallbackNote("Location unavailable; using Highest risk.");
           return;
         }
 
@@ -370,7 +366,7 @@ export default function RoadSegmentsPrototype({
           return;
         }
 
-        setLocationFallbackNote("Location unavailable; using Highest impact.");
+        setLocationFallbackNote("Location unavailable; using Highest risk.");
       }
     }
 
@@ -625,7 +621,7 @@ export default function RoadSegmentsPrototype({
             color="#45556C"
           />
           <Text style={styles.controlOptionText}>
-            High impact ({highImpactCount})
+            High risk ({highImpactCount})
           </Text>
         </Pressable>
       </View>
@@ -652,9 +648,7 @@ export default function RoadSegmentsPrototype({
                 style={styles.sortDropdownOption}
                 onPress={() => handleSelectSortMode("highest-impact")}
               >
-                <Text style={styles.sortDropdownOptionText}>
-                  Highest impact
-                </Text>
+                <Text style={styles.sortDropdownOptionText}>Highest risk</Text>
                 <Ionicons
                   name={
                     sortMode === "highest-impact"
@@ -739,7 +733,7 @@ export default function RoadSegmentsPrototype({
                   : `${segment.impactLevel === "high" ? "! " : ""}${segment.routeName} · ${segment.fromLabel} → ${segment.toLabel}`}
               </Text>
               <Text style={styles.segmentImpactText}>
-                <Text style={styles.segmentImpactLabel}>Impact: </Text>
+                <Text style={styles.segmentImpactLabel}>Weather risk: </Text>
                 <Text style={getImpactLevelTextStyle(segment.impactLevel)}>
                   {formatImpactLevel(segment.impactLevel)}
                 </Text>
@@ -781,9 +775,9 @@ export default function RoadSegmentsPrototype({
             </Text>
           </View>
           <View style={styles.detailSection}>
-            <Text style={styles.detailSectionTitle}>Impact</Text>
+            <Text style={styles.detailSectionTitle}>Weather risk</Text>
             <Text style={styles.detailBodyText}>
-              Impact Level:{" "}
+              Weather Risk Level:{" "}
               <Text
                 style={getImpactLevelTextStyle(selectedSegment.impact?.level)}
               >
@@ -791,7 +785,8 @@ export default function RoadSegmentsPrototype({
               </Text>
             </Text>
             <Text style={styles.detailBodyText}>
-              Impact Reason: {selectedSegment.impact?.reason ?? "Unavailable"}
+              Weather Risk Reason:{" "}
+              {selectedSegment.impact?.reason ?? "Unavailable"}
             </Text>
           </View>
           <View style={styles.detailSection}>

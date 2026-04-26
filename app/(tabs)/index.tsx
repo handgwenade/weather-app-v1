@@ -20,12 +20,15 @@ import {
   useSavedLocations,
   useSelectedLocation,
 } from "@/data/locationStore";
-import {
-  getSharedCurrentAndHourlyWeather,
-} from "@/data/weatherStore";
+import { getSharedCurrentAndHourlyWeather } from "@/data/weatherStore";
 import { getActiveAlertsForLocation } from "@/services/nws";
 import type { TomorrowHourlyForecastEntry } from "@/services/tomorrow";
-import { getWydotRoadReport, type WydotRoadReport } from "@/services/wydot";
+import {
+  getWydotRoadReport,
+  type WydotOfficialRoadStatus,
+  type WydotRoadReport,
+} from "@/services/wydot";
+import { formatTime24Hour, formatUpdatedTimeLabel } from "@/utils/dateTime";
 import {
   evaluateSuggestions,
   getSuggestionPresentation,
@@ -34,11 +37,7 @@ import {
   type SuggestionDecision,
   type SuggestionInput,
 } from "@/utils/suggestions";
-import { formatTime24Hour, formatUpdatedTimeLabel } from "@/utils/dateTime";
-import {
-  celsiusToFahrenheit,
-  metersPerSecondToMph,
-} from "@/utils/weather";
+import { celsiusToFahrenheit, metersPerSecondToMph } from "@/utils/weather";
 
 function getConditionLabel(weatherCode?: number) {
   if (weatherCode === 1000) return "Clear";
@@ -51,13 +50,63 @@ function getConditionLabel(weatherCode?: number) {
   if (weatherCode === 4200) return "Light rain";
   if (weatherCode === 4201) return "Heavy rain";
   if (weatherCode === 5000) return "Snow";
+  if (weatherCode === 5001) return "Flurries";
   if (weatherCode === 5100) return "Light snow";
   if (weatherCode === 5101) return "Heavy snow";
   if (weatherCode === 6000) return "Freezing drizzle";
+  if (weatherCode === 6001) return "Freezing rain";
   if (weatherCode === 6200) return "Light freezing rain";
   if (weatherCode === 6201) return "Heavy freezing rain";
+  if (weatherCode === 7000) return "Ice pellets";
+  if (weatherCode === 7101) return "Heavy ice pellets";
+  if (weatherCode === 7102) return "Light ice pellets";
   if (weatherCode === 8000) return "Thunderstorm";
   return "Current conditions";
+}
+
+function isHomeWetConditionLabel(label: string) {
+  const normalized = label.toLowerCase();
+
+  return (
+    normalized.includes("rain") ||
+    normalized.includes("drizzle") ||
+    normalized.includes("snow") ||
+    normalized.includes("freezing")
+  );
+}
+
+function isHomeWintryConditionLabel(label: string) {
+  const normalized = label.toLowerCase();
+
+  return normalized.includes("snow") || normalized.includes("freezing");
+}
+
+function getNextHomePrecipSignal(hourlyEntries: TomorrowHourlyForecastEntry[]) {
+  for (const entry of hourlyEntries.slice(0, 12)) {
+    const conditionLabel =
+      typeof entry.values.weatherCode === "number"
+        ? getConditionLabel(entry.values.weatherCode)
+        : null;
+    const precipProbability =
+      typeof entry.values.precipitationProbability === "number"
+        ? entry.values.precipitationProbability
+        : null;
+
+    if (
+      conditionLabel &&
+      isHomeWetConditionLabel(conditionLabel) &&
+      typeof precipProbability === "number" &&
+      precipProbability > 0
+    ) {
+      return {
+        conditionLabel,
+        probability: Math.round(precipProbability),
+        timeLabel: formatHourLabel(entry.time),
+      };
+    }
+  }
+
+  return null;
 }
 
 function formatRoundedNumber(value?: number | null, suffix = "") {
@@ -90,6 +139,7 @@ type HomeAlertSummary = {
 
 type HomeViewModel = {
   updatedLabel: string;
+  nextPrecipSignal: ReturnType<typeof getNextHomePrecipSignal>;
   metrics: HomeMetric[];
   statusBanner: HomeStatusBanner;
   monitoringCard: HomeMonitoringCard;
@@ -125,6 +175,16 @@ const INITIAL_ALERT_SUMMARY: HomeAlertSummary = {
 };
 const HOME_WEATHER_REFRESH_INTERVAL_MS = 60 * 1000;
 
+const EMPTY_HOME_WYDOT_OFFICIAL_STATUS: WydotOfficialRoadStatus = {
+  hasOfficialStatus: false,
+  type: "none",
+  impact: "none",
+  title: "",
+  description: "",
+  source: "wydot",
+  lastUpdated: null,
+};
+
 function isThinHomeWeatherSnapshot(snapshot: HomeCurrentWeatherSnapshot) {
   return (
     !snapshot.hasWeatherData &&
@@ -147,7 +207,10 @@ function hasValidHomeWeatherSnapshot(
   );
 }
 
-function getHomeWeatherSnapshotKey(location: { latitude: number; longitude: number }) {
+function getHomeWeatherSnapshotKey(location: {
+  latitude: number;
+  longitude: number;
+}) {
   return `${location.latitude},${location.longitude}`;
 }
 
@@ -243,7 +306,20 @@ function hasMeaningfulHomeSurfaceCondition(report: WydotRoadReport | null) {
   );
 }
 
-function getHomeObservedConditionTitle(currentWeather: HomeCurrentWeatherSnapshot) {
+function getHomeOfficialRoadStatus(report: WydotRoadReport | null) {
+  return (
+    report?.primarySegment.officialRoadStatus ??
+    EMPTY_HOME_WYDOT_OFFICIAL_STATUS
+  );
+}
+
+function hasHomeOfficialWydotStatus(status: WydotOfficialRoadStatus) {
+  return status.hasOfficialStatus && status.type !== "none";
+}
+
+function getHomeObservedConditionTitle(
+  currentWeather: HomeCurrentWeatherSnapshot,
+) {
   if (hasMeaningfulHomeText(currentWeather.conditionLabel)) {
     return currentWeather.conditionLabel;
   }
@@ -262,6 +338,12 @@ function getHomeMonitoredImpactLabel(params: {
 }) {
   const { alertSummary, roadReport, suggestionDecision } = params;
 
+  const officialRoadStatus = getHomeOfficialRoadStatus(roadReport);
+
+  if (hasHomeOfficialWydotStatus(officialRoadStatus)) {
+    return "Official WYDOT status";
+  }
+
   if (
     suggestionDecision?.secondary.find(
       (match) => match.code === SuggestionCode.FREEZE_RISK_TONIGHT,
@@ -277,11 +359,17 @@ function getHomeMonitoredImpactLabel(params: {
     return "WYDOT update";
   }
 
-  if (alertSummary.status === "active" && hasMeaningfulHomeText(alertSummary.event)) {
+  if (
+    alertSummary.status === "active" &&
+    hasMeaningfulHomeText(alertSummary.event)
+  ) {
     return "Official alert";
   }
 
-  if (suggestionDecision?.primary?.code === SuggestionCode.NO_ACTIVE_TRAVEL_IMPACTS) {
+  if (
+    suggestionDecision?.primary?.code ===
+    SuggestionCode.NO_ACTIVE_TRAVEL_IMPACTS
+  ) {
     return "Current conditions";
   }
 
@@ -302,17 +390,22 @@ function getHomeStatusTitle(
   const restriction = roadReport?.primarySegment.restriction ?? null;
   const advisory = roadReport?.primarySegment.advisory ?? null;
   const surfaceCondition = roadReport?.primarySegment.officialCondition ?? null;
+  const officialRoadStatus = getHomeOfficialRoadStatus(roadReport);
 
   switch (primarySuggestion.code) {
     case SuggestionCode.ROAD_CLOSED:
     case SuggestionCode.TRAVEL_RESTRICTION_POSTED:
-      return hasMeaningfulHomeText(restriction)
-        ? (restriction ?? "WYDOT restriction reported")
-        : "WYDOT restriction reported";
+      return hasHomeOfficialWydotStatus(officialRoadStatus)
+        ? officialRoadStatus.title
+        : hasMeaningfulHomeText(restriction)
+          ? "WYDOT restriction"
+          : "No active WYDOT restriction reported";
     case SuggestionCode.TRAVEL_ADVISORY_POSTED:
-      return hasMeaningfulHomeText(advisory)
-        ? (advisory ?? "WYDOT advisory reported")
-        : "WYDOT advisory reported";
+      return hasHomeOfficialWydotStatus(officialRoadStatus)
+        ? officialRoadStatus.title
+        : hasMeaningfulHomeText(advisory)
+          ? "WYDOT advisory"
+          : "No active WYDOT advisory reported";
     case SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE:
       return hasMeaningfulHomeText(alertSummary.event)
         ? (alertSummary.event ?? "Official alert reported")
@@ -362,13 +455,17 @@ function getHomeStatusSubtitle(
     roadReport,
   } = params;
 
+  const officialRoadStatus = getHomeOfficialRoadStatus(roadReport);
+
   switch (primarySuggestion.code) {
     case SuggestionCode.ROAD_CLOSED:
     case SuggestionCode.TRAVEL_RESTRICTION_POSTED:
     case SuggestionCode.TRAVEL_ADVISORY_POSTED:
-      return roadReport
-        ? `${roadReport.routeCode} near ${roadReport.townGroup}`
-        : (primarySuggestion.whyBullets[0] ?? "Road guidance is active");
+      return hasHomeOfficialWydotStatus(officialRoadStatus)
+        ? officialRoadStatus.description
+        : roadReport
+          ? `${roadReport.routeCode} near ${roadReport.townGroup}`
+          : (primarySuggestion.whyBullets[0] ?? "Road guidance is active");
     case SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE:
       return formatHomeAlertAreaSubtitle(alertSummary.area);
     case SuggestionCode.FREEZE_RISK_TONIGHT:
@@ -380,10 +477,13 @@ function getHomeStatusSubtitle(
     case SuggestionCode.HIGH_WIND_CAUTION:
       return `Condition: ${currentWeather.conditionLabel}`;
     case SuggestionCode.USE_CAUTION:
+      return hasMeaningfulHomeSurfaceCondition(roadReport)
+        ? `Surface: ${roadReport?.primarySegment.officialCondition}`
+        : "Weather may affect travel";
     case SuggestionCode.DRIFTING_CONCERN:
       return hasMeaningfulHomeSurfaceCondition(roadReport)
         ? `Surface: ${roadReport?.primarySegment.officialCondition}`
-        : `Condition: ${currentWeather.conditionLabel}`;
+        : "Wind and wintry conditions may affect travel";
     case SuggestionCode.ROAD_DATA_UNAVAILABLE:
     case SuggestionCode.WEATHER_DATA_UNAVAILABLE:
       return (
@@ -422,17 +522,22 @@ function getHomeRecommendationText(
   const restriction = roadReport?.primarySegment.restriction ?? null;
   const advisory = roadReport?.primarySegment.advisory ?? null;
   const surfaceCondition = roadReport?.primarySegment.officialCondition ?? null;
+  const officialRoadStatus = getHomeOfficialRoadStatus(roadReport);
 
   switch (primarySuggestion.code) {
     case SuggestionCode.ROAD_CLOSED:
     case SuggestionCode.TRAVEL_RESTRICTION_POSTED:
-      return hasMeaningfulHomeText(restriction)
-        ? `WYDOT restriction: ${restriction}.`
-        : "WYDOT restriction is active near this location.";
+      return hasHomeOfficialWydotStatus(officialRoadStatus)
+        ? `${officialRoadStatus.title}: ${officialRoadStatus.description}.`
+        : hasMeaningfulHomeText(restriction)
+          ? `WYDOT restriction: ${restriction}.`
+          : "No active WYDOT restriction is reported near this location.";
     case SuggestionCode.TRAVEL_ADVISORY_POSTED:
-      return hasMeaningfulHomeText(advisory)
-        ? `WYDOT advisory: ${advisory}.`
-        : "WYDOT advisory is active near this location.";
+      return hasHomeOfficialWydotStatus(officialRoadStatus)
+        ? `${officialRoadStatus.title}: ${officialRoadStatus.description}.`
+        : hasMeaningfulHomeText(advisory)
+          ? `WYDOT advisory: ${advisory}.`
+          : "No active WYDOT advisory is reported near this location.";
     case SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE:
       return hasMeaningfulHomeText(alertSummary.event)
         ? `Official alert: ${alertSummary.event ?? "Active alert"}.`
@@ -448,8 +553,8 @@ function getHomeRecommendationText(
     case SuggestionCode.USE_CAUTION:
     case SuggestionCode.DRIFTING_CONCERN:
       return hasMeaningfulHomeText(surfaceCondition)
-        ? `Current surface report: ${surfaceCondition}.`
-        : `Current conditions: ${currentWeather.conditionLabel}.`;
+        ? `Current road surface: ${surfaceCondition}. Weather may still affect travel.`
+        : `Current weather: ${currentWeather.conditionLabel}. Continue monitoring conditions.`;
     case SuggestionCode.ROAD_DATA_UNAVAILABLE:
       return "Road-specific guidance is limited right now. Check again before travel.";
     case SuggestionCode.WEATHER_DATA_UNAVAILABLE:
@@ -514,13 +619,20 @@ function getHomeMonitoringCard(
     };
   }
 
+  const focusTitle = getHomeStatusTitle(focusSuggestion, {
+    alertSummary: params.alertSummary,
+    currentWeather: params.currentWeather,
+    propertyForecastLowF: params.propertyForecastLowF,
+    roadReport: params.roadReport,
+  });
+  const monitoringTitle =
+    focusSuggestion.code === SuggestionCode.USE_CAUTION ||
+    focusSuggestion.code === SuggestionCode.DRIFTING_CONCERN
+      ? "Road Conditions"
+      : focusTitle;
+
   return {
-    title: getHomeStatusTitle(focusSuggestion, {
-      alertSummary: params.alertSummary,
-      currentWeather: params.currentWeather,
-      propertyForecastLowF: params.propertyForecastLowF,
-      roadReport: params.roadReport,
-    }),
+    title: monitoringTitle,
     body: getHomeRecommendationText(focusSuggestion, {
       alertSummary: params.alertSummary,
       currentWeather: params.currentWeather,
@@ -533,6 +645,7 @@ function getHomeMonitoringCard(
 
 function buildHomeViewModel(params: {
   currentWeather: HomeCurrentWeatherSnapshot;
+  hourlyForecast: TomorrowHourlyForecastEntry[];
   alertSummary: HomeAlertSummary;
   propertyForecastLowF: number | null;
   propertyRisk: PropertyRisk;
@@ -543,6 +656,7 @@ function buildHomeViewModel(params: {
 }): HomeViewModel {
   const {
     currentWeather,
+    hourlyForecast,
     alertSummary,
     propertyForecastLowF,
     propertyRisk,
@@ -586,6 +700,8 @@ function buildHomeViewModel(params: {
     currentWeather.refreshFallbackLabel,
   );
 
+  const nextPrecipSignal = getNextHomePrecipSignal(hourlyForecast);
+
   const statusBanner: HomeStatusBanner = (() => {
     if (!suggestionDecision?.primary) {
       return {
@@ -600,29 +716,39 @@ function buildHomeViewModel(params: {
 
     const primarySuggestion = suggestionDecision.primary;
     const presentation = getSuggestionPresentation(primarySuggestion);
+    const statusTitle = getHomeStatusTitle(primarySuggestion, {
+      alertSummary,
+      currentWeather,
+      propertyForecastLowF,
+      roadReport,
+    });
+    const statusSubtitle = getHomeStatusSubtitle(primarySuggestion, {
+      alertSummary,
+      currentWeather,
+      propertyForecastLowF,
+      propertyLocationName,
+      propertyRisk,
+      roadReport,
+    });
+    const shouldUsePrecipSignalFallback =
+      nextPrecipSignal &&
+      primarySuggestion.code === SuggestionCode.USE_CAUTION &&
+      statusTitle === "Current conditions";
 
     return {
-      title: getHomeStatusTitle(primarySuggestion, {
-        alertSummary,
-        currentWeather,
-        propertyForecastLowF,
-        roadReport,
-      }),
-      subtitle: getHomeStatusSubtitle(primarySuggestion, {
-        alertSummary,
-        currentWeather,
-        propertyForecastLowF,
-        propertyLocationName,
-        propertyRisk,
-        roadReport,
-      }),
+      title: shouldUsePrecipSignalFallback
+        ? "Weather-based road caution"
+        : statusTitle,
+      subtitle: shouldUsePrecipSignalFallback
+        ? `${nextPrecipSignal.conditionLabel} possible around ${nextPrecipSignal.timeLabel}`
+        : statusSubtitle,
       statusLabel: presentation.levelLabel,
       statusTone: presentation.homeTone,
       actionLabel: presentation.actionLabel,
     };
   })();
 
-  const monitoringCard = getHomeMonitoringCard(suggestionDecision, {
+  const baseMonitoringCard = getHomeMonitoringCard(suggestionDecision, {
     alertSummary,
     currentWeather,
     propertyForecastLowF,
@@ -630,6 +756,14 @@ function buildHomeViewModel(params: {
     propertyRisk,
     roadReport,
   });
+  const monitoringCard =
+    nextPrecipSignal &&
+    isHomeWintryConditionLabel(nextPrecipSignal.conditionLabel)
+      ? {
+          title: `${nextPrecipSignal.conditionLabel} possible`,
+          body: `Around ${nextPrecipSignal.timeLabel}, precipitation probability is near ${nextPrecipSignal.probability}%. Current road surface: ${surfaceCondition ?? "unknown"}.`,
+        }
+      : baseMonitoringCard;
 
   const bullets: HomeBullet[] = [];
 
@@ -682,6 +816,7 @@ function buildHomeViewModel(params: {
 
   return {
     updatedLabel,
+    nextPrecipSignal,
     metrics,
     statusBanner,
     monitoringCard,
@@ -728,10 +863,26 @@ function buildOutlookItems(params: {
       typeof entry.values.temperature === "number"
         ? `${Math.round(celsiusToFahrenheit(entry.values.temperature))}°`
         : "--",
-    condition:
-      typeof entry.values.weatherCode === "number"
-        ? getConditionLabel(entry.values.weatherCode)
-        : "Unavailable",
+    condition: (() => {
+      const label =
+        typeof entry.values.weatherCode === "number"
+          ? getConditionLabel(entry.values.weatherCode)
+          : "Unavailable";
+      const precipProbability =
+        typeof entry.values.precipitationProbability === "number"
+          ? entry.values.precipitationProbability
+          : null;
+
+      if (
+        label === "Current conditions" &&
+        typeof precipProbability === "number" &&
+        precipProbability > 0
+      ) {
+        return "Precip possible";
+      }
+
+      return label;
+    })(),
   }));
 }
 
@@ -776,8 +927,10 @@ function useHomeScreenData(
   const [weatherSnapshotLocationKey, setWeatherSnapshotLocationKey] = useState<
     string | null
   >(null);
-  const [lastSuccessfulHomeWeatherFetchAtMs, setLastSuccessfulHomeWeatherFetchAtMs] =
-    useState<number | null>(null);
+  const [
+    lastSuccessfulHomeWeatherFetchAtMs,
+    setLastSuccessfulHomeWeatherFetchAtMs,
+  ] = useState<number | null>(null);
   const currentWeatherRef = useRef(currentWeather);
   const hourlyForecastRef = useRef(hourlyForecast);
   const weatherSnapshotLocationKeyRef = useRef(weatherSnapshotLocationKey);
@@ -827,10 +980,7 @@ function useHomeScreenData(
         lastSuccessfulHomeWeatherFetchAtMsRef.current;
       const hasValidWeatherSnapshotForLocation =
         latestWeatherSnapshotLocationKey === selectedLocationWeatherKey &&
-        hasValidHomeWeatherSnapshot(
-          latestCurrentWeather,
-          latestHourlyForecast,
-        );
+        hasValidHomeWeatherSnapshot(latestCurrentWeather, latestHourlyForecast);
       const hasFreshHomeWeatherSnapshot =
         hasValidWeatherSnapshotForLocation &&
         latestLastSuccessfulHomeWeatherFetchAtMs !== null &&
@@ -863,16 +1013,17 @@ function useHomeScreenData(
           ? Promise.resolve<WydotRoadReport | null>(null)
           : getWydotRoadReport(selectedLocation);
 
-      const [weatherResult, alertsResult, roadResult] = await Promise.allSettled([
-        shouldFetchWeather
-          ? getSharedCurrentAndHourlyWeather(selectedLocation)
-          : Promise.resolve(null),
-        getActiveAlertsForLocation(
-          selectedLocation.latitude,
-          selectedLocation.longitude,
-        ),
-        roadReportRequest,
-      ]);
+      const [weatherResult, alertsResult, roadResult] =
+        await Promise.allSettled([
+          shouldFetchWeather
+            ? getSharedCurrentAndHourlyWeather(selectedLocation)
+            : Promise.resolve(null),
+          getActiveAlertsForLocation(
+            selectedLocation.latitude,
+            selectedLocation.longitude,
+          ),
+          roadReportRequest,
+        ]);
 
       if (!isActive) {
         return;
@@ -1002,7 +1153,9 @@ function useHomeScreenData(
         skippedDueToFreshness: hasFreshHomeWeatherSnapshot,
         retryingDueToMissingData: !hasValidWeatherSnapshotForLocation,
         weatherFetchRequested: shouldFetchWeather,
-        weatherFetchStatus: shouldFetchWeather ? weatherResult.status : "skipped",
+        weatherFetchStatus: shouldFetchWeather
+          ? weatherResult.status
+          : "skipped",
         weatherFetchRejected: weatherRejectedReason !== null,
         weatherFetchRejectedReason: weatherRejectedReason,
         combinedWeatherPromotedToScreenState:
@@ -1136,9 +1289,21 @@ export default function HomeScreen() {
       road: {
         available: !!roadReport,
         mapped: !!roadReport,
-        restriction: roadReport?.primarySegment.restriction ?? null,
-        advisory: roadReport?.primarySegment.advisory ?? null,
-        officialCondition: roadReport?.primarySegment.officialCondition ?? null,
+        restriction: hasMeaningfulHomeText(
+          roadReport?.primarySegment.restriction ?? null,
+        )
+          ? (roadReport?.primarySegment.restriction ?? null)
+          : null,
+        advisory: hasMeaningfulHomeText(
+          roadReport?.primarySegment.advisory ?? null,
+        )
+          ? (roadReport?.primarySegment.advisory ?? null)
+          : null,
+        officialCondition: hasMeaningfulHomeText(
+          roadReport?.primarySegment.officialCondition ?? null,
+        )
+          ? (roadReport?.primarySegment.officialCondition ?? null)
+          : null,
         fetchedAt: roadReport?.fetchedAt ?? null,
         stationObservedAt: observation?.observedAt ?? null,
         windAvgMph: observation?.windAvgMph ?? null,
@@ -1190,6 +1355,7 @@ export default function HomeScreen() {
 
     return buildHomeViewModel({
       currentWeather,
+      hourlyForecast,
       alertSummary,
       propertyForecastLowF,
       propertyRisk,
@@ -1201,6 +1367,7 @@ export default function HomeScreen() {
   }, [
     alertSummary,
     currentWeather,
+    hourlyForecast,
     propertyForecastLowF,
     propertyLocation,
     propertyRisk,

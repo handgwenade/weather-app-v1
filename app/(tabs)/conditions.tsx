@@ -1,6 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
-import { BarChart, LineChart } from "react-native-chart-kit";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Pressable,
@@ -10,6 +9,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
+import { BarChart, LineChart } from "react-native-chart-kit";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useSelectedLocation } from "@/data/locationStore";
@@ -43,6 +43,7 @@ type ConditionsChartCardModel = {
   emptyText: string;
   noteText: string | null;
   yAxisSuffix: string;
+  metricLabel: string;
   color: string;
 };
 
@@ -168,6 +169,53 @@ function getConditionLabel(weatherCode?: number) {
   return "Current conditions";
 }
 
+function isWintryConditionLabel(label: string) {
+  const normalized = label.toLowerCase();
+
+  return normalized.includes("snow") || normalized.includes("freezing");
+}
+
+function isWetConditionLabel(label: string) {
+  const normalized = label.toLowerCase();
+
+  return (
+    normalized.includes("rain") ||
+    normalized.includes("drizzle") ||
+    normalized.includes("snow") ||
+    normalized.includes("freezing")
+  );
+}
+
+function getNextPrecipSignal(hourlyEntries: TomorrowHourlyForecastEntry[]) {
+  const nextTwelveHours = getNextTwelveHours(hourlyEntries);
+
+  for (const entry of nextTwelveHours) {
+    const conditionLabel =
+      typeof entry.values.weatherCode === "number"
+        ? getConditionLabel(entry.values.weatherCode)
+        : null;
+    const precipProbability =
+      typeof entry.values.precipitationProbability === "number"
+        ? entry.values.precipitationProbability
+        : null;
+
+    if (
+      conditionLabel &&
+      isWetConditionLabel(conditionLabel) &&
+      typeof precipProbability === "number" &&
+      precipProbability > 0
+    ) {
+      return {
+        conditionLabel,
+        probability: Math.round(precipProbability),
+        timeLabel: formatClockLabel(entry.time) ?? "soon",
+      };
+    }
+  }
+
+  return null;
+}
+
 function formatClockLabel(value: string | Date) {
   return formatTime24Hour(value);
 }
@@ -214,14 +262,23 @@ function buildChartLabels(labels: string[]) {
 function buildLineChartCard(params: {
   id: string;
   title: string;
+  metricLabel: string;
   points: HourlyChartPoint[];
   emptyText: string;
   yAxisSuffix: string;
   color: string;
   valueSelector: (point: HourlyChartPoint) => number | null;
 }) {
-  const { id, title, points, emptyText, yAxisSuffix, color, valueSelector } =
-    params;
+  const {
+    id,
+    title,
+    metricLabel,
+    points,
+    emptyText,
+    yAxisSuffix,
+    color,
+    valueSelector,
+  } = params;
   const availablePoints = points.filter((point) => {
     const value = valueSelector(point);
     return typeof value === "number" && Number.isFinite(value);
@@ -239,6 +296,7 @@ function buildLineChartCard(params: {
       emptyText,
       noteText: null,
       yAxisSuffix,
+      metricLabel,
       color,
     } satisfies ConditionsChartCardModel;
   }
@@ -262,8 +320,9 @@ function buildLineChartCard(params: {
     noteText:
       missingCount > 0
         ? `Showing ${availablePoints.length} of ${points.length} available hourly points.`
-        : `Visible range ${minValue}${yAxisSuffix} to ${maxValue}${yAxisSuffix}.`,
+        : `${metricLabel} range: ${minValue}${yAxisSuffix}–${maxValue}${yAxisSuffix}`,
     yAxisSuffix,
+    metricLabel,
     color,
   } satisfies ConditionsChartCardModel;
 }
@@ -277,6 +336,12 @@ function buildPrecipChartCard(points: HourlyChartPoint[]) {
   const availableCount = points.filter(
     (point) => point.precipitationProbability !== null,
   ).length;
+  const precipValues = points
+    .map((point) => point.precipitationProbability)
+    .filter((value): value is number => value !== null)
+    .map((value) => Math.round(value));
+  const minPrecip = precipValues.length > 0 ? Math.min(...precipValues) : 0;
+  const maxPrecip = precipValues.length > 0 ? Math.max(...precipValues) : 0;
 
   return {
     id: "precip",
@@ -286,12 +351,14 @@ function buildPrecipChartCard(points: HourlyChartPoint[]) {
     values,
     valueOffset: 0,
     segments: 4,
-    emptyText: "Precipitation probability is unavailable for the next 12 hours.",
+    emptyText:
+      "Precipitation probability is unavailable for the next 12 hours.",
     noteText:
       availableCount < points.length
-        ? `Across all ${points.length} visible hours. Missing precip values are shown on the 0% baseline.`
-        : `Across all ${points.length} visible hours. Flat periods indicate 0% precip probability.`,
+        ? `Precip probability range: ${minPrecip}%–${maxPrecip}%. Missing values are shown as 0%.`
+        : `Precip probability range: ${minPrecip}%–${maxPrecip}%`,
     yAxisSuffix: "%",
+    metricLabel: "Precip probability",
     color: "#0F766E",
   } satisfies ConditionsChartCardModel;
 }
@@ -344,7 +411,12 @@ function buildSummaryText(hourlyEntries: TomorrowHourlyForecastEntry[]) {
       ? `${Math.round(Math.max(...precipProbabilities))}%`
       : "--";
 
-  return `${conditionLabel} leads the next 12 hours. Temps range ${minTemp} to ${maxTemp}, wind peaks near ${maxWind}, and precip probability peaks near ${maxPrecip}.`;
+  const nextPrecipSignal = getNextPrecipSignal(nextTwelveHours);
+  const precipSignalText = nextPrecipSignal
+    ? ` ${nextPrecipSignal.conditionLabel} signal around ${nextPrecipSignal.timeLabel} at ${nextPrecipSignal.probability}%.`
+    : "";
+
+  return `${conditionLabel} leads the next 12 hours. Temps range ${minTemp} to ${maxTemp}, wind peaks near ${maxWind}, and precip probability peaks near ${maxPrecip}.${precipSignalText}`;
 }
 
 function buildTakeawayText(hourlyEntries: TomorrowHourlyForecastEntry[]) {
@@ -383,16 +455,18 @@ function buildTakeawayText(hourlyEntries: TomorrowHourlyForecastEntry[]) {
   );
   const weatherLabels = nextTwelveHours.map((entry) =>
     typeof entry.values.weatherCode === "number"
-      ? getConditionLabel(entry.values.weatherCode).toLowerCase()
+      ? getConditionLabel(entry.values.weatherCode)
       : "",
   );
-  const hasWetSignal = weatherLabels.some(
-    (label) =>
-      label.includes("rain") ||
-      label.includes("drizzle") ||
-      label.includes("snow") ||
-      label.includes("freezing"),
-  );
+  const hasWetSignal = weatherLabels.some(isWetConditionLabel);
+  const nextPrecipSignal = getNextPrecipSignal(nextTwelveHours);
+
+  if (
+    nextPrecipSignal &&
+    isWintryConditionLabel(nextPrecipSignal.conditionLabel)
+  ) {
+    return `${nextPrecipSignal.conditionLabel} is possible around ${nextPrecipSignal.timeLabel}, with precipitation probability near ${nextPrecipSignal.probability}%.`;
+  }
 
   if (
     maxPrecipProbability !== null &&
@@ -411,9 +485,12 @@ function buildTakeawayText(hourlyEntries: TomorrowHourlyForecastEntry[]) {
   }
 
   const minPrecipText =
-    maxPrecipProbability !== null ? `${Math.round(maxPrecipProbability)}%` : "--";
+    maxPrecipProbability !== null
+      ? `${Math.round(maxPrecipProbability)}%`
+      : "--";
   const minTempText = minTempF !== null ? `${Math.round(minTempF)}°F` : "--";
-  const maxWindText = maxWindMph !== null ? `${Math.round(maxWindMph)} mph` : "--";
+  const maxWindText =
+    maxWindMph !== null ? `${Math.round(maxWindMph)} mph` : "--";
 
   return `Next-12-hour forecast keeps precipitation probability at or below ${minPrecipText}, temperatures above ${minTempText}, and wind below ${maxWindText}.`;
 }
@@ -455,6 +532,7 @@ function buildConditionsViewModel(params: {
       buildLineChartCard({
         id: "temperature",
         title: "Temperature",
+        metricLabel: "Temperature",
         points: chartPoints,
         emptyText: "Temperature data is unavailable for the next 12 hours.",
         yAxisSuffix: "°F",
@@ -464,6 +542,7 @@ function buildConditionsViewModel(params: {
       buildLineChartCard({
         id: "wind",
         title: "Wind",
+        metricLabel: "Wind",
         points: chartPoints,
         emptyText: "Wind data is unavailable for the next 12 hours.",
         yAxisSuffix: " mph",
@@ -545,6 +624,11 @@ function useConditionsScreenData(
             windGust: entry.values.windGust ?? null,
             precipitationProbability:
               entry.values.precipitationProbability ?? null,
+            weatherCode: entry.values.weatherCode ?? null,
+            conditionLabel:
+              typeof entry.values.weatherCode === "number"
+                ? getConditionLabel(entry.values.weatherCode)
+                : null,
           })),
         );
         setHourlyForecast(nextHourly);
@@ -612,7 +696,9 @@ function ConditionsChartCard({
   return (
     <View style={styles.chartCard}>
       <Text style={styles.chartTitle}>{card.title}</Text>
-      {card.noteText ? <Text style={styles.chartNote}>{card.noteText}</Text> : null}
+      {card.noteText ? (
+        <Text style={styles.chartNote}>{card.noteText}</Text>
+      ) : null}
 
       {card.values.length === 0 ? (
         <Text style={styles.unavailableText}>{card.emptyText}</Text>

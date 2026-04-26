@@ -1,8 +1,8 @@
+import { useScrollToTopOnFocus } from "@/hooks/useScrollToTopOnFocus";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { type ReactNode, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useScrollToTopOnFocus } from "@/hooks/useScrollToTopOnFocus";
 
 export type RoadTone = "good" | "caution" | "high" | "neutral";
 export type RoadActionDestination = "details" | "alerts" | "conditions";
@@ -121,7 +121,10 @@ export default function RoadScreenV2({
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.topBar}>
         <View style={styles.topBarRow}>
-          <Pressable style={styles.topTitleButton} onPress={onPressLocationSearch}>
+          <Pressable
+            style={styles.topTitleButton}
+            onPress={onPressLocationSearch}
+          >
             <Text style={styles.topTitle} numberOfLines={1}>
               {topTitle}
             </Text>
@@ -177,7 +180,12 @@ export default function RoadScreenV2({
                 },
               ]}
             >
-              <Text style={[styles.statusChipText, { color: statusChipStyle.textColor }]}>
+              <Text
+                style={[
+                  styles.statusChipText,
+                  { color: statusChipStyle.textColor },
+                ]}
+              >
                 {statusLabel}
               </Text>
             </View>
@@ -219,7 +227,7 @@ export default function RoadScreenV2({
           <Text style={styles.sectionTitle}>Risk Assessment</Text>
 
           <View style={styles.riskCard}>
-            <Text style={styles.cardTitle}>Road Risk</Text>
+            <Text style={styles.cardTitle}>Weather-based road risk</Text>
             <Text style={styles.riskLevel}>{riskLevelLabel}</Text>
 
             <View style={styles.bulletList}>

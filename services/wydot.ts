@@ -1,5 +1,29 @@
 import type { AppLocation } from "@/data/locationStore";
 
+export type WydotOfficialStatusType =
+  | "none"
+  | "advisory"
+  | "restriction"
+  | "closure";
+
+export type WydotOfficialImpact =
+  | "none"
+  | "low"
+  | "moderate"
+  | "high"
+  | "closed"
+  | "seasonal";
+
+export type WydotOfficialRoadStatus = {
+  hasOfficialStatus: boolean;
+  type: WydotOfficialStatusType;
+  impact: WydotOfficialImpact;
+  title: string;
+  description: string;
+  source: "wydot";
+  lastUpdated: string | null;
+};
+
 export type WydotRouteSegment = {
   routeCode: string;
   townGroup: string;
@@ -10,6 +34,7 @@ export type WydotRouteSegment = {
   reportTime: string;
   cameraSiteIds: string[];
   sensorStationNames: string[];
+  officialRoadStatus: WydotOfficialRoadStatus;
 };
 
 export type WydotStationObservation = {
@@ -198,6 +223,107 @@ function cleanCell(value: string) {
   return cleaned === "" ? "None" : cleaned;
 }
 
+function normalizeWydotEmptyValue(value: string) {
+  const normalized = value.trim();
+
+  return normalized === "" || normalized.toLowerCase() === "none";
+}
+
+function getImpactFromClassName(className: string): WydotOfficialImpact {
+  const normalized = className.toLowerCase();
+
+  if (normalized.includes("closed")) {
+    return "closed";
+  }
+
+  if (normalized.includes("extended")) {
+    return "seasonal";
+  }
+
+  if (normalized.includes("high")) {
+    return "high";
+  }
+
+  if (normalized.includes("mod")) {
+    return "moderate";
+  }
+
+  if (normalized.includes("low")) {
+    return "low";
+  }
+
+  return "none";
+}
+
+function buildWydotOfficialRoadStatus(params: {
+  advisory: string;
+  advisoryClassName: string | null;
+  restriction: string;
+  restrictionClassName: string | null;
+  officialCondition: string;
+  conditionClassName: string | null;
+  reportTime: string;
+}): WydotOfficialRoadStatus {
+  const restrictionExists = !normalizeWydotEmptyValue(params.restriction);
+  const advisoryExists = !normalizeWydotEmptyValue(params.advisory);
+  const conditionImpact = params.conditionClassName
+    ? getImpactFromClassName(params.conditionClassName)
+    : "none";
+  const isClosure =
+    conditionImpact === "closed" ||
+    params.officialCondition.toLowerCase().includes("closed");
+
+  if (isClosure) {
+    return {
+      hasOfficialStatus: true,
+      type: "closure",
+      impact: "closed",
+      title: "WYDOT closure",
+      description: params.officialCondition,
+      source: "wydot",
+      lastUpdated: params.reportTime,
+    };
+  }
+
+  if (restrictionExists) {
+    return {
+      hasOfficialStatus: true,
+      type: "restriction",
+      impact: params.restrictionClassName
+        ? getImpactFromClassName(params.restrictionClassName)
+        : "moderate",
+      title: "WYDOT restriction",
+      description: params.restriction,
+      source: "wydot",
+      lastUpdated: params.reportTime,
+    };
+  }
+
+  if (advisoryExists) {
+    return {
+      hasOfficialStatus: true,
+      type: "advisory",
+      impact: params.advisoryClassName
+        ? getImpactFromClassName(params.advisoryClassName)
+        : "moderate",
+      title: "WYDOT advisory",
+      description: params.advisory,
+      source: "wydot",
+      lastUpdated: params.reportTime,
+    };
+  }
+
+  return {
+    hasOfficialStatus: false,
+    type: "none",
+    impact: "none",
+    title: "",
+    description: "",
+    source: "wydot",
+    lastUpdated: params.reportTime,
+  };
+}
+
 function extractRouteCode(html: string) {
   const match = html.match(/Travel information for\s*<u>([^<]+)<\/u>/i);
 
@@ -266,7 +392,7 @@ function extractConditionCell(rowHtml: string) {
     /<td class="([a-z]+impactcond|closedcond|extendedcond)"[^>]*>([\s\S]*?)<\/td>/i,
   );
 
-  return match ? match[2] : null;
+  return match ? { className: match[1], html: match[2] } : null;
 }
 
 function extractAdvisoryCell(rowHtml: string) {
@@ -274,7 +400,7 @@ function extractAdvisoryCell(rowHtml: string) {
     /<td class="(noimpact|lowimpact|modimpact|highimpact|extendedimpact)"[^>]*>([\s\S]*?)<\/td>/i,
   );
 
-  return match ? match[2] : null;
+  return match ? { className: match[1], html: match[2] } : null;
 }
 
 function extractRestrictionCell(rowHtml: string) {
@@ -282,7 +408,7 @@ function extractRestrictionCell(rowHtml: string) {
     /<td class="(noimpactrestrict|lowimpactrestrict|modimpactrestrict|highimpactrestrict|closedrestrict)"[^>]*>([\s\S]*?)<\/td>/i,
   );
 
-  return match ? match[2] : null;
+  return match ? { className: match[1], html: match[2] } : null;
 }
 
 function extractCameraSiteIds(rowHtml: string) {
@@ -328,16 +454,30 @@ export function parseWydotRouteSegments(html: string): WydotRouteSegment[] {
       continue;
     }
 
+    const officialCondition = cleanCell(conditionHtml.html);
+    const advisory = cleanCell(advisoryHtml.html);
+    const restriction = cleanCell(restrictionHtml.html);
+    const reportTime = cleanCell(reportTimeHtml);
+
     segments.push({
       routeCode,
       townGroup: currentTownGroup,
       segmentLabel: cleanCell(segmentLabelHtml),
-      officialCondition: cleanCell(conditionHtml),
-      advisory: cleanCell(advisoryHtml),
-      restriction: cleanCell(restrictionHtml),
-      reportTime: cleanCell(reportTimeHtml),
+      officialCondition,
+      advisory,
+      restriction,
+      reportTime,
       cameraSiteIds: extractCameraSiteIds(rowHtml),
       sensorStationNames: extractSensorStationNames(rowHtml),
+      officialRoadStatus: buildWydotOfficialRoadStatus({
+        advisory,
+        advisoryClassName: advisoryHtml.className,
+        restriction,
+        restrictionClassName: restrictionHtml.className,
+        officialCondition,
+        conditionClassName: conditionHtml.className,
+        reportTime,
+      }),
     });
   }
 
