@@ -23,6 +23,21 @@ const COMBINED_CURRENT_AND_HOURLY_FIELDS = [
 console.log("[Server] Opening SQLite database", {
   dbPath,
 });
+
+const ENABLE_DEBUG_LOGS = process.env.NODE_ENV !== "production";
+
+function debugLog(message: string, payload?: unknown) {
+  if (!ENABLE_DEBUG_LOGS) {
+    return;
+  }
+
+  if (payload === undefined) {
+    console.log(message);
+    return;
+  }
+
+  console.log(message, payload);
+}
 const STATION_SELECT = `
   SELECT
     station_id AS stationId,
@@ -742,7 +757,7 @@ app.get("/api/weather/hourly", async (req, res) => {
       endTime: "nowPlus12h",
     };
 
-    console.log("[WeatherAPI] Hourly Tomorrow request", {
+    debugLog("[WeatherAPI] Hourly Tomorrow request", {
       location: requestBody.location,
       fields: requestBody.fields,
       timesteps: requestBody.timesteps,
@@ -771,7 +786,7 @@ app.get("/api/weather/hourly", async (req, res) => {
       payload.data?.timelines?.find((timeline) => timeline.timestep === "1h")
         ?.intervals ?? [];
 
-    console.log(
+    debugLog(
       "[WeatherAPI] Hourly Tomorrow response sample",
       hourlyEntries.slice(0, 12).map((entry) => ({
         time: entry.startTime ?? null,
@@ -851,7 +866,7 @@ app.get("/api/weather/current-hourly", async (req, res) => {
       endTime: "nowPlus12h",
     };
 
-    console.log("[WeatherAPI] Combined current/hourly Tomorrow requests", {
+    debugLog("[WeatherAPI] Combined current/hourly Tomorrow requests", {
       location: baseRequestBody.location,
       fields: baseRequestBody.fields,
       currentTimesteps: currentRequestBody.timesteps,
@@ -905,7 +920,7 @@ app.get("/api/weather/current-hourly", async (req, res) => {
         (timeline) => timeline.timestep === "1h",
       )?.intervals ?? [];
 
-    console.log(
+    debugLog(
       "[WeatherAPI] Combined current/hourly Tomorrow response sample",
       hourlyEntries.slice(0, 12).map((entry) => ({
         time: entry.startTime ?? null,
@@ -1099,7 +1114,7 @@ app.get("/api/road/segments", (_req, res) => {
       };
     });
 
-    console.log("[RoadSegmentsAPI] Returning segments", {
+    debugLog("[RoadSegmentsAPI] Returning segments", {
       rowCount: responsePayload.length,
       sampleSegmentIds: responsePayload.slice(0, 5).map((row) => row.segmentId),
     });
