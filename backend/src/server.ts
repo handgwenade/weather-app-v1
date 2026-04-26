@@ -210,6 +210,18 @@ type TomorrowCombinedForecastResponse = {
   };
 };
 
+type TomorrowHourlyTimelinesResponse = {
+  data?: {
+    timelines?: {
+      timestep?: "1h";
+      intervals?: {
+        startTime?: string;
+        values?: Record<string, number | string | null>;
+      }[];
+    }[];
+  };
+};
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS route_segments (
     segment_id TEXT PRIMARY KEY,
@@ -709,14 +721,66 @@ app.get("/api/weather/hourly", async (req, res) => {
   }
 
   try {
-    const url = buildTomorrowWeatherUrl(
-      coordinates.lat,
-      coordinates.lon,
-      apiKey,
-      "1h",
+    const url = `${TOMORROW_TIMELINES_URL}?apikey=${encodeURIComponent(apiKey)}`;
+    const requestBody = {
+      location: `${coordinates.lat},${coordinates.lon}`,
+      fields: [...COMBINED_CURRENT_AND_HOURLY_FIELDS],
+      units: "metric",
+      timesteps: ["1h"],
+      startTime: "now",
+      endTime: "nowPlus12h",
+    };
+
+    console.log("[WeatherAPI] Hourly Tomorrow request", {
+      location: requestBody.location,
+      fields: requestBody.fields,
+      timesteps: requestBody.timesteps,
+      startTime: requestBody.startTime,
+      endTime: requestBody.endTime,
+    });
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const responseText = await response.text();
+      throw new Error(
+        `Tomorrow.io hourly timelines request failed: ${response.status} ${responseText}`,
+      );
+    }
+
+    const payload = (await response.json()) as TomorrowHourlyTimelinesResponse;
+    const hourlyEntries =
+      payload.data?.timelines?.find((timeline) => timeline.timestep === "1h")
+        ?.intervals ?? [];
+
+    console.log(
+      "[WeatherAPI] Hourly Tomorrow response sample",
+      hourlyEntries.slice(0, 12).map((entry) => ({
+        time: entry.startTime ?? null,
+        weatherCode: entry.values?.weatherCode ?? null,
+        precipitationProbability:
+          entry.values?.precipitationProbability ?? null,
+        temperature: entry.values?.temperature ?? null,
+        windSpeed: entry.values?.windSpeed ?? null,
+        windGust: entry.values?.windGust ?? null,
+      })),
     );
-    const payload = await fetchTomorrowJson(url);
-    res.json(payload);
+
+    res.json({
+      timelines: {
+        hourly: hourlyEntries.map((entry) => ({
+          time: entry.startTime ?? "",
+          values: entry.values ?? {},
+        })),
+      },
+    });
   } catch (error) {
     console.log("[WeatherAPI] Hourly forecast request failed", {
       error: error instanceof Error ? error.message : String(error),
@@ -766,8 +830,16 @@ app.get("/api/weather/current-hourly", async (req, res) => {
       units: "metric",
       timesteps: ["current", "1h"],
       startTime: "now",
-      endTime: "nowPlus6h",
+      endTime: "nowPlus12h",
     };
+
+    console.log("[WeatherAPI] Combined current/hourly Tomorrow request", {
+      location: requestBody.location,
+      fields: requestBody.fields,
+      timesteps: requestBody.timesteps,
+      startTime: requestBody.startTime,
+      endTime: requestBody.endTime,
+    });
 
     const response = await fetch(url, {
       method: "POST",
@@ -793,6 +865,19 @@ app.get("/api/weather/current-hourly", async (req, res) => {
     const hourlyEntries =
       timelines.find((timeline) => timeline.timestep === "1h")?.intervals ?? [];
 
+    console.log(
+      "[WeatherAPI] Combined current/hourly Tomorrow response sample",
+      hourlyEntries.slice(0, 12).map((entry) => ({
+        time: entry.startTime ?? null,
+        weatherCode: entry.values?.weatherCode ?? null,
+        precipitationProbability:
+          entry.values?.precipitationProbability ?? null,
+        temperature: entry.values?.temperature ?? null,
+        windSpeed: entry.values?.windSpeed ?? null,
+        windGust: entry.values?.windGust ?? null,
+      })),
+    );
+
     res.json({
       currentWeather: {
         data: {
@@ -813,11 +898,9 @@ app.get("/api/weather/current-hourly", async (req, res) => {
     console.log("[WeatherAPI] Combined current/hourly request failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    res
-      .status(502)
-      .json({
-        error: "Failed to fetch combined current and hourly weather data",
-      });
+    res.status(502).json({
+      error: "Failed to fetch combined current and hourly weather data",
+    });
   }
 });
 
