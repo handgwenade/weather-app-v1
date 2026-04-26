@@ -8,6 +8,22 @@ type RoadGeometryFeatureCollection = FeatureCollection<
   GeoJsonProperties
 >;
 
+type RoadSegment = {
+  segmentId: string;
+  routeName: string;
+  fromLabel: string;
+  toLabel: string;
+  latitude: number;
+  longitude: number;
+  impactLevel: "low" | "moderate" | "high" | string;
+  impactReason: string;
+};
+
+type RoadSegmentFeatureCollection = FeatureCollection<
+  Geometry,
+  GeoJsonProperties
+>;
+
 const MAPBOX_ACCESS_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN;
 const ROAD_API_BASE_URL = process.env.EXPO_PUBLIC_ROAD_API_BASE_URL;
 const WYOMING_CENTER: [number, number] = [-107.5512, 42.9996];
@@ -23,6 +39,8 @@ function assertRoadApiBaseUrl() {
 export function RoadMapView() {
   const [geometry, setGeometry] =
     useState<RoadGeometryFeatureCollection | null>(null);
+  const [segmentMarkers, setSegmentMarkers] =
+    useState<RoadSegmentFeatureCollection | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -62,6 +80,45 @@ export function RoadMapView() {
         if (isMounted) {
           setGeometry(payload);
         }
+
+        const segmentsResponse = await fetch(`${baseUrl}/api/road/segments`);
+
+        if (!segmentsResponse.ok) {
+          throw new Error(
+            `Road segments request failed: ${segmentsResponse.status}`,
+          );
+        }
+
+        const segmentsPayload =
+          (await segmentsResponse.json()) as RoadSegment[];
+        const markerPayload: RoadSegmentFeatureCollection = {
+          type: "FeatureCollection",
+          features: segmentsPayload
+            .filter(
+              (segment) =>
+                typeof segment.latitude === "number" &&
+                typeof segment.longitude === "number",
+            )
+            .map((segment) => ({
+              type: "Feature",
+              properties: {
+                segmentId: segment.segmentId,
+                routeName: segment.routeName,
+                fromLabel: segment.fromLabel,
+                toLabel: segment.toLabel,
+                impactLevel: segment.impactLevel,
+                impactReason: segment.impactReason,
+              },
+              geometry: {
+                type: "Point",
+                coordinates: [segment.longitude, segment.latitude],
+              },
+            })),
+        };
+
+        if (isMounted) {
+          setSegmentMarkers(markerPayload);
+        }
       } catch (error) {
         if (isMounted) {
           setErrorMessage(
@@ -87,8 +144,8 @@ export function RoadMapView() {
       return null;
     }
 
-    return `${geometry.features.length.toLocaleString()} monitored road features`;
-  }, [geometry]);
+    return `${geometry.features.length.toLocaleString()} road lines · ${segmentMarkers?.features.length ?? 0} risk markers`;
+  }, [geometry, segmentMarkers]);
 
   if (!hasMapboxToken) {
     return (
@@ -130,9 +187,12 @@ export function RoadMapView() {
         attributionEnabled={false}
         compassEnabled
         logoEnabled={false}
+        rotateEnabled={false}
         scaleBarEnabled={false}
+        scrollEnabled
         style={styles.map}
         styleURL={Mapbox.StyleURL.Outdoors}
+        zoomEnabled
       >
         <Mapbox.Camera
           animationMode="flyTo"
@@ -146,15 +206,39 @@ export function RoadMapView() {
               lineCap: "round",
               lineColor: "#22c55e",
               lineJoin: "round",
-              lineOpacity: 0.82,
-              lineWidth: 3.2,
+              lineOpacity: 0.68,
+              lineWidth: 2.6,
             }}
           />
         </Mapbox.ShapeSource>
+        {segmentMarkers ? (
+          <Mapbox.ShapeSource id="road-segments-source" shape={segmentMarkers}>
+            <Mapbox.CircleLayer
+              id="road-segments-circle"
+              style={{
+                circleColor: [
+                  "match",
+                  ["get", "impactLevel"],
+                  "high",
+                  "#dc2626",
+                  "moderate",
+                  "#f97316",
+                  "low",
+                  "#22c55e",
+                  "#64748b",
+                ],
+                circleOpacity: 0.92,
+                circleRadius: 4.5,
+                circleStrokeColor: "#ffffff",
+                circleStrokeWidth: 1.5,
+              }}
+            />
+          </Mapbox.ShapeSource>
+        ) : null}
       </Mapbox.MapView>
 
       {featureCountLabel ? (
-        <View style={styles.statusPill}>
+        <View style={styles.statusPill} pointerEvents="none">
           <Text style={styles.statusPillText}>{featureCountLabel}</Text>
         </View>
       ) : null}
