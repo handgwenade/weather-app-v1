@@ -6,6 +6,7 @@ const dbPath = path.resolve(__dirname, "..", "weatherapp.db");
 const app = express();
 const db = new Database(dbPath);
 const TOMORROW_API_KEY = process.env.TOMORROW_API_KEY;
+const MAPBOX_ACCESS_TOKEN = process.env.MAPBOX_ACCESS_TOKEN;
 const TOMORROW_WEATHER_BASE_URL = "https://api.tomorrow.io/v4/weather";
 const TOMORROW_TIMELINES_URL = "https://api.tomorrow.io/v4/timelines";
 const COMBINED_CURRENT_AND_HOURLY_FIELDS = [
@@ -183,6 +184,15 @@ function assertTomorrowApiKey(res: express.Response) {
   return TOMORROW_API_KEY;
 }
 
+function assertMapboxAccessToken(res: express.Response) {
+  if (!MAPBOX_ACCESS_TOKEN) {
+    res.status(500).json({ error: "MAPBOX_ACCESS_TOKEN is not configured" });
+    return null;
+  }
+
+  return MAPBOX_ACCESS_TOKEN;
+}
+
 async function fetchTomorrowJson<T>(url: string): Promise<T> {
   const response = await fetch(url);
 
@@ -246,6 +256,54 @@ app.get("/", (_req, res) => {
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
+});
+
+app.get("/api/geocoding/search", async (req, res) => {
+  const query = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  const accessToken = assertMapboxAccessToken(res);
+
+  if (!accessToken) {
+    return;
+  }
+
+  if (!query) {
+    res.json({ features: [] });
+    return;
+  }
+
+  try {
+    const params = new URLSearchParams({
+      access_token: accessToken,
+      autocomplete: "true",
+      limit: "8",
+      types: "place,locality,neighborhood,address,poi",
+      country: "US",
+    });
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+      query,
+    )}.json?${params.toString()}`;
+
+    const response = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const responseText = await response.text();
+      throw new Error(
+        `Mapbox geocoding request failed: ${response.status} ${responseText}`,
+      );
+    }
+
+    const payload = await response.json();
+    res.json(payload);
+  } catch (error) {
+    console.log("[GeocodingAPI] Search failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(502).json({ error: "Failed to search locations" });
+  }
 });
 
 db.exec(`
