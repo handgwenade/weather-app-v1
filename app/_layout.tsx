@@ -1,20 +1,24 @@
-import 'expo-dev-client';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import * as Location from 'expo-location';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import 'react-native-reanimated';
+import {
+  DarkTheme,
+  DefaultTheme,
+  ThemeProvider,
+} from "@react-navigation/native";
+import "expo-dev-client";
+import * as Location from "expo-location";
+import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
+import "react-native-reanimated";
 
 import {
   upsertCurrentLocationSelection,
   useLocationStoreReady,
   useSelectedLocation,
-} from '@/data/locationStore';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+} from "@/data/locationStore";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 
 export const unstable_settings = {
-  anchor: '(tabs)',
+  anchor: "(tabs)",
 };
 
 let didAttemptCurrentLocationBootstrap = false;
@@ -27,15 +31,11 @@ function buildCurrentLocationLabels(
     placemark?.city?.trim() ||
     placemark?.district?.trim() ||
     placemark?.subregion?.trim() ||
-    'Current Area';
+    "Current Area";
   const state =
-    placemark?.region?.trim() ||
-    placemark?.isoCountryCode?.trim() ||
-    'GPS';
+    placemark?.region?.trim() || placemark?.isoCountryCode?.trim() || "GPS";
   const name =
-    placemark?.name?.trim() ||
-    placemark?.city?.trim() ||
-    'Current Location';
+    placemark?.name?.trim() || placemark?.city?.trim() || "Current Location";
 
   return {
     name,
@@ -73,14 +73,13 @@ export default function RootLayout() {
           return;
         }
 
-        const permission =
-          await Location.requestForegroundPermissionsAsync();
+        const permission = await Location.requestForegroundPermissionsAsync();
 
         if (!isActive) {
           return;
         }
 
-        if (permission.status !== 'granted') {
+        if (permission.status !== "granted") {
           blockedCurrentLocationBootstrapForSession = true;
           return;
         }
@@ -120,7 +119,7 @@ export default function RootLayout() {
           return;
         }
 
-        console.log('Failed to bootstrap current location:', error);
+        console.log("Failed to bootstrap current location:", error);
       }
     }
 
@@ -132,9 +131,10 @@ export default function RootLayout() {
   }, [locationStoreReady, selectedLocation]);
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="road-map" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

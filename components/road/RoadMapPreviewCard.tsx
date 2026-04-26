@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from "react-native";
+import { router } from "expo-router";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 type RoadMapPreviewCardProps = {
   routeLabel?: string | null;
@@ -6,7 +7,15 @@ type RoadMapPreviewCardProps = {
 
 export function RoadMapPreviewCard({ routeLabel }: RoadMapPreviewCardProps) {
   return (
-    <View style={styles.card}>
+    <Pressable
+      accessibilityHint="Opens the full road map preview"
+      accessibilityRole="button"
+      onPress={() => router.push("/road-map")}
+      style={({ pressed }) => [
+        styles.card,
+        pressed ? styles.cardPressed : null,
+      ]}
+    >
       <View style={styles.headerRow}>
         <View>
           <Text style={styles.eyebrow}>Road map</Text>
@@ -34,7 +43,9 @@ export function RoadMapPreviewCard({ routeLabel }: RoadMapPreviewCardProps) {
       {routeLabel ? (
         <Text style={styles.routeLabel}>Current route focus: {routeLabel}</Text>
       ) : null}
-    </View>
+
+      <Text style={styles.openHint}>Open road map →</Text>
+    </Pressable>
   );
 }
 
@@ -50,6 +61,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.08,
     shadowRadius: 16,
+  },
+  cardPressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.995 }],
   },
   headerRow: {
     alignItems: "center",
@@ -141,5 +156,10 @@ const styles = StyleSheet.create({
     color: "#0f172a",
     fontSize: 13,
     fontWeight: "700",
+  },
+  openHint: {
+    color: "#0369a1",
+    fontSize: 13,
+    fontWeight: "800",
   },
 });
