@@ -49,3 +49,4 @@ app-example
 # Local Netlify folder
 .netlify
 backend/weatherapp.db
+backend/weatherapp.db
