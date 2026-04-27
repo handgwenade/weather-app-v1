@@ -2,12 +2,26 @@ import Mapbox from "@rnmapbox/maps";
 import type { FeatureCollection, GeoJsonProperties, Geometry } from "geojson";
 import { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
+
+type ObservedFactors = {
+  observedAt: string | null;
+  stationId: string | null;
+  stationName: string | null;
+  sourceProvider: string | null;
+  airTempF: number | null;
+  windSpeedMph: number | null;
+  windGustMph: number | null;
+  visibilityMi: number | null;
+  roadSurfaceTempF: number | null;
+  roadStateCode: number | null;
+  roadStateLabel: string | null;
+};
 
 type RoadGeometryFeatureCollection = FeatureCollection<
   Geometry,
@@ -23,6 +37,12 @@ type RoadSegment = {
   longitude: number;
   impactLevel: "low" | "moderate" | "high" | string;
   impactReason: string;
+  officialConditionLabel: string | null;
+  officialConditionDescription: string | null;
+  officialRestriction: string | null;
+  computedImpactLevel: "low" | "moderate" | "high" | string;
+  computedImpactReason: string;
+  observedFactors: ObservedFactors;
 };
 
 type RoadSegmentFeatureCollection = FeatureCollection<
@@ -37,6 +57,11 @@ type SelectedMapSegment = {
   toLabel?: string | null;
   impactLevel?: string | null;
   impactReason?: string | null;
+  officialConditionLabel?: string | null;
+  officialConditionDescription?: string | null;
+  officialRestriction?: string | null;
+  computedImpactReason?: string | null;
+  observedFactors?: ObservedFactors | null;
 };
 
 const MAPBOX_ACCESS_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN;
@@ -69,6 +94,63 @@ function getImpactColor(impactLevel?: string | null) {
     default:
       return "#64748b";
   }
+}
+
+function formatNumber(
+  value: number | null | undefined,
+  maximumFractionDigits = 0,
+) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits,
+  }).format(value);
+}
+
+function buildObservedFactorText(observedFactors?: ObservedFactors | null) {
+  if (!observedFactors) {
+    return "Station observations unavailable";
+  }
+
+  const factors: string[] = [];
+  const visibility = formatNumber(observedFactors.visibilityMi, 1);
+  const gust = formatNumber(observedFactors.windGustMph);
+  const sustainedWind = formatNumber(observedFactors.windSpeedMph);
+  const roadSurfaceTemp = formatNumber(observedFactors.roadSurfaceTempF);
+
+  if (observedFactors.roadStateLabel) {
+    factors.push(`Road state ${observedFactors.roadStateLabel}`);
+  }
+
+  if (visibility) {
+    factors.push(`Visibility ${visibility} mi`);
+  }
+
+  if (gust) {
+    factors.push(`Gusts ${gust} mph`);
+  } else if (sustainedWind) {
+    factors.push(`Wind ${sustainedWind} mph`);
+  }
+
+  if (roadSurfaceTemp) {
+    factors.push(`Surface ${roadSurfaceTemp}°F`);
+  }
+
+  if (factors.length === 0) {
+    return "No observed road factors reported";
+  }
+
+  return factors.join(" · ");
+}
+
+function getOfficialConditionText(segment: SelectedMapSegment) {
+  return (
+    segment.officialConditionDescription ??
+    segment.officialConditionLabel ??
+    "No matched WYDOT condition"
+  );
 }
 
 export function RoadMapView({
@@ -151,6 +233,12 @@ export function RoadMapView({
                 toLabel: segment.toLabel,
                 impactLevel: segment.impactLevel,
                 impactReason: segment.impactReason,
+                officialConditionLabel: segment.officialConditionLabel,
+                officialConditionDescription:
+                  segment.officialConditionDescription,
+                officialRestriction: segment.officialRestriction,
+                computedImpactReason: segment.computedImpactReason,
+                observedFactors: JSON.stringify(segment.observedFactors),
               },
               geometry: {
                 type: "Point",
@@ -176,6 +264,12 @@ export function RoadMapView({
               toLabel: selectedSegment.toLabel,
               impactLevel: selectedSegment.impactLevel,
               impactReason: selectedSegment.impactReason,
+              officialConditionLabel: selectedSegment.officialConditionLabel,
+              officialConditionDescription:
+                selectedSegment.officialConditionDescription,
+              officialRestriction: selectedSegment.officialRestriction,
+              computedImpactReason: selectedSegment.computedImpactReason,
+              observedFactors: selectedSegment.observedFactors,
             });
           }
         }
@@ -241,6 +335,18 @@ export function RoadMapView({
       return;
     }
 
+    let observedFactors: ObservedFactors | null = null;
+
+    if (typeof properties.observedFactors === "string") {
+      try {
+        observedFactors = JSON.parse(
+          properties.observedFactors,
+        ) as ObservedFactors;
+      } catch {
+        observedFactors = null;
+      }
+    }
+
     setSelectedMapSegment({
       segmentId: String(properties.segmentId ?? ""),
       routeName:
@@ -257,6 +363,23 @@ export function RoadMapView({
         typeof properties.impactReason === "string"
           ? properties.impactReason
           : null,
+      officialConditionLabel:
+        typeof properties.officialConditionLabel === "string"
+          ? properties.officialConditionLabel
+          : null,
+      officialConditionDescription:
+        typeof properties.officialConditionDescription === "string"
+          ? properties.officialConditionDescription
+          : null,
+      officialRestriction:
+        typeof properties.officialRestriction === "string"
+          ? properties.officialRestriction
+          : null,
+      computedImpactReason:
+        typeof properties.computedImpactReason === "string"
+          ? properties.computedImpactReason
+          : null,
+      observedFactors,
     });
   }
 
@@ -373,9 +496,31 @@ export function RoadMapView({
             {selectedMapSegment.fromLabel ?? "Unknown"} →{" "}
             {selectedMapSegment.toLabel ?? "Unknown"}
           </Text>
+
+          <Text style={styles.segmentPillSectionLabel}>WYDOT condition</Text>
           <Text style={styles.segmentPillMeta}>
-            {(selectedMapSegment.impactLevel ?? "unknown").toUpperCase()} ·{" "}
-            {selectedMapSegment.impactReason ?? "No impact reason available"}
+            {getOfficialConditionText(selectedMapSegment)}
+          </Text>
+
+          {selectedMapSegment.officialRestriction ? (
+            <>
+              <Text style={styles.segmentPillSectionLabel}>Restriction</Text>
+              <Text style={styles.segmentPillMeta}>
+                {selectedMapSegment.officialRestriction}
+              </Text>
+            </>
+          ) : null}
+
+          <Text style={styles.segmentPillSectionLabel}>Detected factors</Text>
+          <Text style={styles.segmentPillMeta}>
+            {buildObservedFactorText(selectedMapSegment.observedFactors)}
+          </Text>
+
+          <Text style={styles.segmentPillSectionLabel}>Computed reason</Text>
+          <Text style={styles.segmentPillMeta}>
+            {selectedMapSegment.computedImpactReason ??
+              selectedMapSegment.impactReason ??
+              "No impact reason available"}
           </Text>
         </View>
       ) : null}
@@ -401,14 +546,15 @@ const styles = StyleSheet.create({
     borderLeftWidth: 6,
     borderRadius: 16,
     borderWidth: 1,
-    bottom: 58,
+    bottom: 16,
     left: 14,
     paddingLeft: 14,
     paddingRight: 46,
     paddingVertical: 10,
     position: "absolute",
     right: 14,
-    minHeight: 96,
+    minHeight: 156,
+    maxHeight: 210,
   },
   segmentPillCloseButton: {
     alignItems: "center",
@@ -450,12 +596,20 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 2,
   },
+  segmentPillSectionLabel: {
+    color: "#475569",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.4,
+    marginTop: 8,
+    textTransform: "uppercase",
+  },
   segmentPillMeta: {
     color: "#64748b",
     fontSize: 12,
     fontWeight: "700",
     lineHeight: 17,
-    marginTop: 3,
+    marginTop: 2,
   },
   fallbackPanel: {
     alignItems: "center",
