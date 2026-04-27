@@ -435,6 +435,17 @@ function getRoadLocationLabel(location: AppLocation) {
   return formatCityState(location);
 }
 
+function getRoadMapFocusCoordinate(roadLocation: AppLocation | null) {
+  if (!roadLocation) {
+    return null;
+  }
+
+  return {
+    latitude: roadLocation.latitude,
+    longitude: roadLocation.longitude,
+  };
+}
+
 function getRoadActionDestination(
   code?: SuggestionCode | null,
 ): RoadActionDestination {
@@ -1457,6 +1468,8 @@ export default function RoadScreen() {
     }
   }
 
+  const roadMapFocusCoordinate = getRoadMapFocusCoordinate(roadLocation);
+
   const prototypeFallbackObservation = roadLocation
     ? {
         corridorLabel:
@@ -1491,14 +1504,7 @@ export default function RoadScreen() {
     <View style={{ gap: 16 }}>
       <RoadMapPreviewCard
         routeLabel={routeLabel}
-        focusCoordinate={
-          roadLocation
-            ? {
-                latitude: roadLocation.latitude,
-                longitude: roadLocation.longitude,
-              }
-            : null
-        }
+        focusCoordinate={roadMapFocusCoordinate}
       />
 
       <View

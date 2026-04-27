@@ -1,6 +1,7 @@
 import { formatMonthDayTime24Hour } from "@/utils/dateTime";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
+import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -35,6 +36,25 @@ type RoadSegmentDetail = {
 
 type SegmentFilterMode = "all" | "wind-prone" | "high-impact";
 type SegmentSortMode = "highest-impact" | "nearest";
+
+function getRoadMapHrefForSegment(
+  segment: RoadSegmentListItem,
+): "/road-map" | `/road-map?${string}` {
+  if (
+    typeof segment.latitude !== "number" ||
+    !Number.isFinite(segment.latitude) ||
+    typeof segment.longitude !== "number" ||
+    !Number.isFinite(segment.longitude)
+  ) {
+    return "/road-map";
+  }
+
+  const latitude = encodeURIComponent(String(segment.latitude));
+  const longitude = encodeURIComponent(String(segment.longitude));
+  const segmentId = encodeURIComponent(segment.segmentId);
+
+  return `/road-map?latitude=${latitude}&longitude=${longitude}&segmentId=${segmentId}`;
+}
 
 function getRoadApiBaseUrl() {
   const baseUrl = process.env.EXPO_PUBLIC_ROAD_API_BASE_URL;
@@ -725,6 +745,7 @@ export default function RoadSegmentsPrototype({
               ]}
               onPress={() => {
                 void handlePressSegment(segment.segmentId);
+                router.push(getRoadMapHrefForSegment(segment));
               }}
             >
               <Text style={styles.segmentPrimaryText}>
