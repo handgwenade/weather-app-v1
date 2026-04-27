@@ -1,6 +1,6 @@
 import Mapbox from "@rnmapbox/maps";
 import type { FeatureCollection, GeoJsonProperties, Geometry } from "geojson";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Pressable,
@@ -199,14 +199,6 @@ export function RoadMapView({
     };
   }, [selectedSegmentId]);
 
-  const featureCountLabel = useMemo(() => {
-    if (!geometry) {
-      return null;
-    }
-
-    return `${geometry.features.length.toLocaleString()} road lines · ${segmentMarkers?.features.length ?? 0} risk markers`;
-  }, [geometry, segmentMarkers]);
-
   if (!hasMapboxToken) {
     return (
       <View style={styles.fallbackPanel}>
@@ -346,12 +338,6 @@ export function RoadMapView({
         ) : null}
       </Mapbox.MapView>
 
-      {featureCountLabel ? (
-        <View style={styles.statusPill} pointerEvents="none">
-          <Text style={styles.statusPillText}>{featureCountLabel}</Text>
-        </View>
-      ) : null}
-
       {selectedMapSegment ? (
         <View
           style={[
@@ -408,20 +394,6 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
-  },
-  statusPill: {
-    alignSelf: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    borderRadius: 999,
-    bottom: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    position: "absolute",
-  },
-  statusPillText: {
-    color: "#0f172a",
-    fontSize: 13,
-    fontWeight: "800",
   },
   segmentPill: {
     backgroundColor: "rgba(255, 255, 255, 0.94)",
