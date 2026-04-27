@@ -29,6 +29,38 @@ const COMBINED_CURRENT_AND_HOURLY_FIELDS = [
   "temperatureApparent",
 ] as const;
 
+const WYDOT_MEDIA_STATEWIDE_URL =
+  "https://www.wyoroad.info/pls/Browse/MEDIA.Statewide";
+const WYDOT_MEDIA_CACHE_MS = 5 * 60 * 1000;
+const WYDOT_CONDITION_HEADINGS = new Set([
+  "Closed to Light, High Profile Vehicles",
+  "Chain Law - Level 1",
+  "No Unnecessary Travel",
+  "No Trailer Traffic",
+  "Black Ice",
+  "Slick",
+  "Slick in Spots",
+  "Reduced Visibility",
+  "Falling Rock",
+  "Drifted Snow",
+  "Strong Winds",
+  "Fog",
+  "Blowing Snow",
+]);
+const WYDOT_RESTRICTION_HEADINGS = new Set([
+  "Closed to Light, High Profile Vehicles",
+  "Chain Law - Level 1",
+  "No Unnecessary Travel",
+  "No Trailer Traffic",
+]);
+const WYDOT_REGION_NAMES = new Set([
+  "Central",
+  "Northeast",
+  "Northwest",
+  "Southeast",
+  "Southwest",
+]);
+
 console.log("[Server] Opening SQLite database", {
   dbPath,
 });
@@ -80,6 +112,27 @@ type SegmentPrimaryStation = {
   roadStateLabel: string | null;
   sourceProvider: string | null;
 };
+
+type WydotMediaConditionRecord = {
+  category: string;
+  region: string | null;
+  routeName: string;
+  direction: string | null;
+  fromLabel: string;
+  toLabel: string;
+  rawText: string;
+};
+
+type OfficialSegmentCondition = {
+  officialConditionLabel: string | null;
+  officialConditionDescription: string | null;
+  officialRestriction: string | null;
+};
+
+let wydotMediaCache: {
+  fetchedAt: number;
+  records: WydotMediaConditionRecord[];
+} | null = null;
 
 function computeImpact(primaryStation: SegmentPrimaryStation | null) {
   if (!primaryStation) {
@@ -166,6 +219,311 @@ function computeImpact(primaryStation: SegmentPrimaryStation | null) {
   return {
     level: "low",
     reason: "No major impact detected from the primary station",
+  };
+}
+
+function buildObservedFactors(primaryStation: SegmentPrimaryStation | null) {
+  if (!primaryStation) {
+    return {
+      observedAt: null,
+      stationId: null,
+      stationName: null,
+      sourceProvider: null,
+      airTempF: null,
+      windSpeedMph: null,
+      windGustMph: null,
+      visibilityMi: null,
+      roadSurfaceTempF: null,
+      roadStateCode: null,
+      roadStateLabel: null,
+    };
+  }
+
+  return {
+    observedAt: primaryStation.observedAt,
+    stationId: primaryStation.stationId,
+    stationName: primaryStation.stationName,
+    sourceProvider: primaryStation.sourceProvider,
+    airTempF: primaryStation.airTempF,
+    windSpeedMph: primaryStation.windSpeedMph,
+    windGustMph: primaryStation.windGustMph,
+    visibilityMi: primaryStation.visibilityMi,
+    roadSurfaceTempF: primaryStation.roadSurfaceTempF,
+    roadStateCode: primaryStation.roadStateCode,
+    roadStateLabel: primaryStation.roadStateLabel,
+  };
+}
+
+function decodeBasicHtmlEntities(value: string) {
+  return value
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#160;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
+function normalizeWhitespace(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function normalizeRouteName(value: string) {
+  return normalizeWhitespace(value)
+    .toUpperCase()
+    .replace(/INTERSTATE\s+/g, "I ")
+    .replace(/U\.S\.\s*/g, "US ")
+    .replace(/WYOMING\s+/g, "WY ")
+    .replace(/-/g, " ")
+    .replace(/\s*\/\s*/g, " / ")
+    .replace(/\s+/g, " ");
+}
+
+function routeNamesMatch(segmentRouteName: string, officialRouteName: string) {
+  const segmentRoute = normalizeRouteName(segmentRouteName);
+  const officialRoute = normalizeRouteName(officialRouteName);
+  const officialParts = officialRoute.split(" / ").map((part) => part.trim());
+
+  return segmentRoute === officialRoute || officialParts.includes(segmentRoute);
+}
+
+function normalizeComparableText(value: string | null | undefined) {
+  return normalizeWhitespace(value ?? "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, " ")
+    .trim();
+}
+
+function labelsOverlap(segmentLabel: string, officialLabel: string) {
+  const segment = normalizeComparableText(segmentLabel);
+  const official = normalizeComparableText(officialLabel);
+
+  if (!segment || !official) {
+    return false;
+  }
+
+  return official.includes(segment) || segment.includes(official);
+}
+
+function stripHtmlToLines(html: string) {
+  const bodyText = html
+    .replace(/<script[\s\S]*?<\/script>/gi, "\n")
+    .replace(/<style[\s\S]*?<\/style>/gi, "\n")
+    .replace(/<br\s*\/?\s*>/gi, "\n")
+    .replace(/<\/tr>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<\/h[1-6]>/gi, "\n")
+    .replace(/<[^>]+>/g, " ");
+
+  return decodeBasicHtmlEntities(bodyText)
+    .split("\n")
+    .map(normalizeWhitespace)
+    .filter(Boolean);
+}
+
+function isWydotMediaBoilerplateLine(line: string) {
+  const normalized = normalizeComparableText(line);
+
+  return (
+    normalized.includes("MOTORISTS TRAVELING ON A CLOSED ROAD") ||
+    normalized.includes("WITHOUT PERMISSION FROM WYDOT OR WHP") ||
+    normalized.includes("MAY BE SUBJECT TO A FINE") ||
+    normalized.includes("WYOMING STATUTE") ||
+    normalized.includes("24 1 109") ||
+    normalized.includes("CLOSED ROAD WITHOUT PERMISSION")
+  );
+}
+
+function parseWydotMediaConditions(html: string) {
+  const lines = stripHtmlToLines(html);
+  const records: WydotMediaConditionRecord[] = [];
+  let currentCategory: string | null = null;
+  let currentRegion: string | null = null;
+  let currentRouteName: string | null = null;
+
+  for (const line of lines) {
+    if (WYDOT_CONDITION_HEADINGS.has(line)) {
+      currentCategory = line;
+      currentRegion = null;
+      currentRouteName = null;
+      continue;
+    }
+
+    if (!currentCategory || line === "Region Route Direction From To") {
+      continue;
+    }
+
+    if (isWydotMediaBoilerplateLine(line)) {
+      continue;
+    }
+
+    // Skip lines that match 24-1-109 or 24 1 109 (with optional dashes/spaces)
+    if (/\b24\s*-?\s*1\s*-?\s*109\b/i.test(line)) {
+      continue;
+    }
+
+    const tokens = line.split(" ").filter(Boolean);
+    const firstToken = tokens[0];
+    const startsWithRegion = WYDOT_REGION_NAMES.has(firstToken);
+    const region: string | null = startsWithRegion ? firstToken : currentRegion;
+    const content = startsWithRegion
+      ? normalizeWhitespace(line.slice(firstToken.length))
+      : line;
+
+    if (!region || !content) {
+      continue;
+    }
+
+    const routeMatch = content.match(
+      /^((?:I|US|WY)\s+\d+[A-Z]?(?:\s*\/\s*(?:(?:I|US|WY)\s+)?\d+[A-Z]?)*|Casper Service Road|I\s+90\s+Business)\s+(.+)$/i,
+    );
+
+    let routeName: string | null = currentRouteName;
+    let fromToText = content;
+
+    if (routeMatch) {
+      routeName = normalizeWhitespace(routeMatch[1]);
+      fromToText = normalizeWhitespace(routeMatch[2]);
+    }
+
+    if (!routeName) {
+      continue;
+    }
+
+    currentRegion = region;
+    currentRouteName = routeName;
+
+    const directionalMatch = fromToText.match(
+      /^(Eastbound|Westbound|Northbound|Southbound)\s+(.+)$/i,
+    );
+    const direction = directionalMatch ? directionalMatch[1] : null;
+    const routeText = directionalMatch
+      ? normalizeWhitespace(directionalMatch[2])
+      : fromToText;
+    const labelParts = routeText.split(/\s{2,}|\s+to\s+/i).filter(Boolean);
+    let fromLabel = "";
+    let toLabel = "";
+
+    if (labelParts.length >= 2) {
+      fromLabel = normalizeWhitespace(labelParts[0]);
+      toLabel = normalizeWhitespace(labelParts.slice(1).join(" "));
+    } else {
+      const parts = routeText.split(" ");
+      const midpoint = Math.ceil(parts.length / 2);
+      fromLabel = normalizeWhitespace(parts.slice(0, midpoint).join(" "));
+      toLabel = normalizeWhitespace(parts.slice(midpoint).join(" "));
+    }
+
+    if (!fromLabel || !toLabel) {
+      continue;
+    }
+
+    records.push({
+      category: currentCategory,
+      region,
+      routeName,
+      direction,
+      fromLabel,
+      toLabel,
+      rawText: line,
+    });
+  }
+
+  return records;
+}
+
+async function getWydotMediaConditions() {
+  const now = Date.now();
+
+  if (
+    wydotMediaCache &&
+    now - wydotMediaCache.fetchedAt < WYDOT_MEDIA_CACHE_MS
+  ) {
+    return wydotMediaCache.records;
+  }
+
+  try {
+    const response = await fetch(WYDOT_MEDIA_STATEWIDE_URL, {
+      headers: {
+        Accept: "text/html",
+        "User-Agent": "RoadSignal/1.1 (+https://roadsignal.app)",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`WYDOT media request failed: ${response.status}`);
+    }
+
+    const html = await response.text();
+    const records = parseWydotMediaConditions(html);
+    wydotMediaCache = {
+      fetchedAt: now,
+      records,
+    };
+
+    debugLog("[WYDOTMedia] Parsed official condition records", {
+      recordCount: records.length,
+      sample: records.slice(0, 5),
+    });
+
+    return records;
+  } catch (error) {
+    console.log("[WYDOTMedia] Failed to fetch official conditions", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return wydotMediaCache?.records ?? [];
+  }
+}
+
+function findOfficialConditionForSegment(
+  row: {
+    routeName: string;
+    fromLabel: string;
+    toLabel: string;
+  },
+  officialRecords: WydotMediaConditionRecord[],
+): OfficialSegmentCondition {
+  const matchedRecords = officialRecords.filter((record) => {
+    if (
+      isWydotMediaBoilerplateLine(record.rawText) ||
+      /\b24\s*-?\s*1\s*-?\s*109\b/i.test(record.rawText)
+    ) {
+      return false;
+    }
+    if (!routeNamesMatch(row.routeName, record.routeName)) {
+      return false;
+    }
+
+    return (
+      labelsOverlap(row.fromLabel, record.fromLabel) ||
+      labelsOverlap(row.fromLabel, record.toLabel) ||
+      labelsOverlap(row.toLabel, record.fromLabel) ||
+      labelsOverlap(row.toLabel, record.toLabel)
+    );
+  });
+
+  const restriction = matchedRecords.find(
+    (record) =>
+      WYDOT_RESTRICTION_HEADINGS.has(record.category) &&
+      !isWydotMediaBoilerplateLine(record.rawText),
+  );
+  const condition = matchedRecords.find(
+    (record) =>
+      !WYDOT_RESTRICTION_HEADINGS.has(record.category) &&
+      !isWydotMediaBoilerplateLine(record.rawText),
+  );
+
+  return {
+    officialConditionLabel: condition?.category ?? null,
+    officialConditionDescription: condition
+      ? `${condition.category}: ${condition.rawText}`
+      : null,
+    officialRestriction: restriction
+      ? `${restriction.category}: ${restriction.rawText}`
+      : null,
   };
 }
 
@@ -1099,7 +1457,7 @@ app.get("/api/road/geometry", (_req, res) => {
   }
 });
 
-app.get("/api/road/segments", (_req, res) => {
+app.get("/api/road/segments", async (_req, res) => {
   try {
     const rows = db
       .prepare(
@@ -1156,25 +1514,34 @@ app.get("/api/road/segments", (_req, res) => {
       sourceProvider: string | null;
     }[];
 
+    const officialRecords = await getWydotMediaConditions();
+
     const responsePayload = rows.map((row) => {
-      const impact = computeImpact(
-        row.stationId
-          ? {
-              stationId: row.stationId,
-              stationName: row.stationName,
-              latitude: row.latitude,
-              longitude: row.longitude,
-              observedAt: row.observedAt,
-              airTempF: row.airTempF,
-              windSpeedMph: row.windSpeedMph,
-              windGustMph: row.windGustMph,
-              visibilityMi: row.visibilityMi,
-              roadSurfaceTempF: row.roadSurfaceTempF,
-              roadStateCode: row.roadStateCode,
-              roadStateLabel: row.roadStateLabel,
-              sourceProvider: row.sourceProvider,
-            }
-          : null,
+      const primaryStation: SegmentPrimaryStation | null = row.stationId
+        ? {
+            stationId: row.stationId,
+            stationName: row.stationName,
+            latitude: row.latitude,
+            longitude: row.longitude,
+            observedAt: row.observedAt,
+            airTempF: row.airTempF,
+            windSpeedMph: row.windSpeedMph,
+            windGustMph: row.windGustMph,
+            visibilityMi: row.visibilityMi,
+            roadSurfaceTempF: row.roadSurfaceTempF,
+            roadStateCode: row.roadStateCode,
+            roadStateLabel: row.roadStateLabel,
+            sourceProvider: row.sourceProvider,
+          }
+        : null;
+      const impact = computeImpact(primaryStation);
+      const officialCondition = findOfficialConditionForSegment(
+        {
+          routeName: row.routeName,
+          fromLabel: row.fromLabel,
+          toLabel: row.toLabel,
+        },
+        officialRecords,
       );
 
       return {
@@ -1190,6 +1557,13 @@ app.get("/api/road/segments", (_req, res) => {
         longitude: row.longitude,
         impactLevel: impact.level,
         impactReason: impact.reason,
+        officialConditionLabel: officialCondition.officialConditionLabel,
+        officialConditionDescription:
+          officialCondition.officialConditionDescription,
+        officialRestriction: officialCondition.officialRestriction,
+        computedImpactLevel: impact.level,
+        computedImpactReason: impact.reason,
+        observedFactors: buildObservedFactors(primaryStation),
       };
     });
 
@@ -1208,7 +1582,7 @@ app.get("/api/road/segments", (_req, res) => {
   }
 });
 
-app.get("/api/road/segment/:segmentId", (req, res) => {
+app.get("/api/road/segment/:segmentId", async (req, res) => {
   const row = db
     .prepare(
       `
@@ -1289,6 +1663,16 @@ app.get("/api/road/segment/:segmentId", (req, res) => {
       }
     : null;
 
+  const officialRecords = await getWydotMediaConditions();
+  const officialCondition = findOfficialConditionForSegment(
+    {
+      routeName: row.route_name,
+      fromLabel: row.from_label,
+      toLabel: row.to_label,
+    },
+    officialRecords,
+  );
+
   res.json({
     segment: {
       segmentId: row.segment_id,
@@ -1302,6 +1686,20 @@ app.get("/api/road/segment/:segmentId", (req, res) => {
     },
     primaryStation,
     impact: computeImpact(primaryStation),
+    officialConditionLabel: officialCondition.officialConditionLabel,
+    officialConditionDescription:
+      officialCondition.officialConditionDescription,
+    officialRestriction: officialCondition.officialRestriction,
+    observedFactors: buildObservedFactors(primaryStation),
+  });
+});
+
+app.get("/api/road/official-conditions", async (_req, res) => {
+  const records = await getWydotMediaConditions();
+  res.json({
+    sourceUrl: WYDOT_MEDIA_STATEWIDE_URL,
+    count: records.length,
+    records,
   });
 });
 
