@@ -1,7 +1,13 @@
 import Mapbox from "@rnmapbox/maps";
 import type { FeatureCollection, GeoJsonProperties, Geometry } from "geojson";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import {
+    ActivityIndicator,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
+} from "react-native";
 
 type RoadGeometryFeatureCollection = FeatureCollection<
   Geometry,
@@ -24,6 +30,15 @@ type RoadSegmentFeatureCollection = FeatureCollection<
   GeoJsonProperties
 >;
 
+type SelectedMapSegment = {
+  segmentId: string;
+  routeName?: string | null;
+  fromLabel?: string | null;
+  toLabel?: string | null;
+  impactLevel?: string | null;
+  impactReason?: string | null;
+};
+
 const MAPBOX_ACCESS_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN;
 const ROAD_API_BASE_URL = process.env.EXPO_PUBLIC_ROAD_API_BASE_URL;
 
@@ -32,6 +47,7 @@ const WYOMING_CENTER: [number, number] = [-107.5512, 42.9996];
 type RoadMapViewProps = {
   focusCoordinate?: [number, number] | null;
   focusZoomLevel?: number;
+  selectedSegmentId?: string | null;
 };
 
 function assertRoadApiBaseUrl() {
@@ -42,14 +58,30 @@ function assertRoadApiBaseUrl() {
   return ROAD_API_BASE_URL.replace(/\/$/, "");
 }
 
+function getImpactColor(impactLevel?: string | null) {
+  switch (impactLevel) {
+    case "high":
+      return "#dc2626";
+    case "moderate":
+      return "#f97316";
+    case "low":
+      return "#22c55e";
+    default:
+      return "#64748b";
+  }
+}
+
 export function RoadMapView({
   focusCoordinate = null,
   focusZoomLevel = 8,
+  selectedSegmentId = null,
 }: RoadMapViewProps) {
   const [geometry, setGeometry] =
     useState<RoadGeometryFeatureCollection | null>(null);
   const [segmentMarkers, setSegmentMarkers] =
     useState<RoadSegmentFeatureCollection | null>(null);
+  const [selectedMapSegment, setSelectedMapSegment] =
+    useState<SelectedMapSegment | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -130,6 +162,23 @@ export function RoadMapView({
         if (isMounted) {
           setSegmentMarkers(markerPayload);
         }
+
+        if (isMounted && selectedSegmentId) {
+          const selectedSegment = segmentsPayload.find(
+            (segment) => segment.segmentId === selectedSegmentId,
+          );
+
+          if (selectedSegment) {
+            setSelectedMapSegment({
+              segmentId: selectedSegment.segmentId,
+              routeName: selectedSegment.routeName,
+              fromLabel: selectedSegment.fromLabel,
+              toLabel: selectedSegment.toLabel,
+              impactLevel: selectedSegment.impactLevel,
+              impactReason: selectedSegment.impactReason,
+            });
+          }
+        }
       } catch (error) {
         if (isMounted) {
           setErrorMessage(
@@ -148,7 +197,7 @@ export function RoadMapView({
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [selectedSegmentId]);
 
   const featureCountLabel = useMemo(() => {
     if (!geometry) {
@@ -192,6 +241,33 @@ export function RoadMapView({
     );
   }
 
+  function handlePressSegmentMarker(event: { features?: GeoJSON.Feature[] }) {
+    const feature = event.features?.[0];
+    const properties = feature?.properties;
+
+    if (!properties) {
+      return;
+    }
+
+    setSelectedMapSegment({
+      segmentId: String(properties.segmentId ?? ""),
+      routeName:
+        typeof properties.routeName === "string" ? properties.routeName : null,
+      fromLabel:
+        typeof properties.fromLabel === "string" ? properties.fromLabel : null,
+      toLabel:
+        typeof properties.toLabel === "string" ? properties.toLabel : null,
+      impactLevel:
+        typeof properties.impactLevel === "string"
+          ? properties.impactLevel
+          : null,
+      impactReason:
+        typeof properties.impactReason === "string"
+          ? properties.impactReason
+          : null,
+    });
+  }
+
   return (
     <View style={styles.mapWrap}>
       <Mapbox.MapView
@@ -223,7 +299,11 @@ export function RoadMapView({
           />
         </Mapbox.ShapeSource>
         {segmentMarkers ? (
-          <Mapbox.ShapeSource id="road-segments-source" shape={segmentMarkers}>
+          <Mapbox.ShapeSource
+            id="road-segments-source"
+            onPress={handlePressSegmentMarker}
+            shape={segmentMarkers}
+          >
             <Mapbox.CircleLayer
               id="road-segments-circle"
               style={{
@@ -239,9 +319,27 @@ export function RoadMapView({
                   "#64748b",
                 ],
                 circleOpacity: 0.92,
-                circleRadius: 4.5,
+                circleRadius: [
+                  "case",
+                  [
+                    "==",
+                    ["get", "segmentId"],
+                    selectedMapSegment?.segmentId ?? "",
+                  ],
+                  7,
+                  4.5,
+                ],
                 circleStrokeColor: "#ffffff",
-                circleStrokeWidth: 1.5,
+                circleStrokeWidth: [
+                  "case",
+                  [
+                    "==",
+                    ["get", "segmentId"],
+                    selectedMapSegment?.segmentId ?? "",
+                  ],
+                  3,
+                  1.5,
+                ],
               }}
             />
           </Mapbox.ShapeSource>
@@ -251,6 +349,48 @@ export function RoadMapView({
       {featureCountLabel ? (
         <View style={styles.statusPill} pointerEvents="none">
           <Text style={styles.statusPillText}>{featureCountLabel}</Text>
+        </View>
+      ) : null}
+
+      {selectedMapSegment ? (
+        <View
+          style={[
+            styles.segmentPill,
+            { borderLeftColor: getImpactColor(selectedMapSegment.impactLevel) },
+          ]}
+        >
+          <Pressable
+            accessibilityLabel="Close selected road segment"
+            accessibilityRole="button"
+            onPress={() => setSelectedMapSegment(null)}
+            style={styles.segmentPillCloseButton}
+          >
+            <Text style={styles.segmentPillCloseText}>×</Text>
+          </Pressable>
+
+          <View style={styles.segmentPillTitleRow}>
+            <View
+              style={[
+                styles.segmentPillImpactDot,
+                {
+                  backgroundColor: getImpactColor(
+                    selectedMapSegment.impactLevel,
+                  ),
+                },
+              ]}
+            />
+            <Text style={styles.segmentPillTitle}>
+              {selectedMapSegment.routeName ?? "Road segment"}
+            </Text>
+          </View>
+          <Text style={styles.segmentPillBody}>
+            {selectedMapSegment.fromLabel ?? "Unknown"} →{" "}
+            {selectedMapSegment.toLabel ?? "Unknown"}
+          </Text>
+          <Text style={styles.segmentPillMeta}>
+            {(selectedMapSegment.impactLevel ?? "unknown").toUpperCase()} ·{" "}
+            {selectedMapSegment.impactReason ?? "No impact reason available"}
+          </Text>
         </View>
       ) : null}
     </View>
@@ -282,6 +422,68 @@ const styles = StyleSheet.create({
     color: "#0f172a",
     fontSize: 13,
     fontWeight: "800",
+  },
+  segmentPill: {
+    backgroundColor: "rgba(255, 255, 255, 0.94)",
+    borderColor: "rgba(202, 213, 226, 0.9)",
+    borderLeftWidth: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    bottom: 58,
+    left: 14,
+    paddingLeft: 14,
+    paddingRight: 46,
+    paddingVertical: 10,
+    position: "absolute",
+    right: 14,
+    minHeight: 96,
+  },
+  segmentPillCloseButton: {
+    alignItems: "center",
+    backgroundColor: "#f1f5f9",
+    borderRadius: 999,
+    height: 28,
+    justifyContent: "center",
+    position: "absolute",
+    right: 10,
+    top: 10,
+    width: 28,
+  },
+  segmentPillCloseText: {
+    color: "#334155",
+    fontSize: 20,
+    fontWeight: "800",
+    lineHeight: 22,
+    marginTop: -2,
+  },
+  segmentPillTitleRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  segmentPillImpactDot: {
+    borderRadius: 999,
+    height: 12,
+    width: 12,
+  },
+  segmentPillTitle: {
+    color: "#0f172a",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  segmentPillBody: {
+    color: "#334155",
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  segmentPillMeta: {
+    color: "#64748b",
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 17,
+    marginTop: 3,
   },
   fallbackPanel: {
     alignItems: "center",
