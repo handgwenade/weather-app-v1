@@ -1,5 +1,5 @@
 import { RoadMapView } from "@/components/road/RoadMapView";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 const LEGEND_ITEMS = [
@@ -17,7 +17,34 @@ const LEGEND_ITEMS = [
   { label: "High", description: "High risk or official impact", style: "high" },
 ] as const;
 
+function getFocusCoordinateFromParams(params: {
+  latitude?: string | string[];
+  longitude?: string | string[];
+}): [number, number] | null {
+  const rawLatitude = Array.isArray(params.latitude)
+    ? params.latitude[0]
+    : params.latitude;
+  const rawLongitude = Array.isArray(params.longitude)
+    ? params.longitude[0]
+    : params.longitude;
+
+  const latitude = Number(rawLatitude);
+  const longitude = Number(rawLongitude);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
+
+  return [longitude, latitude];
+}
+
 export default function RoadMapScreen() {
+  const params = useLocalSearchParams<{
+    latitude?: string;
+    longitude?: string;
+  }>();
+  const focusCoordinate = getFocusCoordinateFromParams(params);
+
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
@@ -37,7 +64,7 @@ export default function RoadMapScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <RoadMapView />
+        <RoadMapView focusCoordinate={focusCoordinate} focusZoomLevel={8.2} />
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Layer plan</Text>

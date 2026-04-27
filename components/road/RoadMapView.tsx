@@ -26,7 +26,13 @@ type RoadSegmentFeatureCollection = FeatureCollection<
 
 const MAPBOX_ACCESS_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN;
 const ROAD_API_BASE_URL = process.env.EXPO_PUBLIC_ROAD_API_BASE_URL;
+
 const WYOMING_CENTER: [number, number] = [-107.5512, 42.9996];
+
+type RoadMapViewProps = {
+  focusCoordinate?: [number, number] | null;
+  focusZoomLevel?: number;
+};
 
 function assertRoadApiBaseUrl() {
   if (!ROAD_API_BASE_URL) {
@@ -36,7 +42,10 @@ function assertRoadApiBaseUrl() {
   return ROAD_API_BASE_URL.replace(/\/$/, "");
 }
 
-export function RoadMapView() {
+export function RoadMapView({
+  focusCoordinate = null,
+  focusZoomLevel = 8,
+}: RoadMapViewProps) {
   const [geometry, setGeometry] =
     useState<RoadGeometryFeatureCollection | null>(null);
   const [segmentMarkers, setSegmentMarkers] =
@@ -45,6 +54,8 @@ export function RoadMapView() {
   const [isLoading, setIsLoading] = useState(true);
 
   const hasMapboxToken = Boolean(MAPBOX_ACCESS_TOKEN);
+  const cameraCenter = focusCoordinate ?? WYOMING_CENTER;
+  const cameraZoomLevel = focusCoordinate ? focusZoomLevel : 5.2;
 
   useEffect(() => {
     if (MAPBOX_ACCESS_TOKEN) {
@@ -196,8 +207,8 @@ export function RoadMapView() {
       >
         <Mapbox.Camera
           animationMode="flyTo"
-          centerCoordinate={WYOMING_CENTER}
-          zoomLevel={5.2}
+          centerCoordinate={cameraCenter}
+          zoomLevel={cameraZoomLevel}
         />
         <Mapbox.ShapeSource id="road-geometry-source" shape={geometry}>
           <Mapbox.LineLayer

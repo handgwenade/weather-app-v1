@@ -3,14 +3,34 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 type RoadMapPreviewCardProps = {
   routeLabel?: string | null;
+  focusCoordinate?: {
+    latitude: number;
+    longitude: number;
+  } | null;
 };
 
-export function RoadMapPreviewCard({ routeLabel }: RoadMapPreviewCardProps) {
+function getRoadMapHref(
+  focusCoordinate: RoadMapPreviewCardProps["focusCoordinate"],
+): "/road-map" | `/road-map?${string}` {
+  if (!focusCoordinate) {
+    return "/road-map";
+  }
+
+  const latitude = encodeURIComponent(String(focusCoordinate.latitude));
+  const longitude = encodeURIComponent(String(focusCoordinate.longitude));
+
+  return `/road-map?latitude=${latitude}&longitude=${longitude}`;
+}
+
+export function RoadMapPreviewCard({
+  routeLabel,
+  focusCoordinate = null,
+}: RoadMapPreviewCardProps) {
   return (
     <Pressable
       accessibilityHint="Opens the full road map preview"
       accessibilityRole="button"
-      onPress={() => router.push("/road-map")}
+      onPress={() => router.push(getRoadMapHref(focusCoordinate))}
       style={({ pressed }) => [
         styles.card,
         pressed ? styles.cardPressed : null,

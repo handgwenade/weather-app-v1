@@ -1489,7 +1489,17 @@ export default function RoadScreen() {
 
   const prototypeSection = (
     <View style={{ gap: 16 }}>
-      <RoadMapPreviewCard routeLabel={routeLabel} />
+      <RoadMapPreviewCard
+        routeLabel={routeLabel}
+        focusCoordinate={
+          roadLocation
+            ? {
+                latitude: roadLocation.latitude,
+                longitude: roadLocation.longitude,
+              }
+            : null
+        }
+      />
 
       <View
         style={{
