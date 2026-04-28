@@ -115,17 +115,12 @@ function buildObservedFactorText(observedFactors?: ObservedFactors | null) {
   }
 
   const factors: string[] = [];
-  const visibility = formatNumber(observedFactors.visibilityMi, 1);
   const gust = formatNumber(observedFactors.windGustMph);
   const sustainedWind = formatNumber(observedFactors.windSpeedMph);
   const roadSurfaceTemp = formatNumber(observedFactors.roadSurfaceTempF);
 
   if (observedFactors.roadStateLabel) {
     factors.push(`Road state ${observedFactors.roadStateLabel}`);
-  }
-
-  if (visibility) {
-    factors.push(`Visibility ${visibility} mi`);
   }
 
   if (gust) {
@@ -511,16 +506,9 @@ export function RoadMapView({
             </>
           ) : null}
 
-          <Text style={styles.segmentPillSectionLabel}>Detected factors</Text>
+          <Text style={styles.segmentPillSectionLabel}>Observed factors</Text>
           <Text style={styles.segmentPillMeta}>
             {buildObservedFactorText(selectedMapSegment.observedFactors)}
-          </Text>
-
-          <Text style={styles.segmentPillSectionLabel}>Computed reason</Text>
-          <Text style={styles.segmentPillMeta}>
-            {selectedMapSegment.computedImpactReason ??
-              selectedMapSegment.impactReason ??
-              "No impact reason available"}
           </Text>
         </View>
       ) : null}

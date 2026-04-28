@@ -1,3 +1,4 @@
+import QuickSwitchModal from "@/components/quickSwitchModal";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -12,7 +13,11 @@ import {
 import { BarChart, LineChart } from "react-native-chart-kit";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { useSelectedLocation } from "@/data/locationStore";
+import {
+  setSelectedLocation,
+  useSavedLocations,
+  useSelectedLocation,
+} from "@/data/locationStore";
 import {
   getSharedCurrentWeather,
   getSharedHourlyForecast,
@@ -761,6 +766,8 @@ function ConditionsChartCard({
 export default function ConditionsScreen() {
   const router = useRouter();
   const selectedLocation = useSelectedLocation();
+  const savedLocations = useSavedLocations();
+  const [switchModalVisible, setSwitchModalVisible] = useState(false);
 
   const {
     hourlyForecast,
@@ -780,54 +787,95 @@ export default function ConditionsScreen() {
     [fallbackRefreshLabel, hourlyForecast, hourlyStatus, sourceUpdatedLabel],
   );
 
+  async function handleQuickSwitch(locationId: string) {
+    if (!selectedLocation) {
+      setSwitchModalVisible(false);
+      return;
+    }
+
+    const nextLocation = savedLocations.find(
+      (location) => location.id === locationId,
+    );
+
+    if (!nextLocation || nextLocation.id === selectedLocation.id) {
+      setSwitchModalVisible(false);
+      return;
+    }
+
+    await setSelectedLocation(nextLocation);
+    setSwitchModalVisible(false);
+  }
+
+  const quickSwitchModal = (
+    <QuickSwitchModal
+      visible={switchModalVisible}
+      title="Select Saved Location"
+      subtitle="Choose which saved place Conditions should show right now."
+      currentLocationId={selectedLocation?.id ?? null}
+      savedLocations={savedLocations}
+      onClose={() => setSwitchModalVisible(false)}
+      onSelectLocation={handleQuickSwitch}
+      onManageLocations={() => {
+        setSwitchModalVisible(false);
+        router.push("/manage-locations");
+      }}
+    />
+  );
+
   if (!selectedLocation) {
     return (
-      <SafeAreaView edges={["top"]} style={styles.safeArea}>
-        <View style={styles.screen}>
-          <View style={styles.topBar}>
-            <View style={styles.topRow}>
-              <Text style={styles.locationTitle}>Conditions</Text>
+      <>
+        <SafeAreaView edges={["top"]} style={styles.safeArea}>
+          <View style={styles.screen}>
+            <View style={styles.topBar}>
+              <View style={styles.topRow}>
+                <Text style={styles.locationTitle}>Conditions</Text>
+                <Pressable
+                  accessibilityLabel="Open settings"
+                  accessibilityRole="button"
+                  onPress={() => router.push("/settings")}
+                  style={styles.iconButton}
+                >
+                  <Ionicons name="settings-outline" size={22} color="#475569" />
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateTitle}>
+                No active location selected
+              </Text>
+              <Text style={styles.emptyStateBody}>
+                Choose a location to see local conditions here.
+              </Text>
               <Pressable
-                accessibilityLabel="Open settings"
                 accessibilityRole="button"
-                onPress={() => router.push("/settings")}
-                style={styles.iconButton}
+                onPress={() => setSwitchModalVisible(true)}
+                style={styles.emptyStateButton}
               >
-                <Ionicons name="settings-outline" size={22} color="#475569" />
+                <Text style={styles.emptyStateButtonText}>Choose Location</Text>
               </Pressable>
             </View>
           </View>
-
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateTitle}>
-              No active location selected
-            </Text>
-            <Text style={styles.emptyStateBody}>
-              Choose a location to see local conditions here.
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.push("/manage-locations")}
-              style={styles.emptyStateButton}
-            >
-              <Text style={styles.emptyStateButtonText}>Manage Locations</Text>
-            </Pressable>
-          </View>
-        </View>
-      </SafeAreaView>
+        </SafeAreaView>
+        {quickSwitchModal}
+      </>
     );
   }
 
   return (
-    <ConditionsScreenV2
-      locationName={selectedLocation.name}
-      updatedLabel={viewModel.updatedLabel}
-      summaryText={viewModel.summaryText}
-      takeawayText={viewModel.takeawayText}
-      chartCards={viewModel.chartCards}
-      onPressSettings={() => router.push("/settings")}
-      onPressLocationSearch={() => router.push("/manage-locations")}
-    />
+    <>
+      <ConditionsScreenV2
+        locationName={selectedLocation.name}
+        updatedLabel={viewModel.updatedLabel}
+        summaryText={viewModel.summaryText}
+        takeawayText={viewModel.takeawayText}
+        chartCards={viewModel.chartCards}
+        onPressSettings={() => router.push("/settings")}
+        onPressLocationSearch={() => setSwitchModalVisible(true)}
+      />
+      {quickSwitchModal}
+    </>
   );
 }
 

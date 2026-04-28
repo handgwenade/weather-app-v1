@@ -1,6 +1,7 @@
 import type { AppLocation } from "@/data/locationStore";
 
 const ROAD_API_BASE_URL = process.env.EXPO_PUBLIC_ROAD_API_BASE_URL;
+const WEATHER_REQUEST_TIMEOUT_MS = 10000;
 
 export type TomorrowRealtimeResponse = {
   data: {
@@ -84,13 +85,42 @@ async function fetchRoadSignalJson<T>(
   errorLabel: string,
   init?: RequestInit,
 ): Promise<T> {
-  const response = await fetch(url, init);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    WEATHER_REQUEST_TIMEOUT_MS,
+  );
 
-  if (!response.ok) {
-    throw new Error(`${errorLabel}: ${response.status}`);
+  try {
+    const response = await fetch(url, {
+      ...init,
+      signal: init?.signal ?? controller.signal,
+    });
+
+    if (!response.ok) {
+      let responseText = "";
+
+      try {
+        responseText = await response.text();
+      } catch {
+        responseText = "";
+      }
+
+      throw new Error(
+        `${errorLabel}: ${response.status}${responseText ? ` ${responseText.slice(0, 240)}` : ""}`,
+      );
+    }
+
+    return (await response.json()) as T;
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`${errorLabel}: request timed out`);
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  return (await response.json()) as T;
 }
 
 export async function getCurrentWeather(
