@@ -16,6 +16,15 @@ type RoadSegmentListItem = {
   notes?: string | null;
   impactLevel?: string | null;
   impactReason?: string | null;
+  officialConditionLabel?: string | null;
+  officialConditionDescription?: string | null;
+  officialRestriction?: string | null;
+  observedFactors?: {
+    roadStateLabel?: string | null;
+    windSpeedMph?: number | null;
+    windGustMph?: number | null;
+    roadSurfaceTempF?: number | null;
+  } | null;
 };
 
 type RoadSegmentDetail = {
@@ -129,6 +138,52 @@ function formatImpactLevel(level: string | null | undefined): string {
     default:
       return level ?? "Unavailable";
   }
+}
+
+function hasMeaningfulText(value: string | null | undefined) {
+  return Boolean(value && value.trim().length > 0);
+}
+
+function formatObservedFactors(segment: RoadSegmentListItem) {
+  const factors = segment.observedFactors;
+
+  if (!factors) {
+    return null;
+  }
+
+  const observedText: string[] = [];
+
+  if (hasMeaningfulText(factors.roadStateLabel)) {
+    observedText.push(`Road state ${factors.roadStateLabel}`);
+  }
+
+  if (typeof factors.windGustMph === "number") {
+    observedText.push(`Gusts ${Math.round(factors.windGustMph)} mph`);
+  } else if (typeof factors.windSpeedMph === "number") {
+    observedText.push(`Wind ${Math.round(factors.windSpeedMph)} mph`);
+  }
+
+  if (typeof factors.roadSurfaceTempF === "number") {
+    observedText.push(`Surface ${Math.round(factors.roadSurfaceTempF)}°F`);
+  }
+
+  return observedText.length > 0 ? observedText.join(" · ") : null;
+}
+
+function getSegmentConditionText(segment: RoadSegmentListItem) {
+  if (hasMeaningfulText(segment.officialRestriction)) {
+    return segment.officialRestriction;
+  }
+
+  if (hasMeaningfulText(segment.officialConditionDescription)) {
+    return segment.officialConditionDescription;
+  }
+
+  if (hasMeaningfulText(segment.officialConditionLabel)) {
+    return segment.officialConditionLabel;
+  }
+
+  return null;
 }
 
 function formatFilterMode(mode: SegmentFilterMode): string {
@@ -753,14 +808,21 @@ export default function RoadSegmentsPrototype({
                   ? `Selected: ${segment.impactLevel === "high" ? "! " : ""}${segment.routeName} · ${segment.fromLabel} → ${segment.toLabel}`
                   : `${segment.impactLevel === "high" ? "! " : ""}${segment.routeName} · ${segment.fromLabel} → ${segment.toLabel}`}
               </Text>
+              {getSegmentConditionText(segment) ? (
+                <Text style={styles.segmentConditionText}>
+                  <Text style={styles.segmentConditionLabel}>WYDOT: </Text>
+                  {getSegmentConditionText(segment)}
+                </Text>
+              ) : null}
+              {formatObservedFactors(segment) ? (
+                <Text style={styles.segmentObservedText}>
+                  {formatObservedFactors(segment)}
+                </Text>
+              ) : null}
               <Text style={styles.segmentImpactText}>
-                <Text style={styles.segmentImpactLabel}>Weather risk: </Text>
+                <Text style={styles.segmentImpactLabel}>RoadSignal risk: </Text>
                 <Text style={getImpactLevelTextStyle(segment.impactLevel)}>
                   {formatImpactLevel(segment.impactLevel)}
-                </Text>
-                <Text style={styles.segmentImpactText}>
-                  {" - "}
-                  {segment.impactReason ?? "Unavailable"}
                 </Text>
               </Text>
               {sortMode === "nearest" ? (
@@ -1054,6 +1116,21 @@ const styles = StyleSheet.create({
   impactUnknownText: {
     color: "#475569",
     fontWeight: "700",
+  },
+  segmentConditionLabel: {
+    color: "#334155",
+    fontWeight: "800",
+  },
+  segmentConditionText: {
+    color: "#334155",
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 18,
+  },
+  segmentObservedText: {
+    color: "#62748E",
+    fontSize: 13,
+    lineHeight: 18,
   },
   detailPanel: {
     marginTop: 12,
