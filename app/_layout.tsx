@@ -16,6 +16,7 @@ import {
   useSelectedLocation,
 } from "@/data/locationStore";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { initializeOfficialAlertPushNotifications } from "@/services/pushNotifications";
 
 export const unstable_settings = {
   anchor: "(tabs)",
@@ -48,6 +49,40 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   const locationStoreReady = useLocationStoreReady();
   const selectedLocation = useSelectedLocation();
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function initializePushNotifications() {
+      try {
+        const result = await initializeOfficialAlertPushNotifications();
+
+        if (!isActive) {
+          return;
+        }
+
+        if (!result.ok) {
+          console.log("[PushNotifications] Not registered", {
+            reason: result.reason,
+          });
+        }
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        console.log("[PushNotifications] Initialization failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    void initializePushNotifications();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   useEffect(() => {
     let isActive = true;

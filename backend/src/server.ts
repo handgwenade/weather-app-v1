@@ -12,6 +12,7 @@ const roadGeometryPath = path.resolve(
   "road-geometry.cleaned.geojson",
 );
 const app = express();
+app.use(express.json());
 const db = new Database(dbPath);
 const TOMORROW_API_KEY = process.env.TOMORROW_API_KEY;
 const MAPBOX_ACCESS_TOKEN = process.env.MAPBOX_ACCESS_TOKEN;
@@ -133,6 +134,16 @@ let wydotMediaCache: {
   fetchedAt: number;
   records: WydotMediaConditionRecord[];
 } | null = null;
+
+type RegisteredPushToken = {
+  expoPushToken: string;
+  platform: string | null;
+  notificationTypes: string[];
+  registeredAt: string;
+  updatedAt: string;
+};
+
+const registeredPushTokens = new Map<string, RegisteredPushToken>();
 
 function computeImpact(primaryStation: SegmentPrimaryStation | null) {
   if (!primaryStation) {
@@ -622,6 +633,125 @@ app.get("/", (_req, res) => {
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
+});
+
+app.post("/api/notifications/register", (req, res) => {
+  const expoPushToken =
+    typeof req.body?.expoPushToken === "string"
+      ? req.body.expoPushToken.trim()
+      : "";
+  const platform =
+    typeof req.body?.platform === "string" ? req.body.platform : null;
+  const notificationTypes = Array.isArray(req.body?.notificationTypes)
+    ? req.body.notificationTypes.filter(
+        (value: unknown): value is string => typeof value === "string",
+      )
+    : ["official-alerts"];
+
+  if (!expoPushToken) {
+    res.status(400).json({ error: "expoPushToken is required" });
+    return;
+  }
+
+  const existingToken = registeredPushTokens.get(expoPushToken);
+  const now = new Date().toISOString();
+
+  registeredPushTokens.set(expoPushToken, {
+    expoPushToken,
+    platform,
+    notificationTypes,
+    registeredAt: existingToken?.registeredAt ?? now,
+    updatedAt: now,
+  });
+
+  console.log("[NotificationsAPI] Registered push token", {
+    platform,
+    notificationTypes,
+    tokenCount: registeredPushTokens.size,
+  });
+
+  res.json({ ok: true });
+});
+
+app.get("/api/notifications/registrations", (_req, res) => {
+  res.json({
+    count: registeredPushTokens.size,
+    registrations: Array.from(registeredPushTokens.values()).map(
+      (registration) => ({
+        platform: registration.platform,
+        notificationTypes: registration.notificationTypes,
+        registeredAt: registration.registeredAt,
+        updatedAt: registration.updatedAt,
+      }),
+    ),
+  });
+});
+
+// Test push notification route
+app.post("/api/notifications/test", async (_req, res) => {
+  const tokens = Array.from(registeredPushTokens.values());
+
+  if (tokens.length === 0) {
+    res.status(400).json({ error: "No registered push tokens" });
+    return;
+  }
+
+  const messages = tokens.map((registration) => ({
+    to: registration.expoPushToken,
+    sound: "default",
+    title: "RoadSignal test alert",
+    body: "Official alert push plumbing is connected.",
+    data: {
+      type: "official-alert-test",
+      sentAt: new Date().toISOString(),
+    },
+    channelId: "official-alerts",
+  }));
+
+  try {
+    const response = await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Accept-Encoding": "gzip, deflate",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(messages),
+    });
+
+    const payload = await response.json();
+
+    if (!response.ok) {
+      console.log("[NotificationsAPI] Test push failed", {
+        status: response.status,
+        payload,
+      });
+
+      res.status(502).json({
+        error: "Failed to send test push notification",
+        expoStatus: response.status,
+        expoResponse: payload,
+      });
+      return;
+    }
+
+    console.log("[NotificationsAPI] Sent test push", {
+      tokenCount: tokens.length,
+      payload,
+    });
+
+    res.json({
+      ok: true,
+      tokenCount: tokens.length,
+      expoResponse: payload,
+    });
+  } catch (error) {
+    console.log("[NotificationsAPI] Test push request failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    res.status(502).json({ error: "Failed to send test push notification" });
+  }
 });
 
 app.get("/api/geocoding/search", async (req, res) => {
