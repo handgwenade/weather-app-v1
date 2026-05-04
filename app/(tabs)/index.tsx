@@ -1052,7 +1052,6 @@ function useHomeScreenData(
         setRoadReport(null);
         setWeatherSnapshotLocationKey(null);
         setLastSuccessfulHomeWeatherFetchAtMs(null);
-        console.log("[Home] No selected location; using initial empty state.");
         return;
       }
 
@@ -1074,26 +1073,6 @@ function useHomeScreenData(
           HOME_WEATHER_REFRESH_INTERVAL_MS;
       const shouldFetchWeather = !hasFreshHomeWeatherSnapshot;
 
-      console.log("[Home] Starting data fetches", {
-        selectedLocation: {
-          id: selectedLocation.id,
-          name: selectedLocation.name,
-          latitude: selectedLocation.latitude,
-          longitude: selectedLocation.longitude,
-        },
-        propertyLocation: propertyLocation
-          ? {
-              id: propertyLocation.id,
-              name: propertyLocation.name,
-            }
-          : null,
-        pendingRequests: [
-          ...(shouldFetchWeather ? ["currentAndHourlyWeather"] : []),
-          "alerts",
-          ...(process.env.EXPO_OS === "web" ? [] : ["roadReport"]),
-        ],
-      });
-
       const roadReportRequest =
         process.env.EXPO_OS === "web"
           ? Promise.resolve<WydotRoadReport | null>(null)
@@ -1114,12 +1093,6 @@ function useHomeScreenData(
       if (!isActive) {
         return;
       }
-
-      console.log("[Home] Data fetches resolved", {
-        currentAndHourlyWeather: weatherResult.status,
-        alerts: alertsResult.status,
-        roadReport: roadResult.status,
-      });
 
       const resolvedRoadReport =
         roadResult.status === "fulfilled" ? roadResult.value : null;
@@ -1181,14 +1154,6 @@ function useHomeScreenData(
             previousWeatherState.hasWeatherData &&
             isThinHomeWeatherSnapshot(promotedWeatherState)
           ) {
-            console.log(
-              "[Home] Skipping thin weather overwrite; preserving previous snapshot",
-              {
-                previousWeatherState,
-                nextWeatherState: promotedWeatherState,
-              },
-            );
-
             return {
               ...previousWeatherState,
               refreshFallbackLabel:
@@ -1207,24 +1172,6 @@ function useHomeScreenData(
         setWeatherSnapshotLocationKey(selectedLocationWeatherKey);
         setLastSuccessfulHomeWeatherFetchAtMs(Date.now());
         promotedCombinedWeatherToScreenState = true;
-
-        console.log("[Home] Current weather result", {
-          emptyTemperature: temperatureF === null,
-          emptyWind: windSpeedMph === null,
-          emptyPrecipProbability: precipProbability === null,
-          emptyHumidity: typeof values.humidity !== "number",
-          emptyWeatherCode: typeof weatherCode !== "number",
-          missingSourceTimestamp: sourceTimestamp === null,
-        });
-        console.log("[Home] Hourly forecast result", {
-          entryCount: hourlyEntries.length,
-          firstEntryMissingTemp:
-            hourlyEntries[0] &&
-            typeof hourlyEntries[0].values.temperature !== "number",
-          firstEntryMissingCondition:
-            hourlyEntries[0] &&
-            typeof hourlyEntries[0].values.weatherCode !== "number",
-        });
       } else {
         weatherRejectedReason =
           weatherResult.status === "rejected"
@@ -1265,30 +1212,6 @@ function useHomeScreenData(
         setLastSuccessfulHomeWeatherFetchAtMs(null);
       }
 
-      console.log("[Home] Weather decision", {
-        selectedLocationWeatherKey,
-        weatherSnapshotLocationKey: latestWeatherSnapshotLocationKey,
-        priorSnapshotMatchesLocation:
-          latestWeatherSnapshotLocationKey === selectedLocationWeatherKey,
-        reusingSnapshot: reusedWeatherSnapshot,
-        skippedDueToFreshness: hasFreshHomeWeatherSnapshot,
-        retryingDueToMissingData: !hasValidWeatherSnapshotForLocation,
-        weatherFetchRequested: shouldFetchWeather,
-        weatherFetchStatus: shouldFetchWeather
-          ? weatherResult.status
-          : "skipped",
-        weatherFetchRejected: weatherRejectedReason !== null,
-        weatherFetchRejectedReason: weatherRejectedReason,
-        combinedWeatherPromotedToScreenState:
-          promotedCombinedWeatherToScreenState,
-        priorHasWeatherData: latestCurrentWeather.hasWeatherData,
-        priorTemperatureF: latestCurrentWeather.temperatureF,
-        priorSourceTimestamp: latestCurrentWeather.sourceTimestamp,
-        priorHourlyCount: latestHourlyForecast.length,
-        lastSuccessfulHomeWeatherFetchAtMs:
-          latestLastSuccessfulHomeWeatherFetchAtMs,
-      });
-
       const shouldUseSelectedForecastForPropertyRisk = sameHomeLocation(
         propertyLocation,
         selectedLocation,
@@ -1302,14 +1225,6 @@ function useHomeScreenData(
         nextPropertyForecastLowF,
       );
 
-      console.log("[Home] Property forecast resolved on Home", {
-        hasPropertyLocation: !!propertyLocation,
-        propertyLocationName: propertyLocation?.name ?? null,
-        usingSelectedLocationForecast: shouldUseSelectedForecastForPropertyRisk,
-        hourlyEntriesAvailable: resolvedHourlyEntriesForPropertyRisk.length,
-        propertyForecastLowF: nextPropertyForecastLowF,
-        propertyRisk: nextPropertyRisk,
-      });
       setPropertyRisk(nextPropertyRisk);
       setPropertyForecastLowF(nextPropertyForecastLowF);
 
@@ -1334,11 +1249,6 @@ function useHomeScreenData(
             area,
           });
         }
-
-        console.log("[Home] Alerts result", {
-          alertCount: features.length,
-          firstAlertEvent: features[0]?.properties?.event ?? null,
-        });
       } else {
         console.log("[Home] Alerts request failed", {
           reason:
@@ -1355,13 +1265,6 @@ function useHomeScreenData(
 
       if (roadResult.status === "fulfilled") {
         setRoadReport(resolvedRoadReport);
-        console.log("[Home] Road report result", {
-          hasRoadReport: !!resolvedRoadReport,
-          routeCode: resolvedRoadReport?.routeCode ?? null,
-          townGroup: resolvedRoadReport?.townGroup ?? null,
-          hasPrimaryObservation:
-            !!resolvedRoadReport?.primaryStationObservation,
-        });
       } else {
         console.log("[Home] Road report request failed", {
           reason:
@@ -1373,7 +1276,6 @@ function useHomeScreenData(
       }
 
       setHomeSuggestionsReady(true);
-      console.log("[Home] Finished loadHome; suggestions ready.");
     }
 
     void loadHome();
@@ -1518,47 +1420,7 @@ export default function HomeScreen() {
     topTitle,
   ]);
 
-  useEffect(() => {
-    console.log("[Home] Derived screen state", {
-      hasSelectedLocation: !!selectedLocation,
-      homeSuggestionsReady,
-      hasTopTitle: !!topTitle,
-      hasHomeViewModel: !!homeViewModel,
-      currentWeather: {
-        hasWeatherData: currentWeather.hasWeatherData,
-        temperatureF: currentWeather.temperatureF,
-        windSpeedMph: currentWeather.windSpeedMph,
-        precipProbability: currentWeather.precipProbability,
-        humidity: currentWeather.humidity,
-        sourceTimestamp: currentWeather.sourceTimestamp,
-        refreshFallbackLabel: currentWeather.refreshFallbackLabel,
-      },
-      hourlyCount: hourlyForecast.length,
-      alertStatus: alertSummary.status,
-      hasRoadReport: !!roadReport,
-      propertyRisk,
-      propertyForecastLowF,
-      updatedLabel: homeViewModel?.updatedLabel ?? null,
-      metrics: homeViewModel?.metrics.map((metric) => ({
-        label: metric.label,
-        value: metric.value,
-      })),
-      monitoredLocationCard: homeViewModel?.monitoredLocationCard,
-      statusBanner: homeViewModel?.statusBanner,
-      monitoringCard: homeViewModel?.monitoringCard,
-    });
-  }, [
-    alertSummary.status,
-    currentWeather,
-    homeSuggestionsReady,
-    homeViewModel,
-    hourlyForecast.length,
-    propertyForecastLowF,
-    propertyRisk,
-    roadReport,
-    selectedLocation,
-    topTitle,
-  ]);
+  // Removed useEffect logging derived screen state
   const outlookItems = useMemo<HomeOutlookItem[]>(
     () =>
       buildOutlookItems({
