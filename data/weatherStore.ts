@@ -26,6 +26,7 @@ const HOURLY_FORECAST_TTL_MS = 15 * 60 * 1000;
 const DAILY_FORECAST_TTL_MS = 30 * 60 * 1000;
 const COMBINED_CURRENT_HOURLY_TTL_MS = CURRENT_WEATHER_TTL_MS;
 const FAILURE_RETRY_DELAY_MS = 60 * 1000;
+let devWeatherFailureCacheBypass = false;
 type CombinedCurrentAndHourlyWeather = {
   currentWeather: TomorrowRealtimeResponse;
   hourlyForecast: TomorrowHourlyForecastResponse;
@@ -122,6 +123,15 @@ function getRecentFailure(
   return failure.error;
 }
 
+function shouldBypassWeatherFailureCache() {
+  return (
+    process.env.NODE_ENV !== "production" &&
+    (devWeatherFailureCacheBypass ||
+      process.env.EXPO_PUBLIC_BYPASS_WEATHER_FAILURE_CACHE === "1" ||
+      process.env.EXPO_PUBLIC_WEATHER_DEBUG_BYPASS_CACHE === "1")
+  );
+}
+
 async function getSharedWeatherData<T>(params: {
   cacheKey: string;
   cacheEntries: Map<string, WeatherCacheEntry<T>>;
@@ -133,6 +143,7 @@ async function getSharedWeatherData<T>(params: {
   const { cacheKey, cacheEntries, ttlMs, fetcher, inFlight, failures } =
     params;
   const reuseWindowMs = Math.max(ttlMs, REQUEST_DEDUPE_WINDOW_MS);
+  const bypassFailureCache = shouldBypassWeatherFailureCache();
 
   const cachedData = getFreshCachedData(cacheEntries, cacheKey, reuseWindowMs);
 
@@ -140,7 +151,13 @@ async function getSharedWeatherData<T>(params: {
     return cachedData;
   }
 
-  const recentFailure = getRecentFailure(failures, cacheKey);
+  if (bypassFailureCache) {
+    failures.delete(cacheKey);
+  }
+
+  const recentFailure = bypassFailureCache
+    ? null
+    : getRecentFailure(failures, cacheKey);
 
   if (recentFailure) {
     throw recentFailure;
@@ -161,10 +178,16 @@ async function getSharedWeatherData<T>(params: {
     .catch((error: unknown) => {
       const normalizedError =
         error instanceof Error ? error : new Error(String(error));
-      failures.set(cacheKey, {
-        error: normalizedError,
-        failedAtMs: Date.now(),
-      });
+
+      if (bypassFailureCache) {
+        failures.delete(cacheKey);
+      } else {
+        failures.set(cacheKey, {
+          error: normalizedError,
+          failedAtMs: Date.now(),
+        });
+      }
+
       throw normalizedError;
     })
     .finally(() => {
@@ -212,6 +235,7 @@ export async function getSharedCurrentAndHourlyWeather(
   location: AppLocation,
 ): Promise<CombinedCurrentAndHourlyWeather> {
   const cacheKey = getLocationCacheKey(location);
+  const bypassFailureCache = shouldBypassWeatherFailureCache();
 
   const cachedData = getFreshCachedData(
     cachedCurrentAndHourlyWeather,
@@ -223,10 +247,13 @@ export async function getSharedCurrentAndHourlyWeather(
     return cachedData;
   }
 
-  const recentFailure = getRecentFailure(
-    failedCurrentAndHourlyWeather,
-    cacheKey,
-  );
+  if (bypassFailureCache) {
+    failedCurrentAndHourlyWeather.delete(cacheKey);
+  }
+
+  const recentFailure = bypassFailureCache
+    ? null
+    : getRecentFailure(failedCurrentAndHourlyWeather, cacheKey);
 
   if (recentFailure) {
     throw recentFailure;
@@ -247,10 +274,16 @@ export async function getSharedCurrentAndHourlyWeather(
     .catch((error: unknown) => {
       const normalizedError =
         error instanceof Error ? error : new Error(String(error));
-      failedCurrentAndHourlyWeather.set(cacheKey, {
-        error: normalizedError,
-        failedAtMs: Date.now(),
-      });
+
+      if (bypassFailureCache) {
+        failedCurrentAndHourlyWeather.delete(cacheKey);
+      } else {
+        failedCurrentAndHourlyWeather.set(cacheKey, {
+          error: normalizedError,
+          failedAtMs: Date.now(),
+        });
+      }
+
       throw normalizedError;
     })
     .finally(() => {
@@ -289,4 +322,8 @@ export function clearWeatherCache() {
   failedHourlyForecast.clear();
   failedDailyForecast.clear();
   failedCurrentAndHourlyWeather.clear();
+}
+
+export function setWeatherFailureCacheBypassForDev(enabled: boolean) {
+  devWeatherFailureCacheBypass = enabled;
 }

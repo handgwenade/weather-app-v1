@@ -527,7 +527,6 @@ function getRoadStatusTitle(
   params: {
     alertEvent: string | null;
     advisory: string;
-    currentWeather: RoadCurrentWeatherSnapshot;
     officialCondition: string;
     restriction: string;
     windValue: string;
@@ -537,7 +536,6 @@ function getRoadStatusTitle(
   const {
     alertEvent,
     advisory,
-    currentWeather,
     officialCondition,
     restriction,
     windValue,
@@ -589,9 +587,7 @@ function getRoadStatusSubtitle(
   primarySuggestion: RuleMatch,
   params: {
     alertEvent: string | null;
-    advisory: string;
     officialCondition: string;
-    restriction: string;
     roadReport: WydotRoadReport | null;
     weatherCaution: string;
     windValue: string;
@@ -600,9 +596,7 @@ function getRoadStatusSubtitle(
 ) {
   const {
     alertEvent,
-    advisory,
     officialCondition,
-    restriction,
     roadReport,
     weatherCaution,
     windValue,
@@ -898,7 +892,6 @@ function buildRoadViewModel(params: {
     ? getRoadStatusTitle(primarySuggestion, {
         alertEvent,
         advisory,
-        currentWeather,
         officialCondition,
         restriction,
         windValue: windMetricValue,
@@ -908,9 +901,7 @@ function buildRoadViewModel(params: {
   const statusSubtitle = primarySuggestion
     ? getRoadStatusSubtitle(primarySuggestion, {
         alertEvent,
-        advisory,
         officialCondition,
-        restriction,
         roadReport,
         weatherCaution,
         windValue: windMetricValue,
@@ -1323,80 +1314,87 @@ export default function RoadScreen() {
     () => inferPrecipLabel(officialCondition, weatherCaution, roadSummary),
     [officialCondition, weatherCaution, roadSummary],
   );
+  const canEvaluateRoadSuggestions = Boolean(
+    roadLocation && (roadSuggestionsReady || roadReport || wydotNotice),
+  );
 
   const suggestionInput = useMemo<SuggestionInput | null>(
-    () =>
-      roadLocation && roadSuggestionsReady
-        ? {
-            road: {
-              available: !!roadReport,
-              mapped: !!roadReport,
-              restriction: hasMeaningfulRoadText(restriction)
-                ? restriction
-                : null,
-              advisory: hasMeaningfulRoadText(advisory) ? advisory : null,
-              officialCondition: shouldTrustReportedSurface(
-                roadReport,
-                officialCondition,
-              )
-                ? officialCondition
-                : null,
-              fetchedAt: roadReport?.fetchedAt ?? null,
-              stationObservedAt:
-                stationObservedAt === "Unavailable" ? null : stationObservedAt,
-              windAvgMph:
-                roadReport?.primaryStationObservation?.windAvgMph ?? null,
-              windGustMph:
-                roadReport?.primaryStationObservation?.windGustMph ?? null,
-              windDirection:
-                roadReport?.primaryStationObservation?.windDirection ?? null,
-              visibilityFt:
-                roadReport?.primaryStationObservation?.visibilityFt ?? null,
-              airTempF: roadReport?.primaryStationObservation?.airTempF ?? null,
-              surfaceTempF:
-                roadReport?.primaryStationObservation?.surfaceTempF ?? null,
-            },
-            weather: {
-              available: currentWeather.hasWeatherData,
-              observedAt: currentWeather.sourceUpdatedLabel,
-              temperatureF:
-                currentWeather.temperatureLabel === "--"
-                  ? null
-                  : Number.parseInt(currentWeather.temperatureLabel, 10),
-              windSpeedMph:
-                currentWeather.windLabel === "Not available"
-                  ? null
-                  : Number.parseInt(currentWeather.windLabel, 10),
-              windDirection:
-                stationWindDirection === "Unavailable"
-                  ? null
-                  : stationWindDirection,
-              precipProbability: currentWeather.precipProbability,
-              weatherCode: null,
-            },
-            alerts: {
-              available: alertEvent !== null,
-              hasActiveAlert: alertEvent !== null,
-              primaryEvent: alertEvent,
-              primarySeverity: null,
-              primaryCertainty: null,
-            },
-            forecast: {
-              available: false,
-              dailyLowF: null,
-            },
-          }
-        : null,
+    () => {
+      if (!roadLocation || !canEvaluateRoadSuggestions) {
+        return null;
+      }
+
+      const station = roadReport?.primaryStationObservation ?? null;
+      const weatherTemperatureValue =
+        currentWeather.temperatureLabel === "--"
+          ? null
+          : Number.parseInt(currentWeather.temperatureLabel, 10);
+      const parsedWeatherTemperature =
+        typeof weatherTemperatureValue === "number" &&
+        Number.isFinite(weatherTemperatureValue)
+          ? weatherTemperatureValue
+          : null;
+      const weatherWindValue =
+        currentWeather.windLabel === "Not available"
+          ? null
+          : Number.parseInt(currentWeather.windLabel, 10);
+      const parsedWeatherWind =
+        typeof weatherWindValue === "number" && Number.isFinite(weatherWindValue)
+          ? weatherWindValue
+          : null;
+
+      return {
+        road: {
+          available: !!roadReport,
+          mapped: !!roadReport,
+          restriction: roadReport?.primarySegment.restriction ?? null,
+          advisory: roadReport?.primarySegment.advisory ?? null,
+          officialCondition: roadReport?.primarySegment.officialCondition ?? null,
+          fetchedAt: roadReport?.fetchedAt ?? null,
+          stationObservedAt: station?.observedAt ?? null,
+          windAvgMph: station?.windAvgMph ?? null,
+          windGustMph: station?.windGustMph ?? null,
+          windDirection: station?.windDirection ?? null,
+          visibilityFt: station?.visibilityFt ?? null,
+          airTempF: station?.airTempF ?? null,
+          surfaceTempF: station?.surfaceTempF ?? null,
+        },
+        weather: {
+          available:
+            currentWeather.hasWeatherData || hasUsableRoadObservation(roadReport),
+          observedAt:
+            currentWeather.sourceUpdatedLabel ??
+            station?.observedAt ??
+            roadReport?.fetchedAt ??
+            null,
+          temperatureF: parsedWeatherTemperature ?? station?.airTempF ?? null,
+          windSpeedMph:
+            parsedWeatherWind ??
+            station?.windAvgMph ??
+            station?.windGustMph ??
+            null,
+          windDirection: station?.windDirection ?? null,
+          precipProbability: currentWeather.precipProbability,
+          weatherCode: null,
+        },
+        alerts: {
+          available: alertEvent !== null,
+          hasActiveAlert: alertEvent !== null,
+          primaryEvent: alertEvent,
+          primarySeverity: null,
+          primaryCertainty: null,
+        },
+        forecast: {
+          available: false,
+          dailyLowF: null,
+        },
+      };
+    },
     [
-      advisory,
+      canEvaluateRoadSuggestions,
       currentWeather,
-      officialCondition,
-      restriction,
       roadLocation,
       roadReport,
-      roadSuggestionsReady,
-      stationObservedAt,
-      stationWindDirection,
       alertEvent,
     ],
   );

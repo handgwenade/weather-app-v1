@@ -266,7 +266,11 @@ export function RoadMapView({
               computedImpactReason: selectedSegment.computedImpactReason,
               observedFactors: selectedSegment.observedFactors,
             });
+          } else {
+            setSelectedMapSegment(null);
           }
+        } else if (isMounted && !selectedSegmentId) {
+          setSelectedMapSegment(null);
         }
       } catch (error) {
         if (isMounted) {

@@ -42,8 +42,12 @@ export default function RoadMapScreen() {
   const params = useLocalSearchParams<{
     latitude?: string;
     longitude?: string;
+    segmentId?: string;
   }>();
   const focusCoordinate = getFocusCoordinateFromParams(params);
+  const selectedSegmentId = Array.isArray(params.segmentId)
+    ? params.segmentId[0]
+    : params.segmentId;
 
   return (
     <View style={styles.screen}>
@@ -64,7 +68,11 @@ export default function RoadMapScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <RoadMapView focusCoordinate={focusCoordinate} focusZoomLevel={8.2} />
+        <RoadMapView
+          focusCoordinate={focusCoordinate}
+          focusZoomLevel={8.2}
+          selectedSegmentId={selectedSegmentId ?? null}
+        />
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Layer plan</Text>

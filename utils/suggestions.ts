@@ -178,12 +178,52 @@ const GENERAL_TRAVEL_CLOSURE_REGEX =
   /\b(road closed|highway closed|interstate closed|closed to all|closed for all|all vehicles|all traffic|through traffic|general travel|no travel|closed both directions|closed in both directions|full closure|fully closed|impassable|road closure)\b/i;
 const SNOW_CONTEXT_REGEX = /\b(snow|blowing snow|drifting|slick|icy|ice)\b/i;
 
+function isInactiveRoadStatusText(value: string | null) {
+  if (!value) {
+    return true;
+  }
+
+  return [
+    "none",
+    "none reported",
+    "no report",
+    "unavailable",
+    "loading...",
+  ].includes(value.trim().toLowerCase());
+}
+
 function isNeutralRoadCondition(value: string | null) {
   if (!value) {
     return true;
   }
 
-  return ["dry", "none", "clear"].includes(value.trim().toLowerCase());
+  return ["dry", "none", "none reported", "clear", "no report"].includes(
+    value.trim().toLowerCase(),
+  );
+}
+
+function hasRoadObservationSignal(input: SuggestionInput) {
+  return Boolean(
+    input.road.stationObservedAt ||
+      typeof input.road.windAvgMph === "number" ||
+      typeof input.road.windGustMph === "number" ||
+      typeof input.road.visibilityFt === "number" ||
+      typeof input.road.airTempF === "number" ||
+      typeof input.road.surfaceTempF === "number",
+  );
+}
+
+function hasRoadSourceSignal(input: SuggestionInput) {
+  return Boolean(
+    input.road.available &&
+      input.road.mapped &&
+      (input.road.fetchedAt ||
+        input.road.stationObservedAt ||
+        input.road.restriction ||
+        input.road.advisory ||
+        input.road.officialCondition ||
+        hasRoadObservationSignal(input)),
+  );
 }
 
 function isVehicleSpecificRestriction(value: string | null) {
@@ -237,7 +277,7 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
     sourceStrength: RuleSourceStrength.DIRECT_SOURCE,
     evaluate: ({ input }) => {
       const restriction = input.road.restriction?.trim() ?? "";
-      if (!restriction || restriction === "None") {
+      if (isInactiveRoadStatusText(restriction)) {
         return null;
       }
 
@@ -266,8 +306,7 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
     evaluate: ({ input }) => {
       const restriction = input.road.restriction?.trim() ?? "";
       if (
-        !restriction ||
-        restriction === "None" ||
+        isInactiveRoadStatusText(restriction) ||
         isGeneralTravelClosure(restriction)
       ) {
         return null;
@@ -298,7 +337,7 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
     ],
     evaluate: ({ input }) => {
       const advisory = input.road.advisory?.trim() ?? "";
-      if (!advisory || advisory === "None") {
+      if (isInactiveRoadStatusText(advisory)) {
         return null;
       }
 
@@ -513,19 +552,17 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
     supportStatus: SupportStatus.SUPPORTED_NOW,
     sourceStrength: RuleSourceStrength.SYNTHESIZED_FACT,
     evaluate: ({ input }) => {
-      const roadSufficient =
-        input.road.available &&
-        input.road.mapped &&
-        !!input.road.restriction &&
-        !!input.road.advisory &&
-        !!input.road.officialCondition;
+      const hasActiveRoadStatus =
+        !isInactiveRoadStatusText(input.road.restriction) ||
+        !isInactiveRoadStatusText(input.road.advisory) ||
+        !isNeutralRoadCondition(input.road.officialCondition);
       const weatherSufficient =
         input.weather.available &&
         input.weather.temperatureF !== null &&
         input.weather.windSpeedMph !== null &&
         input.weather.weatherCode !== null;
 
-      if (!roadSufficient) {
+      if (!hasRoadSourceSignal(input) || hasActiveRoadStatus) {
         return null;
       }
 
