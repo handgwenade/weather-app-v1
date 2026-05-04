@@ -1,3 +1,4 @@
+import { Palette, Radius, Shadows } from "@/constants/theme";
 import { useScrollToTopOnFocus } from "@/hooks/useScrollToTopOnFocus";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { type ReactNode, useRef, useState } from "react";
@@ -52,27 +53,27 @@ function getStatusChipStyle(tone: RoadTone) {
   switch (tone) {
     case "high":
       return {
-        backgroundColor: "#FEE2E2",
-        borderColor: "#FCA5A5",
-        textColor: "#991B1B",
+        backgroundColor: "#FCE7F0",
+        borderColor: "#F5A3BD",
+        textColor: Palette.high,
       };
     case "caution":
       return {
-        backgroundColor: "#FEF3C7",
-        borderColor: "#FCD34D",
-        textColor: "#92400E",
+        backgroundColor: "#FFF7D6",
+        borderColor: Palette.caution,
+        textColor: "#8A4B00",
       };
     case "good":
       return {
-        backgroundColor: "#DCFCE7",
-        borderColor: "#7BF1A8",
-        textColor: "#0D542B",
+        backgroundColor: "#DFFBEF",
+        borderColor: "#8EF0C2",
+        textColor: "#087A4A",
       };
     default:
       return {
-        backgroundColor: "#E2E8F0",
-        borderColor: "#CBD5E1",
-        textColor: "#334155",
+        backgroundColor: Palette.surfaceSoft,
+        borderColor: Palette.border,
+        textColor: Palette.midnight,
       };
   }
 }
@@ -128,11 +129,19 @@ export default function RoadScreenV2({
             <Text style={styles.topTitle} numberOfLines={1}>
               {topTitle}
             </Text>
-            <Ionicons name="chevron-down-outline" size={20} color="#0F172B" />
+            <Ionicons
+              name="chevron-down-outline"
+              size={20}
+              color={Palette.primary}
+            />
           </Pressable>
 
           <Pressable style={styles.settingsButton} onPress={onPressSettings}>
-            <Ionicons name="settings-outline" size={24} color="#2F5DA8" />
+            <Ionicons
+              name="settings-outline"
+              size={22}
+              color={Palette.primary}
+            />
           </Pressable>
         </View>
 
@@ -159,7 +168,11 @@ export default function RoadScreenV2({
           <Text style={styles.cardTitle}>Location</Text>
 
           <Pressable style={styles.searchField} onPress={onPressLocationSearch}>
-            <Ionicons name="location-outline" size={18} color="#475569" />
+            <Ionicons
+              name="location-outline"
+              size={18}
+              color={Palette.primary}
+            />
             <Text style={styles.searchFieldText} numberOfLines={1}>
               {locationFieldLabel}
             </Text>
@@ -275,15 +288,15 @@ export default function RoadScreenV2({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Palette.background,
   },
   topBar: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Palette.background,
     borderBottomWidth: 1,
-    borderBottomColor: "#CAD5E2",
-    paddingHorizontal: 16,
+    borderBottomColor: "rgba(221, 227, 243, 0.75)",
+    paddingHorizontal: 18,
     paddingTop: 12,
-    paddingBottom: 12,
+    paddingBottom: 14,
     gap: 4,
   },
   topBarRow: {
@@ -299,99 +312,105 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   topTitle: {
-    color: "#0F172B",
-    fontSize: 18,
-    fontWeight: "700",
-    letterSpacing: -0.44,
+    color: Palette.textPrimary,
+    fontSize: 19,
+    fontWeight: "800",
+    letterSpacing: -0.52,
   },
   settingsButton: {
-    width: 28,
-    height: 28,
+    width: 34,
+    height: 34,
     alignItems: "center",
     justifyContent: "center",
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.primarySoft,
+    borderWidth: 1,
+    borderColor: "rgba(86, 55, 255, 0.16)",
   },
   updatedText: {
-    color: "#62748E",
-    fontSize: 14,
+    color: Palette.textSecondary,
+    fontSize: 13,
     lineHeight: 20,
     letterSpacing: -0.15,
   },
   scrollView: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Palette.background,
   },
   content: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 24,
-    gap: 12,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 32,
+    gap: 16,
   },
   noticeStack: {
     gap: 8,
   },
   noticeCard: {
-    borderRadius: 10,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: "#FCD34D",
-    backgroundColor: "#FFFBEB",
+    borderColor: Palette.caution,
+    backgroundColor: "#FFF7D6",
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
   noticeText: {
-    color: "#92400E",
+    color: "#8A4B00",
     fontSize: 14,
+    fontWeight: "600",
     lineHeight: 20,
   },
   card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 10,
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: "rgba(202, 213, 226, 0.4)",
-    paddingHorizontal: 17,
-    paddingTop: 17,
-    paddingBottom: 16,
+    borderColor: "rgba(221, 227, 243, 0.85)",
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 17,
+    ...Shadows.card,
   },
   cardTitle: {
-    color: "#0F172B",
+    color: Palette.textPrimary,
     fontSize: 18,
-    fontWeight: "700",
+    fontWeight: "800",
     lineHeight: 27,
     letterSpacing: -0.44,
   },
   searchField: {
     marginTop: 12,
-    minHeight: 38,
-    borderRadius: 4,
+    minHeight: 44,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: "#CAD5E2",
-    backgroundColor: "#F1F5F9",
+    borderColor: Palette.border,
+    backgroundColor: Palette.backgroundCool,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     paddingHorizontal: 13,
-    paddingVertical: 9,
+    paddingVertical: 10,
   },
   searchFieldText: {
     flex: 1,
-    color: "#0A0A0A",
+    color: Palette.textPrimary,
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: "700",
     lineHeight: 20,
     letterSpacing: -0.15,
   },
   statusTitle: {
-    color: "#0F172B",
-    fontSize: 20,
-    fontWeight: "700",
-    lineHeight: 28,
-    letterSpacing: -0.45,
+    color: Palette.textPrimary,
+    fontSize: 24,
+    fontWeight: "900",
+    lineHeight: 31,
+    letterSpacing: -0.75,
   },
   statusSubtitle: {
-    color: "#45556C",
-    fontSize: 16,
-    lineHeight: 24,
-    letterSpacing: -0.31,
-    marginTop: 2,
+    color: Palette.textSecondary,
+    fontSize: 15,
+    lineHeight: 23,
+    letterSpacing: -0.25,
+    marginTop: 6,
   },
   statusActions: {
     flexDirection: "row",
@@ -400,63 +419,66 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   statusChip: {
-    height: 32,
-    borderRadius: 999,
+    height: 34,
+    borderRadius: Radius.pill,
     borderWidth: 1,
-    paddingHorizontal: 13,
+    paddingHorizontal: 14,
     alignItems: "center",
     justifyContent: "center",
   },
   statusChipText: {
-    fontSize: 14,
-    fontWeight: "500",
-    lineHeight: 20,
-    letterSpacing: -0.15,
+    fontSize: 13,
+    fontWeight: "800",
+    lineHeight: 18,
+    letterSpacing: -0.1,
   },
   actionChip: {
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: "#1D293D",
-    paddingHorizontal: 12,
+    height: 34,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.midnight,
+    paddingHorizontal: 14,
     alignItems: "center",
     justifyContent: "center",
   },
   actionChipText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "500",
-    lineHeight: 20,
-    letterSpacing: -0.15,
+    color: Palette.textOnDark,
+    fontSize: 13,
+    fontWeight: "800",
+    lineHeight: 18,
+    letterSpacing: -0.1,
   },
   recommendationCard: {
-    backgroundColor: "#1D293D",
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 17,
+    backgroundColor: Palette.midnight,
+    borderRadius: Radius.xl,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 19,
+    borderWidth: 1,
+    borderColor: "rgba(72, 199, 244, 0.22)",
+    ...Shadows.soft,
   },
   recommendationTitle: {
-    color: "#FFFFFF",
+    color: Palette.textOnDark,
     fontSize: 18,
-    fontWeight: "700",
+    fontWeight: "900",
     lineHeight: 27,
     letterSpacing: -0.44,
   },
   recommendationText: {
-    color: "#FFFFFF",
+    color: "rgba(255, 255, 255, 0.88)",
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 21,
     letterSpacing: -0.15,
     marginTop: 8,
   },
   conditionsCard: {
-    backgroundColor: "#F8FAFC",
-    borderRadius: 10,
+    backgroundColor: Palette.surfaceRaised,
+    borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: "rgba(202, 213, 226, 0.4)",
-    paddingHorizontal: 17,
-    paddingTop: 17,
-    paddingBottom: 16,
+    borderColor: "rgba(221, 227, 243, 0.9)",
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 17,
   },
   conditionsGrid: {
     flexDirection: "row",
@@ -467,54 +489,64 @@ const styles = StyleSheet.create({
   },
   metricCell: {
     width: "47%",
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: "rgba(221, 227, 243, 0.85)",
+    paddingHorizontal: 12,
+    paddingVertical: 11,
   },
   metricLabel: {
-    color: "#62748E",
+    color: Palette.textSecondary,
     fontSize: 12,
+    fontWeight: "700",
     lineHeight: 16,
+    textTransform: "uppercase",
+    letterSpacing: 0.35,
   },
   metricValue: {
-    color: "#0F172B",
-    fontSize: 16,
-    fontWeight: "700",
+    color: Palette.textPrimary,
+    fontSize: 17,
+    fontWeight: "800",
     lineHeight: 24,
     letterSpacing: -0.31,
-    marginTop: 0,
+    marginTop: 3,
   },
   sectionBlock: {
     gap: 12,
   },
   sectionTitle: {
-    color: "#0F172B",
+    color: Palette.textPrimary,
     fontSize: 18,
-    fontWeight: "700",
+    fontWeight: "800",
     lineHeight: 27,
     letterSpacing: -0.44,
   },
   riskCard: {
-    backgroundColor: "#F8FAFC",
-    borderRadius: 10,
+    backgroundColor: Palette.surface,
+    borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: "rgba(202, 213, 226, 0.4)",
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 16,
+    borderColor: "rgba(221, 227, 243, 0.85)",
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 17,
+    ...Shadows.card,
   },
   riskLevel: {
-    color: "#45556C",
+    color: Palette.textSecondary,
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 21,
     letterSpacing: -0.15,
-    marginTop: 2,
+    marginTop: 4,
   },
   bulletList: {
     gap: 4,
     marginTop: 12,
   },
   bulletText: {
-    color: "#314158",
+    color: Palette.textSecondary,
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 21,
     letterSpacing: -0.15,
   },
   riskFooter: {
@@ -524,8 +556,9 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   confidenceText: {
-    color: "#62748E",
+    color: Palette.textSecondary,
     fontSize: 12,
+    fontWeight: "700",
     lineHeight: 16,
   },
   outlookRow: {
@@ -535,27 +568,34 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   outlookItem: {
-    width: 60,
+    flex: 1,
+    minWidth: 0,
     alignItems: "center",
     justifyContent: "flex-start",
+    backgroundColor: Palette.backgroundCool,
+    borderRadius: Radius.md,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
   },
   outlookTime: {
-    color: "#62748E",
-    fontSize: 12,
-    lineHeight: 16,
+    color: Palette.textSecondary,
+    fontSize: 11,
+    fontWeight: "700",
+    lineHeight: 15,
   },
   outlookTemp: {
-    color: "#0F172B",
-    fontSize: 16,
-    fontWeight: "700",
+    color: Palette.primary,
+    fontSize: 17,
+    fontWeight: "900",
     lineHeight: 24,
     letterSpacing: -0.31,
     marginTop: 4,
   },
   outlookCondition: {
-    color: "#45556C",
-    fontSize: 12,
-    lineHeight: 16,
+    color: Palette.textSecondary,
+    fontSize: 11,
+    lineHeight: 15,
     marginTop: 4,
+    textAlign: "center",
   },
 });

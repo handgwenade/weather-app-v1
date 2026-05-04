@@ -1,4 +1,5 @@
 import { RoadMapView } from "@/components/road/RoadMapView";
+import { Palette, Radius, Shadows } from "@/constants/theme";
 import { router, useLocalSearchParams } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -106,13 +107,13 @@ export default function RoadMapScreen() {
 
 const styles = StyleSheet.create({
   screen: {
-    backgroundColor: "#f8fafc",
+    backgroundColor: Palette.background,
     flex: 1,
   },
   header: {
     alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderBottomColor: "#dbe4ee",
+    backgroundColor: Palette.background,
+    borderBottomColor: "rgba(221, 227, 243, 0.75)",
     borderBottomWidth: 1,
     flexDirection: "row",
     paddingBottom: 14,
@@ -121,15 +122,18 @@ const styles = StyleSheet.create({
   },
   backButton: {
     alignItems: "center",
-    backgroundColor: "#e0f2fe",
-    borderRadius: 999,
-    height: 44,
+    backgroundColor: Palette.primarySoft,
+    borderColor: "rgba(86, 55, 255, 0.16)",
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+    height: 52,
     justifyContent: "center",
-    width: 44,
+    width: 52,
   },
   backButtonText: {
-    color: "#0f172a",
+    color: Palette.primary,
     fontSize: 36,
+    fontWeight: "900",
     lineHeight: 38,
     marginTop: -4,
   },
@@ -138,14 +142,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    color: "#0f172a",
+    color: Palette.textPrimary,
     fontSize: 24,
-    fontWeight: "800",
+    fontWeight: "900",
+    letterSpacing: -0.55,
   },
   subtitle: {
-    color: "#64748b",
+    color: Palette.textSecondary,
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "800",
     marginTop: 2,
   },
   headerSpacer: {
@@ -157,20 +162,22 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   card: {
-    backgroundColor: "#ffffff",
-    borderColor: "#dbe4ee",
-    borderRadius: 20,
+    backgroundColor: Palette.surface,
+    borderColor: "rgba(221, 227, 243, 0.9)",
+    borderRadius: Radius.xl,
     borderWidth: 1,
-    padding: 16,
+    padding: 18,
+    ...Shadows.card,
   },
   cardTitle: {
-    color: "#0f172a",
+    color: Palette.textPrimary,
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: "900",
+    letterSpacing: -0.35,
     marginBottom: 8,
   },
   cardBody: {
-    color: "#475569",
+    color: Palette.textSecondary,
     fontSize: 15,
     lineHeight: 22,
   },
@@ -183,32 +190,34 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   legendDot: {
-    borderRadius: 999,
-    height: 16,
-    width: 16,
+    borderColor: Palette.surface,
+    borderRadius: Radius.pill,
+    borderWidth: 2,
+    height: 18,
+    width: 18,
   },
   normal: {
-    backgroundColor: "#22c55e",
+    backgroundColor: Palette.normal,
   },
   caution: {
-    backgroundColor: "#facc15",
+    backgroundColor: Palette.caution,
   },
   elevated: {
-    backgroundColor: "#f97316",
+    backgroundColor: Palette.elevated,
   },
   high: {
-    backgroundColor: "#dc2626",
+    backgroundColor: Palette.high,
   },
   legendTextWrap: {
     flex: 1,
   },
   legendLabel: {
-    color: "#0f172a",
+    color: Palette.textPrimary,
     fontSize: 15,
-    fontWeight: "800",
+    fontWeight: "900",
   },
   legendDescription: {
-    color: "#64748b",
+    color: Palette.textSecondary,
     fontSize: 13,
     lineHeight: 18,
     marginTop: 1,

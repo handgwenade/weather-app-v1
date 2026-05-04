@@ -1,6 +1,7 @@
 import LocationsScreenV2, {
   type LocationCard,
 } from "@/components/locations/LocationsScreenV2";
+import { Palette, Radius, Shadows } from "@/constants/theme";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import {
@@ -291,7 +292,7 @@ export default function LocationsScreenContainer() {
                     autoCorrect={false}
                     onChangeText={setSearchQuery}
                     placeholder="City, address, or point of interest"
-                    placeholderTextColor="#8A94A6"
+                    placeholderTextColor={Palette.textMuted}
                     style={styles.textInput}
                     value={searchQuery}
                   />
@@ -301,7 +302,10 @@ export default function LocationsScreenContainer() {
                     style={styles.searchButton}
                   >
                     {searching ? (
-                      <ActivityIndicator color="#FFFFFF" size="small" />
+                      <ActivityIndicator
+                        color={Palette.textOnDark}
+                        size="small"
+                      />
                     ) : (
                       <Text style={styles.searchButtonText}>Search</Text>
                     )}
@@ -366,7 +370,7 @@ export default function LocationsScreenContainer() {
                   autoCorrect={false}
                   onChangeText={setCustomLabel}
                   placeholder="Enter the label you want to use"
-                  placeholderTextColor="#8A94A6"
+                  placeholderTextColor={Palette.textMuted}
                   style={styles.textInput}
                   value={customLabel}
                 />
@@ -388,7 +392,7 @@ export default function LocationsScreenContainer() {
                 ]}
               >
                 {saving ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <ActivityIndicator color={Palette.textOnDark} size="small" />
                 ) : (
                   <Text style={styles.saveButtonText}>
                     {editingLocationId ? "Save changes" : "Save location"}
@@ -406,15 +410,19 @@ export default function LocationsScreenContainer() {
 const styles = StyleSheet.create({
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 43, 0.34)",
+    backgroundColor: "rgba(16, 20, 46, 0.48)",
     justifyContent: "flex-end",
   },
   modalCard: {
     maxHeight: "92%",
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    backgroundColor: Palette.background,
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: "rgba(221, 227, 243, 0.9)",
     paddingTop: 18,
+    overflow: "hidden",
+    ...Shadows.card,
   },
   modalHeader: {
     flexDirection: "row",
@@ -422,34 +430,39 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 16,
     paddingHorizontal: 20,
-    paddingBottom: 14,
+    paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
+    borderBottomColor: "rgba(221, 227, 243, 0.85)",
   },
   modalHeaderText: {
     flex: 1,
     gap: 4,
   },
   modalTitle: {
-    color: "#0F172B",
-    fontSize: 20,
-    fontWeight: "700",
-    lineHeight: 28,
-    letterSpacing: -0.44,
+    color: Palette.textPrimary,
+    fontSize: 22,
+    fontWeight: "900",
+    lineHeight: 30,
+    letterSpacing: -0.55,
   },
   modalSubtitle: {
-    color: "#556274",
+    color: Palette.textSecondary,
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 21,
   },
   modalCloseButton: {
-    minHeight: 32,
+    minHeight: 34,
     justifyContent: "center",
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.primarySoft,
+    borderWidth: 1,
+    borderColor: "rgba(86, 55, 255, 0.16)",
+    paddingHorizontal: 13,
   },
   modalCloseButtonText: {
-    color: "#2E6FC7",
+    color: Palette.primary,
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "900",
     lineHeight: 20,
   },
   modalContent: {
@@ -460,12 +473,20 @@ const styles = StyleSheet.create({
   },
   sectionBlock: {
     gap: 10,
+    backgroundColor: Palette.surface,
+    borderWidth: 1,
+    borderColor: "rgba(221, 227, 243, 0.9)",
+    borderRadius: Radius.xl,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    ...Shadows.card,
   },
   fieldLabel: {
-    color: "#0F172B",
-    fontSize: 15,
-    fontWeight: "600",
-    lineHeight: 22,
+    color: Palette.textPrimary,
+    fontSize: 14,
+    fontWeight: "900",
+    lineHeight: 20,
+    letterSpacing: 0.2,
   },
   searchRow: {
     flexDirection: "row",
@@ -475,37 +496,41 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 48,
     borderWidth: 1,
-    borderColor: "#CAD5E2",
-    borderRadius: 12,
+    borderColor: Palette.border,
+    borderRadius: Radius.md,
     paddingHorizontal: 14,
-    color: "#0F172B",
+    color: Palette.textPrimary,
     fontSize: 15,
     lineHeight: 22,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Palette.backgroundCool,
   },
   searchButton: {
     minWidth: 92,
     minHeight: 48,
-    borderRadius: 12,
-    backgroundColor: "#2E6FC7",
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.primary,
+    borderWidth: 1,
+    borderColor: "rgba(86, 55, 255, 0.2)",
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 16,
+    ...Shadows.soft,
   },
   searchButtonText: {
-    color: "#FFFFFF",
+    color: Palette.textOnDark,
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "900",
     lineHeight: 20,
   },
   helperText: {
-    color: "#66768B",
+    color: Palette.textSecondary,
     fontSize: 13,
     lineHeight: 18,
   },
   statusMessage: {
-    color: "#B45309",
+    color: "#8A4B00",
     fontSize: 13,
+    fontWeight: "700",
     lineHeight: 18,
   },
   resultsList: {
@@ -513,61 +538,68 @@ const styles = StyleSheet.create({
   },
   resultCard: {
     borderWidth: 1,
-    borderColor: "#D5DEE8",
-    borderRadius: 14,
+    borderColor: "rgba(221, 227, 243, 0.9)",
+    borderRadius: Radius.lg,
     paddingHorizontal: 14,
     paddingVertical: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Palette.surface,
   },
   resultCardSelected: {
-    borderColor: "#2E6FC7",
-    backgroundColor: "#EEF6FF",
+    borderColor: "rgba(86, 55, 255, 0.28)",
+    backgroundColor: Palette.primarySoft,
   },
   resultTextBlock: {
     flex: 1,
     gap: 2,
   },
   resultTitle: {
-    color: "#0F172B",
+    color: Palette.textPrimary,
     fontSize: 15,
-    fontWeight: "600",
+    fontWeight: "900",
     lineHeight: 22,
   },
   resultSubtitle: {
-    color: "#556274",
+    color: Palette.textSecondary,
     fontSize: 13,
     lineHeight: 18,
   },
   resultSelectedText: {
-    color: "#2E6FC7",
+    color: Palette.primary,
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "900",
     lineHeight: 16,
   },
   footer: {
     borderTopWidth: 1,
-    borderTopColor: "#E2E8F0",
+    borderTopColor: "rgba(221, 227, 243, 0.85)",
     paddingHorizontal: 20,
     paddingVertical: 16,
+    backgroundColor: Palette.background,
   },
   saveButton: {
     minHeight: 48,
-    borderRadius: 12,
-    backgroundColor: "#2E6FC7",
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.primary,
+    borderWidth: 1,
+    borderColor: "rgba(86, 55, 255, 0.2)",
     alignItems: "center",
     justifyContent: "center",
+    ...Shadows.soft,
   },
   saveButtonDisabled: {
-    backgroundColor: "#9CB8E0",
+    backgroundColor: Palette.textMuted,
+    borderColor: "rgba(148, 163, 184, 0.25)",
+    shadowOpacity: 0,
+    elevation: 0,
   },
   saveButtonText: {
-    color: "#FFFFFF",
+    color: Palette.textOnDark,
     fontSize: 15,
-    fontWeight: "600",
+    fontWeight: "900",
     lineHeight: 22,
   },
 });

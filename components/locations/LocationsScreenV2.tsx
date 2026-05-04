@@ -1,8 +1,9 @@
+import { Palette, Radius, Shadows } from "@/constants/theme";
+import { useScrollToTopOnFocus } from "@/hooks/useScrollToTopOnFocus";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRef } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useScrollToTopOnFocus } from "@/hooks/useScrollToTopOnFocus";
 
 export type LocationCard = {
   id: string;
@@ -37,7 +38,11 @@ export default function LocationsScreenV2({
           <Text style={styles.topTitle}>Locations</Text>
 
           <Pressable style={styles.settingsButton} onPress={onPressSettings}>
-            <Ionicons name="settings-outline" size={24} color="#2F5DA8" />
+            <Ionicons
+              name="settings-outline"
+              size={22}
+              color={Palette.primary}
+            />
           </Pressable>
         </View>
       </View>
@@ -52,7 +57,7 @@ export default function LocationsScreenV2({
           <Text style={styles.sectionTitle}>Operational Locations</Text>
 
           <Pressable style={styles.addButton} onPress={onPressAdd}>
-            <Ionicons name="add-outline" size={16} color="#FFFFFF" />
+            <Ionicons name="add-outline" size={16} color={Palette.textOnDark} />
             <Text style={styles.addButtonText}>Add</Text>
           </Pressable>
         </View>
@@ -60,14 +65,22 @@ export default function LocationsScreenV2({
         {cards.length === 0 ? (
           <View style={styles.emptyStateCard}>
             <View style={styles.emptyStateIconWrap}>
-              <Ionicons name="location-outline" size={24} color="#2E6FC7" />
+              <Ionicons
+                name="location-outline"
+                size={26}
+                color={Palette.primary}
+              />
             </View>
             <Text style={styles.emptyStateTitle}>No saved locations yet</Text>
             <Text style={styles.emptyStateBody}>
               Add a location to start monitoring places you care about.
             </Text>
             <Pressable style={styles.emptyStateButton} onPress={onPressAdd}>
-              <Ionicons name="add-outline" size={16} color="#FFFFFF" />
+              <Ionicons
+                name="add-outline"
+                size={16}
+                color={Palette.textOnDark}
+              />
               <Text style={styles.emptyStateButtonText}>Add location</Text>
             </Pressable>
           </View>
@@ -95,7 +108,7 @@ export default function LocationsScreenV2({
                       <Ionicons
                         name="trash-outline"
                         size={18}
-                        color="#525252"
+                        color={Palette.textSecondary}
                       />
                     </Pressable>
                   ) : null}
@@ -112,43 +125,47 @@ export default function LocationsScreenV2({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F9FCFF",
+    backgroundColor: Palette.background,
   },
   topBar: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Palette.background,
     borderBottomWidth: 1,
-    borderBottomColor: "#CAD5E2",
-    paddingHorizontal: 16,
+    borderBottomColor: "rgba(221, 227, 243, 0.75)",
+    paddingHorizontal: 18,
     paddingTop: 12,
     paddingBottom: 14,
   },
   topBarRow: {
-    minHeight: 28,
+    minHeight: 34,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   topTitle: {
-    color: "#0F172B",
-    fontSize: 18,
-    fontWeight: "700",
+    color: Palette.textPrimary,
+    fontSize: 19,
+    fontWeight: "800",
     lineHeight: 28,
-    letterSpacing: -0.44,
+    letterSpacing: -0.52,
   },
   settingsButton: {
-    width: 28,
-    height: 28,
+    width: 34,
+    height: 34,
     alignItems: "center",
     justifyContent: "center",
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.primarySoft,
+    borderWidth: 1,
+    borderColor: "rgba(86, 55, 255, 0.16)",
   },
   scrollView: {
     flex: 1,
-    backgroundColor: "#F9FCFF",
+    backgroundColor: Palette.background,
   },
   content: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 28,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 32,
     gap: 16,
   },
   sectionHeader: {
@@ -157,60 +174,66 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   sectionTitle: {
-    color: "#1B1B1B",
+    color: Palette.textPrimary,
     fontSize: 18,
-    fontWeight: "700",
-    lineHeight: 28,
+    fontWeight: "900",
+    lineHeight: 27,
     letterSpacing: -0.44,
   },
   addButton: {
-    minWidth: 82,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: "#2E6FC7",
-    paddingHorizontal: 16,
+    minWidth: 84,
+    height: 38,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.primary,
+    borderWidth: 1,
+    borderColor: "rgba(86, 55, 255, 0.2)",
+    paddingHorizontal: 15,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
+    ...Shadows.soft,
   },
   addButtonText: {
-    color: "#FFFFFF",
+    color: Palette.textOnDark,
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: "900",
     lineHeight: 20,
     letterSpacing: -0.15,
   },
   emptyStateCard: {
-    minHeight: 220,
-    backgroundColor: "#FFFFFF",
+    minHeight: 240,
+    backgroundColor: Palette.surface,
     borderWidth: 1,
-    borderColor: "#D4D4D4",
-    borderRadius: 16,
+    borderColor: "rgba(221, 227, 243, 0.9)",
+    borderRadius: Radius.xl,
     paddingHorizontal: 24,
     paddingTop: 30,
     paddingBottom: 28,
     alignItems: "center",
+    ...Shadows.card,
   },
   emptyStateIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#EAF4FF",
+    width: 58,
+    height: 58,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.primarySoft,
+    borderWidth: 1,
+    borderColor: "rgba(86, 55, 255, 0.16)",
     alignItems: "center",
     justifyContent: "center",
   },
   emptyStateTitle: {
-    color: "#1B1B1B",
-    fontSize: 18,
-    fontWeight: "700",
+    color: Palette.textPrimary,
+    fontSize: 20,
+    fontWeight: "900",
     lineHeight: 28,
-    letterSpacing: -0.44,
+    letterSpacing: -0.52,
     textAlign: "center",
     marginTop: 18,
   },
   emptyStateBody: {
-    color: "#556274",
+    color: Palette.textSecondary,
     fontSize: 14,
     lineHeight: 21,
     textAlign: "center",
@@ -218,35 +241,39 @@ const styles = StyleSheet.create({
     maxWidth: 260,
   },
   emptyStateButton: {
-    minWidth: 142,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: "#2E6FC7",
-    paddingHorizontal: 16,
+    minWidth: 150,
+    height: 44,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.primary,
+    borderWidth: 1,
+    borderColor: "rgba(86, 55, 255, 0.2)",
+    paddingHorizontal: 17,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 12,
-    marginTop: 20,
+    gap: 8,
+    marginTop: 22,
+    ...Shadows.soft,
   },
   emptyStateButtonText: {
-    color: "#FFFFFF",
+    color: Palette.textOnDark,
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "900",
     lineHeight: 20,
   },
   cardStack: {
     gap: 12,
   },
   card: {
-    minHeight: 90,
-    backgroundColor: "#FFFFFF",
+    minHeight: 96,
+    backgroundColor: Palette.surface,
     borderWidth: 1,
-    borderColor: "#D4D4D4",
-    borderRadius: 16,
-    paddingHorizontal: 17,
-    paddingTop: 17,
-    paddingBottom: 15,
+    borderColor: "rgba(221, 227, 243, 0.9)",
+    borderRadius: Radius.xl,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 16,
+    ...Shadows.card,
   },
   cardHeader: {
     flexDirection: "row",
@@ -259,22 +286,26 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   cardTitle: {
-    color: "#1B1B1B",
+    color: Palette.textPrimary,
     fontSize: 18,
-    fontWeight: "500",
+    fontWeight: "900",
     lineHeight: 27,
     letterSpacing: -0.44,
   },
   deleteButton: {
-    width: 32,
-    height: 32,
+    width: 34,
+    height: 34,
     alignItems: "center",
     justifyContent: "center",
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.backgroundCool,
+    borderWidth: 1,
+    borderColor: "rgba(221, 227, 243, 0.9)",
   },
   cardSubtitle: {
-    color: "#556274",
+    color: Palette.textSecondary,
     fontSize: 14,
-    fontWeight: "400",
+    fontWeight: "700",
     lineHeight: 20,
   },
 });

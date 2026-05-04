@@ -2,13 +2,14 @@ import AlertsScreenV2, {
   type AlertCardItem,
   type AlertTone,
 } from "@/components/alerts/AlertsScreenV2";
+import { Palette, Radius, Shadows } from "@/constants/theme";
 import { useSelectedLocation } from "@/data/locationStore";
 import { getActiveAlertsForLocation } from "@/services/nws";
 import { formatMonthDayTime24Hour } from "@/utils/dateTime";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type NwsAlertFeature = {
@@ -212,98 +213,50 @@ export default function AlertsScreen() {
 
   if (!selectedLocation) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#F9FCFF" }}>
-        <View style={{ flex: 1, backgroundColor: "#F9FCFF" }}>
-          <View
-            style={{
-              backgroundColor: "#FFFFFF",
-              borderBottomWidth: 1,
-              borderBottomColor: "#CAD5E2",
-              paddingHorizontal: 16,
-              paddingTop: 12,
-              paddingBottom: 14,
-            }}
-          >
-            <View
-              style={{
-                minHeight: 28,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <Text
-                style={{
-                  color: "#0F172B",
-                  fontSize: 18,
-                  fontWeight: "700",
-                  lineHeight: 28,
-                  letterSpacing: -0.44,
-                }}
-              >
-                Official Alerts
-              </Text>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.screen}>
+          <View style={styles.header}>
+            <View style={styles.headerRow}>
+              <Text style={styles.headerTitle}>Official Alerts</Text>
 
-              <Pressable onPress={() => router.push("/settings")}>
-                <Ionicons name="settings-outline" size={24} color="#2F5DA8" />
+              <Pressable
+                accessibilityLabel="Open settings"
+                accessibilityRole="button"
+                onPress={() => router.push("/settings")}
+                style={styles.settingsButton}
+              >
+                <Ionicons
+                  name="settings-outline"
+                  size={22}
+                  color={Palette.primary}
+                />
               </Pressable>
             </View>
           </View>
 
-          <View
-            style={{
-              flex: 1,
-              paddingHorizontal: 24,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Text
-              style={{
-                color: "#0F172B",
-                fontSize: 22,
-                fontWeight: "700",
-                lineHeight: 30,
-                textAlign: "center",
-              }}
-            >
-              No active location selected
-            </Text>
-            <Text
-              style={{
-                color: "#556274",
-                fontSize: 15,
-                lineHeight: 22,
-                textAlign: "center",
-                marginTop: 8,
-                maxWidth: 280,
-              }}
-            >
-              Choose a location to see local conditions here.
-            </Text>
-            <Pressable
-              onPress={() => router.push("/manage-locations")}
-              style={{
-                marginTop: 20,
-                minHeight: 44,
-                borderRadius: 12,
-                backgroundColor: "#2E6FC7",
-                paddingHorizontal: 18,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Text
-                style={{
-                  color: "#FFFFFF",
-                  fontSize: 14,
-                  fontWeight: "600",
-                  lineHeight: 20,
-                }}
-              >
-                Manage Locations
+          <View style={styles.emptyStateWrap}>
+            <View style={styles.emptyStateCard}>
+              <View style={styles.emptyIconWrap}>
+                <Ionicons
+                  name="notifications-outline"
+                  size={28}
+                  color={Palette.primary}
+                />
+              </View>
+              <Text style={styles.emptyStateTitle}>
+                No active location selected
               </Text>
-            </Pressable>
+              <Text style={styles.emptyStateBody}>
+                Choose a location to see official alerts for your area.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => router.push("/manage-locations")}
+                style={styles.primaryButton}
+              >
+                <Text style={styles.primaryButtonText}>Choose Location</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </SafeAreaView>
@@ -321,3 +274,109 @@ export default function AlertsScreen() {
     />
   );
 }
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: Palette.background,
+  },
+  screen: {
+    flex: 1,
+    backgroundColor: Palette.background,
+  },
+  header: {
+    backgroundColor: Palette.background,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(221, 227, 243, 0.75)",
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 14,
+  },
+  headerRow: {
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  headerTitle: {
+    color: Palette.textPrimary,
+    fontSize: 19,
+    fontWeight: "800",
+    lineHeight: 28,
+    letterSpacing: -0.52,
+  },
+  settingsButton: {
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.primarySoft,
+    borderWidth: 1,
+    borderColor: "rgba(86, 55, 255, 0.16)",
+  },
+  emptyStateWrap: {
+    flex: 1,
+    paddingHorizontal: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyStateCard: {
+    width: "100%",
+    maxWidth: 360,
+    alignItems: "center",
+    backgroundColor: Palette.surface,
+    borderWidth: 1,
+    borderColor: "rgba(221, 227, 243, 0.9)",
+    borderRadius: Radius.xl,
+    paddingHorizontal: 24,
+    paddingVertical: 28,
+    ...Shadows.card,
+  },
+  emptyIconWrap: {
+    width: 58,
+    height: 58,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.primarySoft,
+    borderWidth: 1,
+    borderColor: "rgba(86, 55, 255, 0.16)",
+    marginBottom: 14,
+  },
+  emptyStateTitle: {
+    color: Palette.textPrimary,
+    fontSize: 22,
+    fontWeight: "900",
+    lineHeight: 30,
+    letterSpacing: -0.55,
+    textAlign: "center",
+  },
+  emptyStateBody: {
+    color: Palette.textSecondary,
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
+    marginTop: 8,
+    maxWidth: 280,
+  },
+  primaryButton: {
+    marginTop: 22,
+    minHeight: 48,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.primary,
+    borderWidth: 1,
+    borderColor: "rgba(86, 55, 255, 0.2)",
+    paddingHorizontal: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    ...Shadows.soft,
+  },
+  primaryButtonText: {
+    color: Palette.textOnDark,
+    fontSize: 14,
+    fontWeight: "900",
+    lineHeight: 20,
+    letterSpacing: -0.15,
+  },
+});

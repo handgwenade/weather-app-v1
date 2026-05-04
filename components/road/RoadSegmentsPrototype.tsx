@@ -1,3 +1,4 @@
+import { Palette, Radius, Shadows } from "@/constants/theme";
 import { formatMonthDayTime24Hour } from "@/utils/dateTime";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
@@ -669,7 +670,7 @@ export default function RoadSegmentsPrototype({
           <Ionicons
             name={filterMode === "all" ? "checkbox" : "square-outline"}
             size={18}
-            color="#45556C"
+            color={Palette.primary}
           />
           <Text style={styles.controlOptionText}>All ({allCount})</Text>
         </Pressable>
@@ -680,7 +681,7 @@ export default function RoadSegmentsPrototype({
           <Ionicons
             name={filterMode === "wind-prone" ? "checkbox" : "square-outline"}
             size={18}
-            color="#45556C"
+            color={Palette.primary}
           />
           <Text style={styles.controlOptionText}>
             Wind-prone ({windProneCount})
@@ -693,7 +694,7 @@ export default function RoadSegmentsPrototype({
           <Ionicons
             name={filterMode === "high-impact" ? "checkbox" : "square-outline"}
             size={18}
-            color="#45556C"
+            color={Palette.primary}
           />
           <Text style={styles.controlOptionText}>
             High risk ({highImpactCount})
@@ -714,7 +715,7 @@ export default function RoadSegmentsPrototype({
             <Ionicons
               name={sortMenuOpen ? "chevron-up" : "chevron-down"}
               size={16}
-              color="#45556C"
+              color={Palette.primary}
             />
           </Pressable>
           {sortMenuOpen ? (
@@ -731,7 +732,7 @@ export default function RoadSegmentsPrototype({
                       : "ellipse-outline"
                   }
                   size={16}
-                  color="#45556C"
+                  color={Palette.primary}
                 />
               </Pressable>
               <Pressable
@@ -744,7 +745,7 @@ export default function RoadSegmentsPrototype({
                     sortMode === "nearest" ? "checkmark" : "ellipse-outline"
                   }
                   size={16}
-                  color="#45556C"
+                  color={Palette.primary}
                 />
               </Pressable>
             </View>
@@ -924,39 +925,53 @@ export default function RoadSegmentsPrototype({
 
 const styles = StyleSheet.create({
   container: {
-    gap: 4,
+    gap: 8,
   },
   sectionTitle: {
-    color: "#0F172B",
+    color: Palette.textPrimary,
     fontSize: 18,
-    fontWeight: "700",
+    fontWeight: "900",
     lineHeight: 26,
-    letterSpacing: -0.3,
+    letterSpacing: -0.44,
   },
   summaryText: {
-    color: "#62748E",
+    color: Palette.textSecondary,
     fontSize: 13,
     lineHeight: 18,
   },
   controlsGroup: {
+    backgroundColor: Palette.surface,
+    borderColor: "rgba(221, 227, 243, 0.9)",
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    gap: 8,
     marginBottom: 8,
-    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   sortGroup: {
-    marginTop: 8,
+    backgroundColor: Palette.surface,
+    borderColor: "rgba(221, 227, 243, 0.9)",
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    gap: 8,
     marginBottom: 12,
-    gap: 6,
+    marginTop: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   sortMenuContainer: {
     alignSelf: "flex-start",
-    minWidth: 180,
+    minWidth: 190,
   },
   controlLabel: {
-    color: "#334155",
-    fontSize: 13,
-    fontWeight: "700",
+    color: Palette.textPrimary,
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 0.45,
     lineHeight: 18,
     marginBottom: 2,
+    textTransform: "uppercase",
   },
   controlRow: {
     alignItems: "center",
@@ -964,29 +979,31 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   controlOptionText: {
-    color: "#45556C",
+    color: Palette.textSecondary,
     fontSize: 14,
+    fontWeight: "700",
     lineHeight: 20,
   },
   sortButton: {
     alignItems: "center",
-    backgroundColor: "#F8FAFC",
-    borderColor: "rgba(202, 213, 226, 0.7)",
-    borderRadius: 8,
+    backgroundColor: Palette.primarySoft,
+    borderColor: "rgba(86, 55, 255, 0.16)",
+    borderRadius: Radius.pill,
     borderWidth: 1,
-    justifyContent: "space-between",
     flexDirection: "row",
     gap: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    justifyContent: "space-between",
+    paddingHorizontal: 13,
+    paddingVertical: 9,
   },
   sortDropdown: {
-    backgroundColor: "#FFFFFF",
-    borderColor: "rgba(202, 213, 226, 0.9)",
-    borderRadius: 8,
+    backgroundColor: Palette.surface,
+    borderColor: "rgba(221, 227, 243, 0.95)",
+    borderRadius: Radius.md,
     borderWidth: 1,
-    marginTop: 6,
+    marginTop: 8,
     overflow: "hidden",
+    ...Shadows.card,
   },
   sortDropdownOption: {
     alignItems: "center",
@@ -996,18 +1013,19 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
   },
   sortDropdownOptionText: {
-    color: "#45556C",
+    color: Palette.textSecondary,
     fontSize: 14,
+    fontWeight: "700",
     lineHeight: 20,
   },
   sortButtonText: {
-    color: "#45556C",
+    color: Palette.primary,
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "900",
     lineHeight: 20,
   },
   locationNoteText: {
-    color: "#62748E",
+    color: Palette.textSecondary,
     fontSize: 13,
     lineHeight: 18,
   },
@@ -1015,144 +1033,153 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   listLabelText: {
-    color: "#334155",
+    color: Palette.textPrimary,
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "900",
+    letterSpacing: -0.2,
     lineHeight: 20,
     marginBottom: 8,
   },
   messageText: {
-    color: "#45556C",
+    color: Palette.textSecondary,
     fontSize: 14,
     lineHeight: 20,
   },
   emptyStateCard: {
-    backgroundColor: "#F8FAFC",
-    borderRadius: 10,
+    backgroundColor: Palette.primarySoft,
+    borderColor: "rgba(86, 55, 255, 0.16)",
+    borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: "rgba(202, 213, 226, 0.7)",
-    paddingHorizontal: 12,
-    paddingVertical: 12,
     gap: 4,
     marginBottom: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    ...Shadows.card,
   },
   emptyStateTitle: {
-    color: "#0F172B",
+    color: Palette.textPrimary,
     fontSize: 15,
-    fontWeight: "600",
+    fontWeight: "900",
     lineHeight: 21,
   },
   emptyStateBody: {
-    color: "#45556C",
+    color: Palette.textSecondary,
     fontSize: 14,
     lineHeight: 20,
   },
   emptyStateNote: {
-    color: "#62748E",
+    color: Palette.textSecondary,
     fontSize: 13,
+    fontWeight: "700",
     lineHeight: 18,
     marginTop: 4,
   },
   segmentRowSpacing: {
-    paddingBottom: 8,
-    marginBottom: 8,
+    marginBottom: 10,
+    paddingBottom: 0,
   },
   segmentRowCard: {
-    backgroundColor: "#F8FAFC",
-    borderRadius: 10,
+    backgroundColor: Palette.surface,
+    borderColor: "rgba(221, 227, 243, 0.9)",
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: "rgba(202, 213, 226, 0.7)",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 3,
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    ...Shadows.card,
   },
   segmentRowCardSelected: {
-    backgroundColor: "#EFF6FF",
-    borderColor: "#93C5FD",
+    backgroundColor: Palette.primarySoft,
+    borderColor: "rgba(86, 55, 255, 0.28)",
   },
   segmentPrimaryText: {
-    color: "#0F172B",
+    color: Palette.textPrimary,
     fontSize: 15,
-    fontWeight: "600",
+    fontWeight: "900",
+    letterSpacing: -0.25,
     lineHeight: 21,
   },
   segmentImpactLabel: {
-    color: "#45556C",
+    color: Palette.textSecondary,
     fontSize: 13,
+    fontWeight: "800",
     lineHeight: 18,
   },
   segmentImpactText: {
-    color: "#45556C",
+    color: Palette.textSecondary,
     fontSize: 13,
     lineHeight: 18,
   },
   segmentNotesText: {
-    color: "#62748E",
+    color: Palette.textSecondary,
     fontSize: 13,
     lineHeight: 18,
   },
   segmentDistanceText: {
-    color: "#62748E",
+    color: Palette.primary,
     fontSize: 13,
+    fontWeight: "800",
     lineHeight: 18,
   },
   loadingText: {
-    color: "#334155",
+    color: Palette.textPrimary,
     fontSize: 13,
+    fontWeight: "700",
     lineHeight: 18,
   },
   impactHighText: {
-    color: "#991B1B",
-    fontWeight: "700",
+    color: Palette.high,
+    fontWeight: "900",
   },
   impactModerateText: {
-    color: "#92400E",
-    fontWeight: "700",
+    color: Palette.elevated,
+    fontWeight: "900",
   },
   impactLowText: {
-    color: "#0D542B",
-    fontWeight: "700",
+    color: Palette.normal,
+    fontWeight: "900",
   },
   impactUnknownText: {
-    color: "#475569",
-    fontWeight: "700",
+    color: Palette.textSecondary,
+    fontWeight: "900",
   },
   segmentConditionLabel: {
-    color: "#334155",
-    fontWeight: "800",
+    color: Palette.primary,
+    fontWeight: "900",
   },
   segmentConditionText: {
-    color: "#334155",
+    color: Palette.midnight,
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "700",
     lineHeight: 18,
   },
   segmentObservedText: {
-    color: "#62748E",
+    color: Palette.textSecondary,
     fontSize: 13,
     lineHeight: 18,
   },
   detailPanel: {
-    marginTop: 12,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 10,
+    backgroundColor: Palette.surface,
+    borderColor: "rgba(221, 227, 243, 0.9)",
+    borderRadius: Radius.xl,
     borderWidth: 1,
-    borderColor: "rgba(202, 213, 226, 0.7)",
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    ...Shadows.card,
   },
   detailSection: {
     marginBottom: 12,
   },
   detailSectionTitle: {
-    color: "#0F172B",
+    color: Palette.textPrimary,
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "900",
     lineHeight: 20,
     marginBottom: 4,
   },
   detailBodyText: {
-    color: "#45556C",
+    color: Palette.textSecondary,
     fontSize: 14,
     lineHeight: 20,
   },

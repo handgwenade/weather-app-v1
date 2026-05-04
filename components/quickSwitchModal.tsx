@@ -1,5 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Palette, Radius, Shadows } from "../constants/theme";
 import { formatCityState, type AppLocation } from "../data/locationStore";
 
 type QuickSwitchModalProps = {
@@ -35,7 +36,11 @@ export default function QuickSwitchModal({
           <View style={styles.modalTopRow}>
             <Text style={styles.modalTitle}>{title}</Text>
             <Pressable onPress={onClose}>
-              <Ionicons name="close-outline" size={24} color="#ffffff" />
+              <Ionicons
+                name="close-outline"
+                size={26}
+                color={Palette.textOnDark}
+              />
             </Pressable>
           </View>
 
@@ -74,7 +79,7 @@ export default function QuickSwitchModal({
                       <Ionicons
                         name="chevron-forward-outline"
                         size={18}
-                        color="#8fa3c2"
+                        color={Palette.textMuted}
                       />
                     </View>
                   )}
@@ -87,7 +92,11 @@ export default function QuickSwitchModal({
             style={styles.modalManageButton}
             onPress={onManageLocations}
           >
-            <Ionicons name="location-outline" size={18} color="#EAF4FF" />
+            <Ionicons
+              name="location-outline"
+              size={20}
+              color={Palette.textOnDark}
+            />
             <Text style={styles.modalManageButtonText}>Manage Locations</Text>
           </Pressable>
         </View>
@@ -99,91 +108,113 @@ export default function QuickSwitchModal({
 const styles = StyleSheet.create({
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(5, 10, 20, 0.68)",
+    backgroundColor: "rgba(16, 20, 46, 0.52)",
+    alignItems: "center",
     justifyContent: "center",
-    padding: 20,
+    paddingHorizontal: 20,
   },
   modalCard: {
-    backgroundColor: "#10203F",
-    borderRadius: 24,
-    padding: 20,
+    width: "100%",
+    maxWidth: 390,
+    borderRadius: Radius.xl,
+    backgroundColor: Palette.midnight,
     borderWidth: 1,
-    borderColor: "rgba(190, 210, 235, 0.16)",
+    borderColor: "rgba(72, 199, 244, 0.18)",
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 22,
+    ...Shadows.soft,
   },
   modalTopRow: {
     flexDirection: "row",
+    alignItems: "flex-start",
     justifyContent: "space-between",
-    alignItems: "center",
+    gap: 16,
   },
   modalTitle: {
-    color: "#ffffff",
-    fontSize: 22,
-    fontWeight: "600",
+    flex: 1,
+    color: Palette.textOnDark,
+    fontSize: 26,
+    lineHeight: 34,
+    fontWeight: "900",
+    letterSpacing: -0.75,
   },
   modalSubtext: {
-    color: "#b8c6e0",
-    fontSize: 15,
-    lineHeight: 22,
+    color: "rgba(255, 255, 255, 0.74)",
+    fontSize: 16,
+    lineHeight: 24,
     marginTop: 8,
-    marginBottom: 16,
+    marginBottom: 18,
   },
   modalList: {
     gap: 10,
-    marginBottom: 16,
+    marginBottom: 18,
   },
   modalLocationRow: {
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    borderColor: "rgba(190, 210, 235, 0.16)",
+    minHeight: 74,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderRadius: 16,
-    padding: 14,
+    borderColor: "rgba(255, 255, 255, 0.11)",
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 10,
+    gap: 12,
   },
   modalLocationRowActive: {
-    backgroundColor: "rgba(125, 181, 255, 0.14)",
-    borderColor: "rgba(160, 205, 255, 0.28)",
+    borderColor: "rgba(72, 199, 244, 0.35)",
+    backgroundColor: "rgba(72, 199, 244, 0.12)",
   },
   modalLocationTextBlock: {
     flex: 1,
   },
   modalLocationTitle: {
-    color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 4,
+    color: Palette.textOnDark,
+    fontSize: 17,
+    lineHeight: 24,
+    fontWeight: "900",
+    letterSpacing: -0.25,
+    marginBottom: 2,
   },
   modalLocationText: {
-    color: "#C9D8EF",
+    color: "rgba(255, 255, 255, 0.68)",
     fontSize: 14,
+    lineHeight: 20,
   },
   modalCurrentBadge: {
-    backgroundColor: "rgba(110, 160, 220, 0.22)",
-    borderColor: "rgba(160, 205, 255, 0.30)",
+    minHeight: 32,
+    borderRadius: Radius.pill,
     borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    borderColor: "rgba(72, 199, 244, 0.35)",
+    backgroundColor: "rgba(72, 199, 244, 0.15)",
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
   modalCurrentBadgeText: {
-    color: "#EAF4FF",
-    fontSize: 12,
-    fontWeight: "600",
+    color: Palette.textOnDark,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "900",
   },
   modalSelectButton: {
     width: 32,
     height: 32,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.11)",
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
     alignItems: "center",
     justifyContent: "center",
   },
   modalManageButton: {
-    backgroundColor: "rgba(125, 181, 255, 0.22)",
-    borderColor: "rgba(160, 205, 255, 0.34)",
+    minHeight: 52,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderRadius: 16,
-    paddingVertical: 14,
+    borderColor: "rgba(72, 199, 244, 0.35)",
+    backgroundColor: "rgba(72, 199, 244, 0.14)",
     paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
@@ -191,8 +222,10 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   modalManageButtonText: {
-    color: "#EAF4FF",
+    color: Palette.textOnDark,
     fontSize: 16,
-    fontWeight: "600",
+    lineHeight: 22,
+    fontWeight: "900",
+    letterSpacing: -0.25,
   },
 });

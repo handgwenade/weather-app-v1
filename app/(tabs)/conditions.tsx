@@ -1,4 +1,5 @@
 import QuickSwitchModal from "@/components/quickSwitchModal";
+import { Palette, Radius, Shadows } from "@/constants/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -101,7 +102,7 @@ function ConditionsScreenV2({
               style={styles.locationButton}
             >
               <Text style={styles.locationTitle}>{locationName}</Text>
-              <Ionicons name="chevron-down" size={18} color="#0F172B" />
+              <Ionicons name="chevron-down" size={18} color={Palette.primary} />
             </Pressable>
             <Pressable
               accessibilityLabel="Open settings"
@@ -109,7 +110,11 @@ function ConditionsScreenV2({
               onPress={onPressSettings}
               style={styles.iconButton}
             >
-              <Ionicons name="settings-outline" size={22} color="#475569" />
+              <Ionicons
+                name="settings-outline"
+                size={22}
+                color={Palette.primary}
+              />
             </Pressable>
           </View>
           <Text style={styles.updatedText}>{updatedLabel}</Text>
@@ -364,7 +369,7 @@ function buildPrecipChartCard(points: HourlyChartPoint[]) {
         : `Precip probability range: ${minPrecip}%–${maxPrecip}%`,
     yAxisSuffix: "%",
     metricLabel: "Precip probability",
-    color: "#0F766E",
+    color: Palette.cyan,
   } satisfies ConditionsChartCardModel;
 }
 
@@ -541,7 +546,7 @@ function buildConditionsViewModel(params: {
         points: chartPoints,
         emptyText: "Temperature data is unavailable for the next 12 hours.",
         yAxisSuffix: "°F",
-        color: "#C2410C",
+        color: Palette.elevated,
         valueSelector: (point) => point.temperatureF,
       }),
       buildLineChartCard({
@@ -551,7 +556,7 @@ function buildConditionsViewModel(params: {
         points: chartPoints,
         emptyText: "Wind data is unavailable for the next 12 hours.",
         yAxisSuffix: " mph",
-        color: "#1D4ED8",
+        color: Palette.primary,
         valueSelector: (point) => point.windSpeedMph,
       }),
       buildPrecipChartCard(chartPoints),
@@ -671,31 +676,32 @@ function ConditionsChartCard({
   chartWidth: number;
 }) {
   const chartConfig = {
-    backgroundColor: "#FFFFFF",
-    backgroundGradientFrom: "#FFFFFF",
-    backgroundGradientTo: "#FFFFFF",
+    backgroundColor: Palette.surface,
+    backgroundGradientFrom: Palette.surface,
+    backgroundGradientTo: Palette.surface,
     decimalPlaces: 0,
     formatYLabel: (value: string) =>
       `${Math.round(Number(value) + card.valueOffset)}`,
     color: () => card.color,
-    labelColor: () => "#556274",
+    labelColor: () => Palette.textSecondary,
     fillShadowGradientFrom: card.color,
     fillShadowGradientTo: card.color,
-    fillShadowGradientFromOpacity: 0.12,
-    fillShadowGradientToOpacity: 0.12,
+    fillShadowGradientFromOpacity: 0.16,
+    fillShadowGradientToOpacity: 0.02,
     propsForBackgroundLines: {
-      stroke: "#E2E8F0",
+      stroke: "rgba(221, 227, 243, 0.75)",
       strokeWidth: 1,
     },
     propsForLabels: {
       fontSize: 10,
+      fontWeight: "700",
     },
     propsForDots: {
-      r: "3",
-      strokeWidth: "1",
-      stroke: card.color,
+      r: "3.5",
+      strokeWidth: "2",
+      stroke: Palette.surface,
     },
-    barPercentage: 0.6,
+    barPercentage: 0.62,
   };
 
   return (
@@ -788,16 +794,16 @@ export default function ConditionsScreen() {
   );
 
   async function handleQuickSwitch(locationId: string) {
-    if (!selectedLocation) {
-      setSwitchModalVisible(false);
-      return;
-    }
-
     const nextLocation = savedLocations.find(
       (location) => location.id === locationId,
     );
 
-    if (!nextLocation || nextLocation.id === selectedLocation.id) {
+    if (!nextLocation) {
+      setSwitchModalVisible(false);
+      return;
+    }
+
+    if (selectedLocation && nextLocation.id === selectedLocation.id) {
       setSwitchModalVisible(false);
       return;
     }
@@ -836,7 +842,11 @@ export default function ConditionsScreen() {
                   onPress={() => router.push("/settings")}
                   style={styles.iconButton}
                 >
-                  <Ionicons name="settings-outline" size={22} color="#475569" />
+                  <Ionicons
+                    name="settings-outline"
+                    size={22}
+                    color={Palette.primary}
+                  />
                 </Pressable>
               </View>
             </View>
@@ -882,20 +892,20 @@ export default function ConditionsScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Palette.background,
   },
   screen: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Palette.background,
   },
   topBar: {
     borderBottomWidth: 1,
-    borderBottomColor: "#CAD5E2",
+    borderBottomColor: "rgba(221, 227, 243, 0.75)",
     paddingTop: 12,
-    paddingHorizontal: 16,
-    paddingBottom: 10,
+    paddingHorizontal: 18,
+    paddingBottom: 14,
     gap: 4,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Palette.background,
   },
   topRow: {
     flexDirection: "row",
@@ -908,22 +918,26 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   locationTitle: {
-    fontSize: 18,
+    fontSize: 19,
     lineHeight: 28,
-    fontWeight: "700",
-    color: "#0F172B",
-    letterSpacing: -0.44,
+    fontWeight: "800",
+    color: Palette.textPrimary,
+    letterSpacing: -0.52,
   },
   iconButton: {
-    width: 28,
-    height: 28,
+    width: 34,
+    height: 34,
     alignItems: "center",
     justifyContent: "center",
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.primarySoft,
+    borderWidth: 1,
+    borderColor: "rgba(86, 55, 255, 0.16)",
   },
   updatedText: {
-    fontSize: 14,
+    fontSize: 13,
     lineHeight: 20,
-    color: "#62748E",
+    color: Palette.textSecondary,
     letterSpacing: -0.15,
   },
   emptyState: {
@@ -931,16 +945,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
+    backgroundColor: Palette.background,
   },
   emptyStateTitle: {
-    color: "#0F172B",
+    color: Palette.textPrimary,
     fontSize: 22,
     lineHeight: 30,
-    fontWeight: "700",
+    fontWeight: "900",
+    letterSpacing: -0.55,
     textAlign: "center",
   },
   emptyStateBody: {
-    color: "#556274",
+    color: Palette.textSecondary,
     fontSize: 15,
     lineHeight: 22,
     textAlign: "center",
@@ -948,53 +964,61 @@ const styles = StyleSheet.create({
     maxWidth: 280,
   },
   emptyStateButton: {
-    minHeight: 44,
-    borderRadius: 12,
-    backgroundColor: "#2E6FC7",
-    paddingHorizontal: 18,
+    minHeight: 48,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.primary,
+    borderWidth: 1,
+    borderColor: "rgba(86, 55, 255, 0.2)",
+    paddingHorizontal: 20,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 20,
+    marginTop: 22,
+    ...Shadows.soft,
   },
   emptyStateButtonText: {
-    color: "#FFFFFF",
+    color: Palette.textOnDark,
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "900",
     lineHeight: 20,
   },
   content: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 24,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 32,
     gap: 16,
   },
   summaryCard: {
     borderWidth: 1,
-    borderColor: "#CAD5E2",
-    borderRadius: 10,
-    backgroundColor: "#F8FAFC",
-    paddingHorizontal: 13,
-    paddingVertical: 13,
+    borderColor: "rgba(86, 55, 255, 0.16)",
+    borderRadius: Radius.xl,
+    backgroundColor: Palette.primarySoft,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    ...Shadows.soft,
   },
   summaryText: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: "#314158",
-    letterSpacing: -0.15,
+    fontSize: 16,
+    lineHeight: 24,
+    color: Palette.midnight,
+    fontWeight: "800",
+    letterSpacing: -0.3,
   },
   sectionCard: {
     borderWidth: 1,
-    borderColor: "#CAD5E2",
-    borderRadius: 10,
-    backgroundColor: "#FFFFFF",
-    padding: 16,
+    borderColor: "rgba(221, 227, 243, 0.9)",
+    borderRadius: Radius.xl,
+    backgroundColor: Palette.surface,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 16,
     gap: 12,
+    ...Shadows.card,
   },
   cardTitle: {
     fontSize: 18,
     lineHeight: 27,
-    fontWeight: "700",
-    color: "#0F172B",
+    fontWeight: "900",
+    color: Palette.textPrimary,
     letterSpacing: -0.44,
   },
   chartStack: {
@@ -1002,53 +1026,60 @@ const styles = StyleSheet.create({
   },
   chartCard: {
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 10,
-    backgroundColor: "#FFFFFF",
+    borderColor: "rgba(221, 227, 243, 0.85)",
+    borderRadius: Radius.lg,
+    backgroundColor: Palette.backgroundCool,
     paddingHorizontal: 12,
     paddingTop: 12,
     paddingBottom: 8,
+    overflow: "hidden",
   },
   chartTitle: {
     fontSize: 15,
     lineHeight: 22,
-    fontWeight: "700",
-    color: "#0F172B",
+    fontWeight: "900",
+    color: Palette.textPrimary,
   },
   chartNote: {
     marginTop: 4,
     fontSize: 12,
     lineHeight: 16,
-    color: "#556274",
+    color: Palette.textSecondary,
+    fontWeight: "700",
   },
   chart: {
-    marginTop: 8,
+    marginTop: 10,
     marginLeft: -14,
+    borderRadius: Radius.md,
   },
   unavailableText: {
     fontSize: 14,
     lineHeight: 20,
-    color: "#556274",
+    color: Palette.textSecondary,
+    fontWeight: "700",
   },
   takeawayCard: {
-    backgroundColor: "#1D293D",
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 14,
+    backgroundColor: Palette.midnight,
+    borderRadius: Radius.xl,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 18,
     gap: 8,
+    borderWidth: 1,
+    borderColor: "rgba(72, 199, 244, 0.22)",
+    ...Shadows.soft,
   },
   takeawayTitle: {
     fontSize: 18,
     lineHeight: 27,
-    fontWeight: "700",
-    color: "#FFFFFF",
+    fontWeight: "900",
+    color: Palette.textOnDark,
     letterSpacing: -0.44,
   },
   takeawayText: {
     fontSize: 14,
-    lineHeight: 20,
-    color: "#FFFFFF",
+    lineHeight: 21,
+    color: "rgba(255, 255, 255, 0.88)",
     letterSpacing: -0.15,
   },
 });

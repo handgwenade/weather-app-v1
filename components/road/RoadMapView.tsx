@@ -1,3 +1,4 @@
+import { Palette, Radius, Shadows } from "@/constants/theme";
 import Mapbox from "@rnmapbox/maps";
 import type { FeatureCollection, GeoJsonProperties, Geometry } from "geojson";
 import { useEffect, useState } from "react";
@@ -86,13 +87,13 @@ function assertRoadApiBaseUrl() {
 function getImpactColor(impactLevel?: string | null) {
   switch (impactLevel) {
     case "high":
-      return "#dc2626";
+      return Palette.high;
     case "moderate":
-      return "#f97316";
+      return Palette.elevated;
     case "low":
-      return "#22c55e";
+      return Palette.normal;
     default:
-      return "#64748b";
+      return Palette.textMuted;
   }
 }
 
@@ -405,7 +406,7 @@ export function RoadMapView({
             id="road-geometry-line"
             style={{
               lineCap: "round",
-              lineColor: "#22c55e",
+              lineColor: Palette.normal,
               lineJoin: "round",
               lineOpacity: 0.68,
               lineWidth: 2.6,
@@ -425,12 +426,12 @@ export function RoadMapView({
                   "match",
                   ["get", "impactLevel"],
                   "high",
-                  "#dc2626",
+                  Palette.high,
                   "moderate",
-                  "#f97316",
+                  Palette.elevated,
                   "low",
-                  "#22c55e",
-                  "#64748b",
+                  Palette.normal,
+                  Palette.textMuted,
                 ],
                 circleOpacity: 0.92,
                 circleRadius: [
@@ -443,7 +444,7 @@ export function RoadMapView({
                   7,
                   4.5,
                 ],
-                circleStrokeColor: "#ffffff",
+                circleStrokeColor: Palette.surface,
                 circleStrokeWidth: [
                   "case",
                   [
@@ -522,36 +523,40 @@ export function RoadMapView({
 
 const styles = StyleSheet.create({
   mapWrap: {
-    borderColor: "#bbf7d0",
-    borderRadius: 24,
+    borderColor: "rgba(221, 227, 243, 0.9)",
+    borderRadius: Radius.xl,
     borderWidth: 1,
     height: 430,
     overflow: "hidden",
     position: "relative",
+    ...Shadows.card,
   },
   map: {
     flex: 1,
   },
   segmentPill: {
-    backgroundColor: "rgba(255, 255, 255, 0.94)",
-    borderColor: "rgba(202, 213, 226, 0.9)",
+    backgroundColor: "rgba(255, 255, 255, 0.96)",
+    borderColor: "rgba(221, 227, 243, 0.92)",
     borderLeftWidth: 6,
-    borderRadius: 16,
+    borderRadius: Radius.lg,
     borderWidth: 1,
     bottom: 16,
     left: 14,
+    maxHeight: 210,
+    minHeight: 156,
     paddingLeft: 14,
     paddingRight: 46,
     paddingVertical: 10,
     position: "absolute",
     right: 14,
-    minHeight: 156,
-    maxHeight: 210,
+    ...Shadows.card,
   },
   segmentPillCloseButton: {
     alignItems: "center",
-    backgroundColor: "#f1f5f9",
-    borderRadius: 999,
+    backgroundColor: Palette.primarySoft,
+    borderColor: "rgba(86, 55, 255, 0.16)",
+    borderRadius: Radius.pill,
+    borderWidth: 1,
     height: 28,
     justifyContent: "center",
     position: "absolute",
@@ -560,9 +565,9 @@ const styles = StyleSheet.create({
     width: 28,
   },
   segmentPillCloseText: {
-    color: "#334155",
+    color: Palette.primary,
     fontSize: 20,
-    fontWeight: "800",
+    fontWeight: "900",
     lineHeight: 22,
     marginTop: -2,
   },
@@ -572,32 +577,35 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   segmentPillImpactDot: {
-    borderRadius: 999,
-    height: 12,
-    width: 12,
+    borderColor: Palette.surface,
+    borderRadius: Radius.pill,
+    borderWidth: 2,
+    height: 14,
+    width: 14,
   },
   segmentPillTitle: {
-    color: "#0f172a",
+    color: Palette.textPrimary,
     fontSize: 15,
-    fontWeight: "800",
+    fontWeight: "900",
+    letterSpacing: -0.2,
   },
   segmentPillBody: {
-    color: "#334155",
+    color: Palette.midnight,
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "800",
     lineHeight: 18,
     marginTop: 2,
   },
   segmentPillSectionLabel: {
-    color: "#475569",
+    color: Palette.primary,
     fontSize: 10,
     fontWeight: "900",
-    letterSpacing: 0.4,
+    letterSpacing: 0.45,
     marginTop: 8,
     textTransform: "uppercase",
   },
   segmentPillMeta: {
-    color: "#64748b",
+    color: Palette.textSecondary,
     fontSize: 12,
     fontWeight: "700",
     lineHeight: 17,
@@ -605,23 +613,24 @@ const styles = StyleSheet.create({
   },
   fallbackPanel: {
     alignItems: "center",
-    backgroundColor: "#ecfdf5",
-    borderColor: "#bbf7d0",
-    borderRadius: 24,
+    backgroundColor: Palette.primarySoft,
+    borderColor: "rgba(86, 55, 255, 0.16)",
+    borderRadius: Radius.xl,
     borderWidth: 1,
     gap: 10,
     height: 430,
     justifyContent: "center",
     padding: 20,
+    ...Shadows.card,
   },
   fallbackTitle: {
-    color: "#0f172a",
+    color: Palette.textPrimary,
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: "900",
     textAlign: "center",
   },
   fallbackBody: {
-    color: "#475569",
+    color: Palette.textSecondary,
     fontSize: 14,
     lineHeight: 20,
     textAlign: "center",

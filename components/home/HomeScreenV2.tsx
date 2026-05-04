@@ -1,9 +1,10 @@
+import { Palette, Radius, Shadows } from "@/constants/theme";
+import { useScrollToTopOnFocus } from "@/hooks/useScrollToTopOnFocus";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { ComponentProps } from "react";
 import { useRef } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useScrollToTopOnFocus } from "@/hooks/useScrollToTopOnFocus";
 
 export type HomeIconName = ComponentProps<typeof Ionicons>["name"];
 
@@ -67,27 +68,27 @@ function getStatusChipStyle(tone: Tone) {
   switch (tone) {
     case "alert":
       return {
-        backgroundColor: "#FEE2E2",
-        borderColor: "#FCA5A5",
-        textColor: "#991B1B",
+        backgroundColor: "#FCE7F0",
+        borderColor: "#F5A3BD",
+        textColor: Palette.high,
       };
     case "warning":
       return {
-        backgroundColor: "#FEF3C7",
-        borderColor: "#FCD34D",
-        textColor: "#92400E",
+        backgroundColor: "#FFF7D6",
+        borderColor: Palette.caution,
+        textColor: "#8A4B00",
       };
     case "neutral":
       return {
-        backgroundColor: "#E2E8F0",
-        borderColor: "#CBD5E1",
-        textColor: "#334155",
+        backgroundColor: Palette.surfaceSoft,
+        borderColor: Palette.border,
+        textColor: Palette.midnight,
       };
     default:
       return {
-        backgroundColor: "#DCFCE7",
-        borderColor: "#86EFAC",
-        textColor: "#166534",
+        backgroundColor: "#DFFBEF",
+        borderColor: "#8EF0C2",
+        textColor: "#087A4A",
       };
   }
 }
@@ -123,11 +124,19 @@ export default function HomeScreenV2({
             <Text style={styles.topTitle} numberOfLines={1}>
               {topTitle}
             </Text>
-            <Ionicons name="chevron-down-outline" size={18} color="#0F172B" />
+            <Ionicons
+              name="chevron-down-outline"
+              size={18}
+              color={Palette.primary}
+            />
           </Pressable>
 
           <Pressable style={styles.settingsButton} onPress={onPressSettings}>
-            <Ionicons name="settings-outline" size={24} color="#2F5DA8" />
+            <Ionicons
+              name="settings-outline"
+              size={22}
+              color={Palette.primary}
+            />
           </Pressable>
         </View>
 
@@ -227,7 +236,7 @@ export default function HomeScreenV2({
               <Ionicons
                 name="arrow-forward-outline"
                 size={20}
-                color="#3B82F6"
+                color={Palette.primary}
               />
             </Pressable>
 
@@ -290,15 +299,15 @@ export default function HomeScreenV2({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Palette.background,
   },
   topBar: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Palette.background,
     borderBottomWidth: 1,
-    borderBottomColor: "#CAD5E2",
-    paddingHorizontal: 16,
+    borderBottomColor: "rgba(221, 227, 243, 0.75)",
+    paddingHorizontal: 18,
     paddingTop: 12,
-    paddingBottom: 13,
+    paddingBottom: 14,
     gap: 4,
   },
   topBarRow: {
@@ -314,55 +323,60 @@ const styles = StyleSheet.create({
     maxWidth: "82%",
   },
   topTitle: {
-    color: "#0F172B",
-    fontSize: 18,
-    fontWeight: "700",
+    color: Palette.textPrimary,
+    fontSize: 19,
+    fontWeight: "800",
     lineHeight: 28,
-    letterSpacing: -0.44,
+    letterSpacing: -0.52,
   },
   settingsButton: {
-    width: 28,
-    height: 28,
+    width: 34,
+    height: 34,
     alignItems: "center",
     justifyContent: "center",
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.primarySoft,
+    borderWidth: 1,
+    borderColor: "rgba(86, 55, 255, 0.16)",
   },
   updatedText: {
-    color: "#62748E",
-    fontSize: 14,
+    color: Palette.textSecondary,
+    fontSize: 13,
     lineHeight: 20,
     letterSpacing: -0.15,
   },
   scrollView: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Palette.background,
   },
   content: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 28,
-    gap: 16,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 32,
+    gap: 18,
   },
   card: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Palette.surface,
     borderWidth: 1,
-    borderColor: "rgba(202, 213, 226, 0.4)",
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    borderColor: "rgba(221, 227, 243, 0.85)",
+    borderRadius: Radius.xl,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    ...Shadows.card,
   },
   bannerTitle: {
-    color: "#0F172B",
-    fontSize: 20,
-    fontWeight: "700",
-    lineHeight: 28,
-    letterSpacing: -0.45,
+    color: Palette.textPrimary,
+    fontSize: 24,
+    fontWeight: "900",
+    lineHeight: 31,
+    letterSpacing: -0.75,
   },
   bannerSubtitle: {
-    color: "#45556C",
-    fontSize: 16,
-    lineHeight: 24,
-    letterSpacing: -0.31,
-    marginTop: 4,
+    color: Palette.textSecondary,
+    fontSize: 15,
+    lineHeight: 23,
+    letterSpacing: -0.25,
+    marginTop: 6,
   },
   bannerActions: {
     flexDirection: "row",
@@ -383,10 +397,10 @@ const styles = StyleSheet.create({
     letterSpacing: -0.15,
   },
   darkChip: {
-    minHeight: 32,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: "#1D293D",
+    minHeight: 34,
+    paddingHorizontal: 14,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.midnight,
     justifyContent: "center",
   },
   darkChipText: {
@@ -397,10 +411,10 @@ const styles = StyleSheet.create({
     letterSpacing: -0.15,
   },
   metricsCard: {
-    backgroundColor: "#F8FAFC",
+    backgroundColor: Palette.surfaceRaised,
     borderWidth: 1,
-    borderColor: "rgba(202, 213, 226, 0.4)",
-    borderRadius: 10,
+    borderColor: "rgba(221, 227, 243, 0.9)",
+    borderRadius: Radius.lg,
     paddingHorizontal: 16,
     paddingVertical: 16,
   },
@@ -415,23 +429,26 @@ const styles = StyleSheet.create({
     minHeight: 40,
   },
   metricLabel: {
-    color: "#62748E",
+    color: Palette.textSecondary,
     fontSize: 12,
     lineHeight: 16,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.35,
   },
   metricValue: {
-    color: "#0F172B",
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: "700",
-    letterSpacing: -0.31,
-    marginTop: 1,
+    color: Palette.textPrimary,
+    fontSize: 17,
+    lineHeight: 25,
+    fontWeight: "800",
+    letterSpacing: -0.35,
+    marginTop: 2,
   },
   sectionCardTitle: {
-    color: "#0F172B",
+    color: Palette.textPrimary,
     fontSize: 18,
     lineHeight: 27,
-    fontWeight: "700",
+    fontWeight: "800",
     letterSpacing: -0.44,
     marginBottom: 12,
   },
@@ -444,26 +461,31 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     alignItems: "center",
+    backgroundColor: Palette.backgroundCool,
+    borderRadius: Radius.md,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
   },
   outlookTime: {
-    color: "#62748E",
-    fontSize: 12,
-    lineHeight: 16,
+    color: Palette.textSecondary,
+    fontSize: 11,
+    lineHeight: 15,
     textAlign: "center",
+    fontWeight: "700",
   },
   outlookTemp: {
-    color: "#0F172B",
-    fontSize: 16,
+    color: Palette.primary,
+    fontSize: 17,
     lineHeight: 24,
-    fontWeight: "700",
+    fontWeight: "900",
     letterSpacing: -0.31,
     textAlign: "center",
     marginTop: 4,
   },
   outlookCondition: {
-    color: "#45556C",
-    fontSize: 12,
-    lineHeight: 16,
+    color: Palette.textSecondary,
+    fontSize: 11,
+    lineHeight: 15,
     textAlign: "center",
     marginTop: 4,
     width: "100%",
@@ -472,49 +494,46 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   sectionHeading: {
-    color: "#0F172B",
+    color: Palette.textPrimary,
     fontSize: 18,
     lineHeight: 27,
-    fontWeight: "700",
+    fontWeight: "800",
     letterSpacing: -0.44,
   },
   monitoringCard: {
-    backgroundColor: "#E3F4EA",
+    backgroundColor: Palette.primarySoft,
     borderWidth: 1,
-    borderColor: "rgba(202, 213, 226, 0.4)",
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    minHeight: 92,
+    borderColor: "rgba(86, 55, 255, 0.16)",
+    borderRadius: Radius.xl,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    minHeight: 104,
+    ...Shadows.soft,
   },
   monitoringTitle: {
-    color: "#0F172B",
-    fontSize: 18,
-    lineHeight: 27,
-    fontWeight: "700",
-    letterSpacing: -0.44,
+    color: Palette.midnight,
+    fontSize: 19,
+    lineHeight: 28,
+    fontWeight: "900",
+    letterSpacing: -0.5,
   },
   monitoringBody: {
-    color: "#314158",
+    color: Palette.textSecondary,
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 21,
     letterSpacing: -0.15,
-    marginTop: 4,
-    maxWidth: "88%",
+    marginTop: 6,
+    maxWidth: "92%",
   },
   locationCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Palette.surface,
     borderWidth: 1,
-    borderColor: "rgba(212, 212, 212, 0.4)",
-    borderRadius: 16,
+    borderColor: "rgba(221, 227, 243, 0.9)",
+    borderRadius: Radius.xl,
     paddingHorizontal: 20,
     paddingTop: 18,
     paddingBottom: 16,
-    shadowColor: "#000000",
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 1,
+    ...Shadows.card,
   },
   locationCardHeader: {
     flexDirection: "row",
@@ -523,11 +542,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   locationCardTitle: {
-    color: "#1C304F",
-    fontSize: 18,
-    lineHeight: 27,
-    fontWeight: "700",
-    letterSpacing: -0.44,
+    color: Palette.textPrimary,
+    fontSize: 19,
+    lineHeight: 28,
+    fontWeight: "900",
+    letterSpacing: -0.5,
   },
   bulletsList: {
     gap: 6,
@@ -540,15 +559,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   bulletDot: {
-    color: "#A1A1A1",
-    fontSize: 14,
+    color: Palette.primary,
+    fontSize: 16,
     lineHeight: 20,
     marginTop: -1,
   },
   bulletText: {
     flex: 1,
-    color: "rgba(28, 48, 79, 0.7)",
-    fontSize: 12,
+    color: Palette.textSecondary,
+    fontSize: 13,
     lineHeight: 20,
     letterSpacing: -0.15,
   },
@@ -572,47 +591,48 @@ const styles = StyleSheet.create({
     letterSpacing: -0.15,
   },
   impactText: {
-    color: "#59595B",
+    color: Palette.textSecondary,
     fontSize: 12,
     lineHeight: 20,
     letterSpacing: -0.15,
   },
   buttonRow: {
     flexDirection: "row",
-    gap: 8,
+    gap: 10,
   },
   primaryButton: {
     flex: 1,
-    height: 46,
-    borderRadius: 30,
-    backgroundColor: "#2F7FD8",
+    height: 48,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.primary,
     borderWidth: 1,
-    borderColor: "#CAD5E2",
+    borderColor: "rgba(86, 55, 255, 0.2)",
     alignItems: "center",
     justifyContent: "center",
+    ...Shadows.soft,
   },
   primaryButtonText: {
-    color: "#FFFFFF",
+    color: Palette.textOnDark,
     fontSize: 14,
     lineHeight: 20,
-    fontWeight: "500",
+    fontWeight: "800",
     letterSpacing: -0.15,
   },
   secondaryButton: {
     flex: 1,
-    height: 46,
-    borderRadius: 27,
-    backgroundColor: "#F1F5F9",
+    height: 48,
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.surface,
     borderWidth: 1,
-    borderColor: "#CAD5E2",
+    borderColor: Palette.border,
     alignItems: "center",
     justifyContent: "center",
   },
   secondaryButtonText: {
-    color: "#0F172B",
+    color: Palette.primary,
     fontSize: 14,
     lineHeight: 20,
-    fontWeight: "500",
+    fontWeight: "800",
     letterSpacing: -0.15,
   },
 });

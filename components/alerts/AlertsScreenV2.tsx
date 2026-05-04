@@ -1,8 +1,9 @@
+import { Palette, Radius, Shadows } from "@/constants/theme";
+import { useScrollToTopOnFocus } from "@/hooks/useScrollToTopOnFocus";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRef } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useScrollToTopOnFocus } from "@/hooks/useScrollToTopOnFocus";
 
 export type AlertTone = "warning" | "advisory" | "watch" | "neutral";
 
@@ -31,27 +32,27 @@ function getBadgeStyle(tone: AlertTone) {
   switch (tone) {
     case "warning":
       return {
-        backgroundColor: "#FFE2E2",
-        borderColor: "#FFA2A2",
-        textColor: "#82181A",
+        backgroundColor: "#FCE7F0",
+        borderColor: "#F5A3BD",
+        textColor: Palette.high,
       };
     case "advisory":
       return {
-        backgroundColor: "#FEF9C2",
-        borderColor: "#FFDF20",
-        textColor: "#733E0A",
+        backgroundColor: "#FFF7D6",
+        borderColor: Palette.caution,
+        textColor: "#8A4B00",
       };
     case "watch":
       return {
-        backgroundColor: "#DBEAFE",
-        borderColor: "#93C5FD",
-        textColor: "#1D4ED8",
+        backgroundColor: Palette.primarySoft,
+        borderColor: "rgba(86, 55, 255, 0.18)",
+        textColor: Palette.primary,
       };
     default:
       return {
-        backgroundColor: "#F1F5F9",
-        borderColor: "#CAD5E2",
-        textColor: "#45556C",
+        backgroundColor: Palette.surfaceSoft,
+        borderColor: Palette.border,
+        textColor: Palette.midnight,
       };
   }
 }
@@ -78,7 +79,11 @@ export default function AlertsScreenV2({
           </View>
 
           <Pressable style={styles.settingsButton} onPress={onPressSettings}>
-            <Ionicons name="settings-outline" size={24} color="#2F5DA8" />
+            <Ionicons
+              name="settings-outline"
+              size={22}
+              color={Palette.primary}
+            />
           </Pressable>
         </View>
       </View>
@@ -160,15 +165,15 @@ export default function AlertsScreenV2({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Palette.background,
   },
   topBar: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Palette.background,
     borderBottomWidth: 1,
-    borderBottomColor: "#CAD5E2",
-    paddingHorizontal: 16,
+    borderBottomColor: "rgba(221, 227, 243, 0.75)",
+    paddingHorizontal: 18,
     paddingTop: 12,
-    paddingBottom: 12,
+    paddingBottom: 14,
   },
   topBarRow: {
     minHeight: 48,
@@ -181,43 +186,48 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   screenTitle: {
-    color: "#0F172B",
-    fontSize: 20,
-    fontWeight: "700",
-    lineHeight: 28,
-    letterSpacing: -0.45,
+    color: Palette.textPrimary,
+    fontSize: 24,
+    fontWeight: "900",
+    lineHeight: 31,
+    letterSpacing: -0.75,
   },
   screenSubtitle: {
-    color: "#45556C",
-    fontSize: 14,
-    lineHeight: 20,
-    letterSpacing: -0.15,
+    color: Palette.textSecondary,
+    fontSize: 15,
+    lineHeight: 22,
+    letterSpacing: -0.2,
     marginTop: 0,
   },
   settingsButton: {
-    width: 28,
-    height: 28,
+    width: 34,
+    height: 34,
     alignItems: "center",
     justifyContent: "center",
+    borderRadius: Radius.pill,
+    backgroundColor: Palette.primarySoft,
+    borderWidth: 1,
+    borderColor: "rgba(86, 55, 255, 0.16)",
   },
   scrollView: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Palette.background,
   },
   content: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 24,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 32,
     gap: 16,
   },
   alertCard: {
-    backgroundColor: "#FFFFFF",
-    borderWidth: 2,
-    borderColor: "#CAD5E2",
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 14,
+    backgroundColor: Palette.surface,
+    borderWidth: 1,
+    borderColor: "rgba(221, 227, 243, 0.9)",
+    borderRadius: Radius.xl,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 16,
+    ...Shadows.card,
   },
   alertCardHeader: {
     flexDirection: "row",
@@ -228,27 +238,27 @@ const styles = StyleSheet.create({
   },
   badge: {
     alignSelf: "flex-start",
-    minHeight: 26,
+    minHeight: 28,
     borderWidth: 1,
-    borderRadius: 4,
-    paddingHorizontal: 9,
+    borderRadius: Radius.pill,
+    paddingHorizontal: 11,
     justifyContent: "center",
-    marginBottom: 8,
+    marginBottom: 10,
   },
   badgeText: {
     fontSize: 12,
     lineHeight: 16,
-    fontWeight: "700",
+    fontWeight: "900",
   },
   alertTitle: {
-    color: "#0F172B",
-    fontSize: 18,
-    fontWeight: "700",
-    lineHeight: 27,
-    letterSpacing: -0.44,
+    color: Palette.textPrimary,
+    fontSize: 19,
+    fontWeight: "900",
+    lineHeight: 28,
+    letterSpacing: -0.5,
   },
   alertArea: {
-    color: "#45556C",
+    color: Palette.textSecondary,
     fontSize: 14,
     lineHeight: 20,
     letterSpacing: -0.15,
@@ -256,29 +266,38 @@ const styles = StyleSheet.create({
   },
   timeRow: {
     flexDirection: "row",
-    gap: 18,
+    gap: 10,
     marginTop: 16,
   },
   timeCell: {
     flex: 1,
+    backgroundColor: Palette.backgroundCool,
+    borderWidth: 1,
+    borderColor: "rgba(221, 227, 243, 0.8)",
+    borderRadius: Radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   timeLabel: {
-    color: "#62748E",
-    fontSize: 12,
-    lineHeight: 16,
+    color: Palette.textSecondary,
+    fontSize: 11,
+    fontWeight: "800",
+    lineHeight: 15,
+    textTransform: "uppercase",
+    letterSpacing: 0.35,
   },
   timeValue: {
-    color: "#0F172B",
+    color: Palette.textPrimary,
     fontSize: 14,
     lineHeight: 20,
     letterSpacing: -0.15,
-    fontWeight: "500",
-    marginTop: 0,
+    fontWeight: "800",
+    marginTop: 2,
   },
   summaryText: {
-    color: "#314158",
+    color: Palette.textSecondary,
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 21,
     letterSpacing: -0.15,
     marginTop: 16,
   },
@@ -289,29 +308,31 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   sourceLabel: {
-    color: "#62748E",
+    color: Palette.textSecondary,
     fontSize: 12,
+    fontWeight: "800",
     lineHeight: 16,
   },
   sourceValue: {
-    color: "#314158",
+    color: Palette.midnight,
     fontSize: 12,
     lineHeight: 16,
-    fontWeight: "500",
+    fontWeight: "800",
   },
   infoCard: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: Palette.primarySoft,
     borderWidth: 1,
-    borderColor: "#BEDBFF",
-    borderRadius: 10,
-    paddingHorizontal: 13,
-    paddingTop: 13,
-    paddingBottom: 12,
+    borderColor: "rgba(86, 55, 255, 0.16)",
+    borderRadius: Radius.xl,
+    paddingHorizontal: 16,
+    paddingTop: 15,
+    paddingBottom: 14,
   },
   infoText: {
-    color: "#1C398E",
+    color: Palette.midnight,
     fontSize: 14,
-    lineHeight: 20,
+    fontWeight: "700",
+    lineHeight: 21,
     letterSpacing: -0.15,
   },
 });
