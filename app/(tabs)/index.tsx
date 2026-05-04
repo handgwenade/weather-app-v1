@@ -1096,13 +1096,10 @@ function useHomeScreenData(
 
       const resolvedRoadReport =
         roadResult.status === "fulfilled" ? roadResult.value : null;
-      let reusedWeatherSnapshot = false;
-      let promotedCombinedWeatherToScreenState = false;
-      let weatherRejectedReason: string | null = null;
       let resolvedHourlyEntriesForPropertyRisk = latestHourlyForecast;
 
       if (hasFreshHomeWeatherSnapshot) {
-        reusedWeatherSnapshot = true;
+        // Reuse the current in-memory weather snapshot for this location.
       } else if (weatherResult.status === "fulfilled" && weatherResult.value) {
         const values = weatherResult.value.currentWeather.data.values;
         const temperatureF =
@@ -1171,14 +1168,7 @@ function useHomeScreenData(
         setHourlyForecast(hourlyEntries);
         setWeatherSnapshotLocationKey(selectedLocationWeatherKey);
         setLastSuccessfulHomeWeatherFetchAtMs(Date.now());
-        promotedCombinedWeatherToScreenState = true;
       } else {
-        weatherRejectedReason =
-          weatherResult.status === "rejected"
-            ? weatherResult.reason instanceof Error
-              ? weatherResult.reason.message
-              : String(weatherResult.reason)
-            : "Combined weather response was empty";
         const fallbackLabel = formatClockLabel(new Date());
         const fallbackWeatherState = buildHomeWeatherSnapshotFromRoadReport(
           resolvedRoadReport,
@@ -1194,7 +1184,6 @@ function useHomeScreenData(
             refreshFallbackLabel:
               latestCurrentWeather.refreshFallbackLabel ?? fallbackLabel,
           });
-          reusedWeatherSnapshot = true;
         } else if (fallbackWeatherState) {
           setCurrentWeather(fallbackWeatherState);
           setHourlyForecast([]);
@@ -1420,7 +1409,6 @@ export default function HomeScreen() {
     topTitle,
   ]);
 
-  // Removed useEffect logging derived screen state
   const outlookItems = useMemo<HomeOutlookItem[]>(
     () =>
       buildOutlookItems({
