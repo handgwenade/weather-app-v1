@@ -9,7 +9,6 @@ import HomeScreenV2, {
   type HomeLocationCard,
   type HomeMetric,
   type HomeMonitoringCard,
-  type HomeOutlookItem,
   type HomeStatusBanner,
 } from "@/components/home/HomeScreenV2";
 import QuickSwitchModal from "@/components/quickSwitchModal";
@@ -20,9 +19,19 @@ import {
   useSavedLocations,
   useSelectedLocation,
 } from "@/data/locationStore";
-import { getSharedCurrentAndHourlyWeather } from "@/data/weatherStore";
+import {
+  getCachedHomeInitialWeather,
+  getCachedHourlyForecast,
+  getSharedForecast,
+  getSharedHomeInitialWeather,
+  getSharedHourlyForecast,
+  hydrateCachedHomeWeather,
+} from "@/data/weatherStore";
 import { getActiveAlertsForLocation } from "@/services/nws";
-import type { TomorrowHourlyForecastEntry } from "@/services/tomorrow";
+import type {
+  RoadSignalHomeInitialResponse,
+  TomorrowHourlyForecastEntry,
+} from "@/services/tomorrow";
 import {
   getWydotRoadReport,
   type WydotOfficialRoadStatus,
@@ -37,6 +46,13 @@ import {
   type SuggestionDecision,
   type SuggestionInput,
 } from "@/utils/suggestions";
+import {
+  getHomeCardStateLabel,
+  getRoadFallbackState,
+  getWeatherFailureState,
+  type HomeCardDataState,
+} from "@/utils/homePerformance";
+import type { RoadConditionChartPoint } from "@/utils/roadConditionChart";
 import { celsiusToFahrenheit, metersPerSecondToMph } from "@/utils/weather";
 
 function getConditionLabel(weatherCode?: number) {
@@ -118,17 +134,22 @@ function formatRoundedNumber(value?: number | null, suffix = "") {
 }
 
 type PropertyRisk = "High" | "Moderate" | "Low" | "Unavailable";
+type HomeDataState = HomeCardDataState;
 
 type HomeCurrentWeatherSnapshot = {
   hasWeatherData: boolean;
   temperatureF: number | null;
+  feelsLikeF: number | null;
   windSpeedMph: number | null;
+  windGustMph: number | null;
   precipProbability: number | null;
   humidity: number | null;
+  visibilityMi: number | null;
   weatherCode: number | null;
   conditionLabel: string;
   sourceTimestamp: string | null;
   refreshFallbackLabel: string | null;
+  dataState: HomeDataState;
 };
 
 type HomeAlertSummary = {
@@ -153,19 +174,25 @@ type UseHomeScreenDataResult = {
   propertyRisk: PropertyRisk;
   propertyForecastLowF: number | null;
   roadReport: WydotRoadReport | null;
+  hourlyState: HomeDataState;
+  roadState: HomeDataState;
   homeSuggestionsReady: boolean;
 };
 
 const INITIAL_CURRENT_WEATHER: HomeCurrentWeatherSnapshot = {
   hasWeatherData: false,
   temperatureF: null,
+  feelsLikeF: null,
   windSpeedMph: null,
+  windGustMph: null,
   precipProbability: null,
   humidity: null,
+  visibilityMi: null,
   weatherCode: null,
   conditionLabel: "Current conditions",
   sourceTimestamp: null,
   refreshFallbackLabel: null,
+  dataState: "loading",
 };
 
 const INITIAL_ALERT_SUMMARY: HomeAlertSummary = {
@@ -173,8 +200,6 @@ const INITIAL_ALERT_SUMMARY: HomeAlertSummary = {
   event: null,
   area: null,
 };
-const HOME_WEATHER_REFRESH_INTERVAL_MS = 60 * 1000;
-
 const EMPTY_HOME_WYDOT_OFFICIAL_STATUS: WydotOfficialRoadStatus = {
   hasOfficialStatus: false,
   type: "none",
@@ -195,18 +220,6 @@ function isThinHomeWeatherSnapshot(snapshot: HomeCurrentWeatherSnapshot) {
   );
 }
 
-function hasValidHomeWeatherSnapshot(
-  snapshot: HomeCurrentWeatherSnapshot,
-  hourlyEntries: TomorrowHourlyForecastEntry[],
-) {
-  return (
-    snapshot.hasWeatherData &&
-    snapshot.temperatureF !== null &&
-    snapshot.sourceTimestamp !== null &&
-    hourlyEntries.length > 0
-  );
-}
-
 function hasUsableHomeRoadObservation(report: WydotRoadReport | null) {
   const observation = report?.primaryStationObservation;
 
@@ -220,31 +233,50 @@ function hasUsableHomeRoadObservation(report: WydotRoadReport | null) {
   );
 }
 
-function buildHomeWeatherSnapshotFromRoadReport(
-  report: WydotRoadReport | null,
-  fallbackLabel: string | null,
-): HomeCurrentWeatherSnapshot | null {
-  const observation = report?.primaryStationObservation;
-
-  if (!observation || !hasUsableHomeRoadObservation(report)) {
-    return null;
-  }
-
-  const windSpeedMph = observation.windAvgMph ?? observation.windGustMph;
-
+function buildHomeWeatherSnapshotFromInitialPayload(
+  payload: RoadSignalHomeInitialResponse,
+  dataState: HomeDataState,
+): HomeCurrentWeatherSnapshot {
   return {
     hasWeatherData:
-      typeof observation.airTempF === "number" ||
-      typeof windSpeedMph === "number",
-    temperatureF: observation.airTempF,
-    windSpeedMph,
-    precipProbability: null,
-    humidity: null,
-    weatherCode: null,
-    conditionLabel: "Road station observation",
-    sourceTimestamp: observation.observedAt ?? report?.fetchedAt ?? null,
-    refreshFallbackLabel: observation.observedAt ? null : fallbackLabel,
+      typeof payload.current.currentTemp === "number" ||
+      typeof payload.current.windSpeed === "number",
+    temperatureF: payload.current.currentTemp,
+    feelsLikeF: payload.current.feelsLike,
+    windSpeedMph: payload.current.windSpeed,
+    windGustMph: payload.current.windGust,
+    precipProbability: payload.current.precipProbability,
+    humidity: payload.current.humidity,
+    visibilityMi: payload.current.visibility,
+    weatherCode: payload.current.weatherCode,
+    conditionLabel: payload.current.condition,
+    sourceTimestamp: payload.freshness.weatherUpdatedAt,
+    refreshFallbackLabel: null,
+    dataState,
   };
+}
+
+function mergeHomeWeatherSnapshot(
+  previousWeatherState: HomeCurrentWeatherSnapshot,
+  nextWeatherState: HomeCurrentWeatherSnapshot,
+) {
+  if (
+    previousWeatherState.hasWeatherData &&
+    isThinHomeWeatherSnapshot(nextWeatherState)
+  ) {
+    return {
+      ...previousWeatherState,
+      dataState:
+        previousWeatherState.dataState === "fresh"
+          ? "stale"
+          : nextWeatherState.dataState,
+      refreshFallbackLabel:
+        nextWeatherState.refreshFallbackLabel ??
+        previousWeatherState.refreshFallbackLabel,
+    };
+  }
+
+  return nextWeatherState;
 }
 
 function getHomeWeatherSnapshotKey(location: {
@@ -268,6 +300,31 @@ function formatUpdatedLabel(
     includePrefix: false,
     emptyLabel: "--",
   });
+}
+
+function getHomeMetricFreshnessLabel(params: {
+  state: HomeDataState;
+  sourceTimestamp: string | null;
+  fallbackLabel: string | null;
+}) {
+  const updatedLabel = formatUpdatedLabel(
+    params.sourceTimestamp,
+    params.fallbackLabel,
+  );
+
+  if (params.state === "loading") {
+    return "Loading";
+  }
+
+  if (params.state === "unavailable") {
+    return "Unavailable";
+  }
+
+  if (updatedLabel === "--") {
+    return getHomeCardStateLabel(params.state);
+  }
+
+  return `${getHomeCardStateLabel(params.state)} - ${updatedLabel}`;
 }
 
 function formatHourLabel(value: string) {
@@ -737,6 +794,7 @@ function buildHomeViewModel(params: {
   propertyRisk: PropertyRisk;
   propertyLocationName: string | null;
   roadReport: WydotRoadReport | null;
+  roadState: HomeDataState;
   suggestionDecision: SuggestionDecision | null;
   topTitle: string;
 }): HomeViewModel {
@@ -748,6 +806,7 @@ function buildHomeViewModel(params: {
     propertyRisk,
     propertyLocationName,
     roadReport,
+    roadState,
     suggestionDecision,
     topTitle,
   } = params;
@@ -757,6 +816,16 @@ function buildHomeViewModel(params: {
     !["None"].includes(roadReport.primarySegment.officialCondition)
       ? roadReport.primarySegment.officialCondition
       : null;
+  const weatherFreshnessLabel = getHomeMetricFreshnessLabel({
+    state: currentWeather.dataState,
+    sourceTimestamp: currentWeather.sourceTimestamp,
+    fallbackLabel: currentWeather.refreshFallbackLabel,
+  });
+  const roadFreshnessLabel = getHomeMetricFreshnessLabel({
+    state: roadState,
+    sourceTimestamp: observation?.observedAt ?? roadReport?.fetchedAt ?? null,
+    fallbackLabel: null,
+  });
   const windMetric = observation?.windDirection
     ? formatWindValue(observation.windAvgMph, observation.windDirection)
     : formatWindValue(currentWeather.windSpeedMph);
@@ -764,32 +833,75 @@ function buildHomeViewModel(params: {
     {
       label: "Air Temp",
       value: formatTemperatureValue(currentWeather.temperatureF),
+      state: currentWeather.dataState,
+      freshnessLabel: weatherFreshnessLabel,
     },
     {
       label: "Road Temp",
-      value: formatRoundedNumber(observation?.surfaceTempF, "°F"),
+      value:
+        roadState === "loading"
+          ? "--"
+          : formatRoundedNumber(observation?.surfaceTempF, "°F"),
+      state: roadState,
+      freshnessLabel: roadFreshnessLabel,
     },
-    { label: "Wind", value: windMetric },
+    {
+      label: "Wind",
+      value: windMetric,
+      state: observation ? roadState : currentWeather.dataState,
+      freshnessLabel: observation ? roadFreshnessLabel : weatherFreshnessLabel,
+    },
     {
       label: "Gusts",
-      value: formatRoundedNumber(observation?.windGustMph, " mph"),
+      value:
+        observation?.windGustMph !== undefined &&
+        observation?.windGustMph !== null
+          ? formatRoundedNumber(observation.windGustMph, " mph")
+          : formatRoundedNumber(currentWeather.windGustMph, " mph"),
+      state: observation ? roadState : currentWeather.dataState,
+      freshnessLabel: observation ? roadFreshnessLabel : weatherFreshnessLabel,
     },
     {
       label: "Precip Prob",
       value: formatPercentValue(currentWeather.precipProbability),
+      state: currentWeather.dataState,
+      freshnessLabel: weatherFreshnessLabel,
     },
-    { label: "Humidity", value: formatPercentValue(currentWeather.humidity) },
+    {
+      label: "Humidity",
+      value: formatPercentValue(currentWeather.humidity),
+      state: currentWeather.dataState,
+      freshnessLabel: weatherFreshnessLabel,
+    },
   ];
 
-  const updatedLabel = formatUpdatedLabel(
+  const baseUpdatedLabel = formatUpdatedLabel(
     currentWeather.sourceTimestamp,
     currentWeather.refreshFallbackLabel,
   );
+  const updatedLabel =
+    currentWeather.dataState === "stale" && baseUpdatedLabel !== "--"
+      ? `${baseUpdatedLabel} (cached)`
+      : baseUpdatedLabel;
 
   const nextPrecipSignal = getNextHomePrecipSignal(hourlyForecast);
 
   const statusBanner: HomeStatusBanner = (() => {
     if (!suggestionDecision?.primary) {
+      if (currentWeather.hasWeatherData) {
+        return {
+          title: currentWeather.conditionLabel,
+          subtitle:
+            roadState === "loading" || alertSummary.status === "loading"
+              ? "Road guidance and alerts are still loading."
+              : "Weather is loaded while slower guidance catches up.",
+          statusLabel: getHomeCardStateLabel(currentWeather.dataState),
+          statusTone:
+            currentWeather.dataState === "fresh" ? "good" : "neutral",
+          actionLabel: "Monitor",
+        };
+      }
+
       return {
         title: "Collecting current guidance",
         subtitle:
@@ -889,15 +1001,23 @@ function buildHomeViewModel(params: {
     bullets: bullets.slice(0, 3),
     statusLabel: suggestionDecision?.primary
       ? getSuggestionPresentation(suggestionDecision.primary).levelLabel
-      : "Unavailable",
+      : roadState === "loading"
+        ? "Loading"
+        : getHomeCardStateLabel(currentWeather.dataState),
     statusTone: suggestionDecision?.primary
       ? getSuggestionPresentation(suggestionDecision.primary).homeTone
-      : "neutral",
-    impactLabel: getHomeMonitoredImpactLabel({
-      alertSummary,
-      roadReport,
-      suggestionDecision,
-    }),
+      : currentWeather.dataState === "fresh"
+        ? "good"
+        : "neutral",
+    impactLabel: suggestionDecision?.primary
+      ? getHomeMonitoredImpactLabel({
+          alertSummary,
+          roadReport,
+          suggestionDecision,
+        })
+      : roadState === "loading"
+        ? "Checking road data"
+        : getHomeCardStateLabel(roadState),
   };
 
   return {
@@ -910,20 +1030,34 @@ function buildHomeViewModel(params: {
   };
 }
 
-function buildOutlookItems(params: {
+function buildHomeRoadHourlyPoints(params: {
   hourlyEntries: TomorrowHourlyForecastEntry[];
-}): HomeOutlookItem[] {
-  const { hourlyEntries } = params;
+  hourlyState: HomeDataState;
+  roadReport: WydotRoadReport | null;
+}): RoadConditionChartPoint[] {
+  const { hourlyEntries, hourlyState, roadReport } = params;
+  const points: RoadConditionChartPoint[] = [];
+  const observation = roadReport?.primaryStationObservation ?? null;
+  const observationTime = observation?.observedAt ?? roadReport?.fetchedAt;
 
-  if (hourlyEntries.length === 0) {
-    return [
-      {
-        id: "hourly-unavailable",
-        time: "Hourly",
-        temperature: "--",
-        condition: "Unavailable",
-      },
-    ];
+  if (
+    observation &&
+    observationTime &&
+    (typeof observation.surfaceTempF === "number" ||
+      typeof observation.airTempF === "number" ||
+      typeof observation.windAvgMph === "number" ||
+      typeof observation.windGustMph === "number")
+  ) {
+    points.push({
+      time: observationTime,
+      roadTemp: observation.surfaceTempF,
+      airTemp: observation.airTempF,
+      windSpeed: observation.windAvgMph,
+      windGust: observation.windGustMph,
+      sourceProvider: "wydot",
+      sourceStationId: observation.stationName,
+      confidence: "observed",
+    });
   }
 
   const currentHour = new Date();
@@ -942,34 +1076,44 @@ function buildOutlookItems(params: {
   const visibleEntries =
     futureOrCurrentEntries.length > 0 ? futureOrCurrentEntries : hourlyEntries;
 
-  return visibleEntries.slice(0, 6).map((entry, index) => ({
-    id: `${entry.time}-${index}`,
-    time: formatHourLabel(entry.time),
-    temperature:
-      typeof entry.values.temperature === "number"
-        ? `${Math.round(celsiusToFahrenheit(entry.values.temperature))}°`
-        : "--",
-    condition: (() => {
-      const label =
-        typeof entry.values.weatherCode === "number"
-          ? getConditionLabel(entry.values.weatherCode)
-          : "Unavailable";
-      const precipProbability =
+  visibleEntries.slice(0, 12).forEach((entry) => {
+    points.push({
+      time: entry.time,
+      precipitationProbability:
         typeof entry.values.precipitationProbability === "number"
           ? entry.values.precipitationProbability
-          : null;
+          : undefined,
+      airTemp:
+        typeof entry.values.temperature === "number"
+          ? celsiusToFahrenheit(entry.values.temperature)
+          : undefined,
+      windSpeed:
+        typeof entry.values.windSpeed === "number"
+          ? metersPerSecondToMph(entry.values.windSpeed)
+          : undefined,
+      windGust:
+        typeof entry.values.windGust === "number"
+          ? metersPerSecondToMph(entry.values.windGust)
+          : undefined,
+      weatherCode:
+        typeof entry.values.weatherCode === "number"
+          ? entry.values.weatherCode
+          : undefined,
+      sourceProvider: "tomorrow",
+      confidence: hourlyState === "stale" ? "estimated" : "forecast",
+    });
+  });
 
-      if (
-        label === "Current conditions" &&
-        typeof precipProbability === "number" &&
-        precipProbability > 0
-      ) {
-        return "Precip possible";
-      }
+  return points.sort((first, second) => {
+    const firstTime = new Date(first.time).getTime();
+    const secondTime = new Date(second.time).getTime();
 
-      return label;
-    })(),
-  }));
+    if (Number.isNaN(firstTime) || Number.isNaN(secondTime)) {
+      return 0;
+    }
+
+    return firstTime - secondTime;
+  });
 }
 
 function getHomeSuggestionRoute(code?: SuggestionCode | null) {
@@ -1009,213 +1153,246 @@ function useHomeScreenData(
     number | null
   >(null);
   const [roadReport, setRoadReport] = useState<WydotRoadReport | null>(null);
+  const [hourlyState, setHourlyState] = useState<HomeDataState>("loading");
+  const [roadState, setRoadState] = useState<HomeDataState>("loading");
   const [homeSuggestionsReady, setHomeSuggestionsReady] = useState(false);
   const [weatherSnapshotLocationKey, setWeatherSnapshotLocationKey] = useState<
     string | null
   >(null);
-  const [
-    lastSuccessfulHomeWeatherFetchAtMs,
-    setLastSuccessfulHomeWeatherFetchAtMs,
-  ] = useState<number | null>(null);
   const currentWeatherRef = useRef(currentWeather);
-  const hourlyForecastRef = useRef(hourlyForecast);
   const weatherSnapshotLocationKeyRef = useRef(weatherSnapshotLocationKey);
-  const lastSuccessfulHomeWeatherFetchAtMsRef = useRef(
-    lastSuccessfulHomeWeatherFetchAtMs,
-  );
 
   useEffect(() => {
     currentWeatherRef.current = currentWeather;
-    hourlyForecastRef.current = hourlyForecast;
     weatherSnapshotLocationKeyRef.current = weatherSnapshotLocationKey;
-    lastSuccessfulHomeWeatherFetchAtMsRef.current =
-      lastSuccessfulHomeWeatherFetchAtMs;
-  }, [
-    currentWeather,
-    hourlyForecast,
-    weatherSnapshotLocationKey,
-    lastSuccessfulHomeWeatherFetchAtMs,
-  ]);
+  }, [currentWeather, weatherSnapshotLocationKey]);
 
   useEffect(() => {
     let isActive = true;
 
-    async function loadHome() {
+    if (!selectedLocation) {
+      setCurrentWeather(INITIAL_CURRENT_WEATHER);
+      setHourlyForecast([]);
+      setHourlyState("loading");
+      setAlertSummary(INITIAL_ALERT_SUMMARY);
+      setPropertyRisk("Unavailable");
+      setPropertyForecastLowF(null);
+      setRoadReport(null);
+      setRoadState("loading");
+      setWeatherSnapshotLocationKey(null);
       setHomeSuggestionsReady(false);
+      return () => {
+        isActive = false;
+      };
+    }
 
-      if (!selectedLocation) {
-        setCurrentWeather(INITIAL_CURRENT_WEATHER);
-        setHourlyForecast([]);
-        setAlertSummary(INITIAL_ALERT_SUMMARY);
-        setPropertyRisk("Unavailable");
-        setPropertyForecastLowF(null);
-        setRoadReport(null);
-        setWeatherSnapshotLocationKey(null);
-        setLastSuccessfulHomeWeatherFetchAtMs(null);
+    const activeLocation = selectedLocation;
+    const selectedLocationWeatherKey =
+      getHomeWeatherSnapshotKey(activeLocation);
+    const latestCurrentWeather = currentWeatherRef.current;
+    const latestWeatherSnapshotLocationKey =
+      weatherSnapshotLocationKeyRef.current;
+    const hasPreviousWeatherForLocation =
+      latestWeatherSnapshotLocationKey === selectedLocationWeatherKey &&
+      latestCurrentWeather.hasWeatherData;
+    const cachedCurrent = getCachedHomeInitialWeather(activeLocation);
+    const cachedHourly = getCachedHourlyForecast(activeLocation);
+
+    setWeatherSnapshotLocationKey(selectedLocationWeatherKey);
+    setAlertSummary(INITIAL_ALERT_SUMMARY);
+    setRoadReport(null);
+    setRoadState(process.env.EXPO_OS === "web" ? "unavailable" : "loading");
+    setHomeSuggestionsReady(false);
+
+    if (cachedCurrent) {
+      setCurrentWeather(
+        buildHomeWeatherSnapshotFromInitialPayload(
+          cachedCurrent.data,
+          cachedCurrent.freshness,
+        ),
+      );
+      setHomeSuggestionsReady(true);
+    } else if (hasPreviousWeatherForLocation) {
+      setCurrentWeather({
+        ...latestCurrentWeather,
+        dataState: "stale",
+      });
+      setHomeSuggestionsReady(true);
+    } else {
+      setCurrentWeather(INITIAL_CURRENT_WEATHER);
+    }
+
+    if (cachedHourly) {
+      const hourlyEntries = cachedHourly.data.timelines?.hourly ?? [];
+      setHourlyForecast(hourlyEntries);
+      setHourlyState(cachedHourly.freshness);
+      const nextPropertyForecastLowF = sameHomeLocation(
+        propertyLocation,
+        activeLocation,
+      )
+        ? getHomeForecastLowFFromHourlyEntries(hourlyEntries)
+        : null;
+      setPropertyForecastLowF(nextPropertyForecastLowF);
+      setPropertyRisk(getHomePropertyRiskFromLowF(nextPropertyForecastLowF));
+    } else {
+      setHourlyForecast([]);
+      setHourlyState("loading");
+      setPropertyForecastLowF(null);
+      setPropertyRisk("Unavailable");
+    }
+
+    async function loadPersistedCache() {
+      const persistedCache = await hydrateCachedHomeWeather(activeLocation);
+
+      if (!isActive) {
         return;
       }
 
-      const selectedLocationWeatherKey =
-        getHomeWeatherSnapshotKey(selectedLocation);
-      const latestCurrentWeather = currentWeatherRef.current;
-      const latestHourlyForecast = hourlyForecastRef.current;
-      const latestWeatherSnapshotLocationKey =
-        weatherSnapshotLocationKeyRef.current;
-      const latestLastSuccessfulHomeWeatherFetchAtMs =
-        lastSuccessfulHomeWeatherFetchAtMsRef.current;
-      const hasValidWeatherSnapshotForLocation =
-        latestWeatherSnapshotLocationKey === selectedLocationWeatherKey &&
-        hasValidHomeWeatherSnapshot(latestCurrentWeather, latestHourlyForecast);
-      const hasFreshHomeWeatherSnapshot =
-        hasValidWeatherSnapshotForLocation &&
-        latestLastSuccessfulHomeWeatherFetchAtMs !== null &&
-        Date.now() - latestLastSuccessfulHomeWeatherFetchAtMs <
-          HOME_WEATHER_REFRESH_INTERVAL_MS;
-      const shouldFetchWeather = !hasFreshHomeWeatherSnapshot;
-
-      const roadReportRequest =
-        process.env.EXPO_OS === "web"
-          ? Promise.resolve<WydotRoadReport | null>(null)
-          : getWydotRoadReport(selectedLocation);
-
-      const [weatherResult, alertsResult, roadResult] =
-        await Promise.allSettled([
-          shouldFetchWeather
-            ? getSharedCurrentAndHourlyWeather(selectedLocation)
-            : Promise.resolve(null),
-          getActiveAlertsForLocation(
-            selectedLocation.latitude,
-            selectedLocation.longitude,
+      if (
+        persistedCache.current &&
+        currentWeatherRef.current.dataState !== "fresh"
+      ) {
+        setCurrentWeather(
+          buildHomeWeatherSnapshotFromInitialPayload(
+            persistedCache.current.data,
+            persistedCache.current.freshness,
           ),
-          roadReportRequest,
+        );
+        setHomeSuggestionsReady(true);
+      }
+
+      if (persistedCache.hourly) {
+        const hourlyEntries = persistedCache.hourly.data.timelines?.hourly ?? [];
+        const nextPropertyForecastLowF = sameHomeLocation(
+          propertyLocation,
+          activeLocation,
+        )
+          ? getHomeForecastLowFFromHourlyEntries(hourlyEntries)
+          : null;
+
+        setHourlyForecast(hourlyEntries);
+        setHourlyState(persistedCache.hourly.freshness);
+        setPropertyForecastLowF(nextPropertyForecastLowF);
+        setPropertyRisk(getHomePropertyRiskFromLowF(nextPropertyForecastLowF));
+      }
+    }
+
+    async function loadCurrentWeather() {
+      try {
+        const payload = await getSharedHomeInitialWeather(activeLocation);
+
+        if (!isActive) {
+          return;
+        }
+
+        setCurrentWeather((previousWeatherState) =>
+          mergeHomeWeatherSnapshot(
+            previousWeatherState,
+            buildHomeWeatherSnapshotFromInitialPayload(payload, "fresh"),
+          ),
+        );
+        setWeatherSnapshotLocationKey(selectedLocationWeatherKey);
+        setHomeSuggestionsReady(true);
+      } catch (error) {
+        const fallbackLabel = formatClockLabel(new Date());
+
+        console.log("[Home] Current weather request failed", {
+          reason: error instanceof Error ? error.message : String(error),
+        });
+
+        if (!isActive) {
+          return;
+        }
+
+        if (cachedCurrent) {
+          setCurrentWeather({
+            ...buildHomeWeatherSnapshotFromInitialPayload(
+              cachedCurrent.data,
+              getWeatherFailureState({ hasLastKnownGood: true }),
+            ),
+            refreshFallbackLabel: fallbackLabel,
+          });
+        } else if (hasPreviousWeatherForLocation) {
+          setCurrentWeather({
+            ...latestCurrentWeather,
+            dataState: getWeatherFailureState({ hasLastKnownGood: true }),
+            refreshFallbackLabel:
+              latestCurrentWeather.refreshFallbackLabel ?? fallbackLabel,
+          });
+        } else {
+          setCurrentWeather({
+            ...INITIAL_CURRENT_WEATHER,
+            hasWeatherData: false,
+            conditionLabel: "Weather unavailable",
+            dataState: getWeatherFailureState({ hasLastKnownGood: false }),
+            refreshFallbackLabel: fallbackLabel,
+          });
+        }
+
+        setHomeSuggestionsReady(true);
+      }
+    }
+
+    async function loadSecondaryWeatherAndAlerts() {
+      const [hourlyResult, alertsResult, dailyResult] =
+        await Promise.allSettled([
+          getSharedHourlyForecast(activeLocation),
+          getActiveAlertsForLocation(
+            activeLocation.latitude,
+            activeLocation.longitude,
+          ),
+          getSharedForecast(activeLocation),
         ]);
 
       if (!isActive) {
         return;
       }
 
-      const resolvedRoadReport =
-        roadResult.status === "fulfilled" ? roadResult.value : null;
-      let resolvedHourlyEntriesForPropertyRisk = latestHourlyForecast;
+      if (hourlyResult.status === "fulfilled") {
+        const hourlyEntries = hourlyResult.value.timelines?.hourly ?? [];
+        const nextPropertyForecastLowF = sameHomeLocation(
+          propertyLocation,
+          activeLocation,
+        )
+          ? getHomeForecastLowFFromHourlyEntries(hourlyEntries)
+          : null;
 
-      if (hasFreshHomeWeatherSnapshot) {
-        // Reuse the current in-memory weather snapshot for this location.
-      } else if (weatherResult.status === "fulfilled" && weatherResult.value) {
-        const values = weatherResult.value.currentWeather.data.values;
-        const temperatureF =
-          typeof values.temperature === "number"
-            ? celsiusToFahrenheit(values.temperature)
-            : null;
-        const windSpeedMph =
-          typeof values.windSpeed === "number"
-            ? metersPerSecondToMph(values.windSpeed)
-            : null;
-        const precipProbability =
-          typeof values.precipitationProbability === "number"
-            ? Math.round(values.precipitationProbability)
-            : null;
-        const weatherCode = values.weatherCode;
-        const sourceTimestamp =
-          typeof weatherResult.value.currentWeather.data.time === "string"
-            ? weatherResult.value.currentWeather.data.time
-            : null;
-        const fallbackLabel = sourceTimestamp
-          ? null
-          : formatClockLabel(new Date());
+        setHourlyForecast(hourlyEntries);
+        setHourlyState("fresh");
+        setPropertyForecastLowF(nextPropertyForecastLowF);
+        setPropertyRisk(getHomePropertyRiskFromLowF(nextPropertyForecastLowF));
+      } else {
+        const fallbackHourly = getCachedHourlyForecast(activeLocation);
 
-        const nextWeatherState: HomeCurrentWeatherSnapshot = {
-          hasWeatherData: temperatureF !== null || windSpeedMph !== null,
-          temperatureF,
-          windSpeedMph,
-          precipProbability,
-          humidity:
-            typeof values.humidity === "number"
-              ? Math.round(values.humidity)
-              : null,
-          weatherCode: typeof weatherCode === "number" ? weatherCode : null,
-          conditionLabel: getConditionLabel(weatherCode),
-          sourceTimestamp,
-          refreshFallbackLabel: fallbackLabel,
-        };
-        const fallbackWeatherState = buildHomeWeatherSnapshotFromRoadReport(
-          resolvedRoadReport,
-          fallbackLabel,
-        );
-        const promotedWeatherState =
-          !nextWeatherState.hasWeatherData && fallbackWeatherState
-            ? fallbackWeatherState
-            : nextWeatherState;
-
-        setCurrentWeather((previousWeatherState) => {
-          if (
-            previousWeatherState.hasWeatherData &&
-            isThinHomeWeatherSnapshot(promotedWeatherState)
-          ) {
-            return {
-              ...previousWeatherState,
-              refreshFallbackLabel:
-                promotedWeatherState.refreshFallbackLabel ??
-                previousWeatherState.refreshFallbackLabel,
-            };
-          }
-
-          return promotedWeatherState;
+        console.log("[Home] Hourly forecast request failed", {
+          reason:
+            hourlyResult.reason instanceof Error
+              ? hourlyResult.reason.message
+              : String(hourlyResult.reason),
         });
 
-        const hourlyEntries =
-          weatherResult.value.hourlyForecast.timelines?.hourly ?? [];
-        resolvedHourlyEntriesForPropertyRisk = hourlyEntries;
-        setHourlyForecast(hourlyEntries);
-        setWeatherSnapshotLocationKey(selectedLocationWeatherKey);
-        setLastSuccessfulHomeWeatherFetchAtMs(Date.now());
-      } else {
-        const fallbackLabel = formatClockLabel(new Date());
-        const fallbackWeatherState = buildHomeWeatherSnapshotFromRoadReport(
-          resolvedRoadReport,
-          fallbackLabel,
-        );
-
-        if (
-          latestWeatherSnapshotLocationKey === selectedLocationWeatherKey &&
-          latestCurrentWeather.hasWeatherData
-        ) {
-          setCurrentWeather({
-            ...latestCurrentWeather,
-            refreshFallbackLabel:
-              latestCurrentWeather.refreshFallbackLabel ?? fallbackLabel,
-          });
-        } else if (fallbackWeatherState) {
-          setCurrentWeather(fallbackWeatherState);
-          setHourlyForecast([]);
-          setWeatherSnapshotLocationKey(selectedLocationWeatherKey);
-        } else {
-          setCurrentWeather({
-            ...INITIAL_CURRENT_WEATHER,
-            hasWeatherData: false,
-            conditionLabel: "Weather unavailable",
-          });
-          setHourlyForecast([]);
-          setWeatherSnapshotLocationKey(null);
-        }
-
-        setLastSuccessfulHomeWeatherFetchAtMs(null);
-      }
-
-      const shouldUseSelectedForecastForPropertyRisk = sameHomeLocation(
-        propertyLocation,
-        selectedLocation,
-      );
-      const nextPropertyForecastLowF = shouldUseSelectedForecastForPropertyRisk
-        ? getHomeForecastLowFFromHourlyEntries(
-            resolvedHourlyEntriesForPropertyRisk,
+        if (fallbackHourly) {
+          const hourlyEntries = fallbackHourly.data.timelines?.hourly ?? [];
+          const nextPropertyForecastLowF = sameHomeLocation(
+            propertyLocation,
+            activeLocation,
           )
-        : null;
-      const nextPropertyRisk = getHomePropertyRiskFromLowF(
-        nextPropertyForecastLowF,
-      );
+            ? getHomeForecastLowFFromHourlyEntries(hourlyEntries)
+            : null;
 
-      setPropertyRisk(nextPropertyRisk);
-      setPropertyForecastLowF(nextPropertyForecastLowF);
+          setHourlyForecast(hourlyEntries);
+          setHourlyState("stale");
+          setPropertyForecastLowF(nextPropertyForecastLowF);
+          setPropertyRisk(
+            getHomePropertyRiskFromLowF(nextPropertyForecastLowF),
+          );
+        } else {
+          setHourlyForecast([]);
+          setHourlyState("unavailable");
+          setPropertyForecastLowF(null);
+          setPropertyRisk("Unavailable");
+        }
+      }
 
       if (alertsResult.status === "fulfilled") {
         const features = alertsResult.value.features ?? [];
@@ -1224,14 +1401,14 @@ function useHomeScreenData(
           setAlertSummary({
             status: "none",
             event: null,
-            area: formatCityState(selectedLocation),
+            area: formatCityState(activeLocation),
           });
         } else {
           const firstAlert = features[0];
           const event = firstAlert.properties?.event ?? "Active alert";
           const area =
             firstAlert.properties?.areaDesc ??
-            formatCityState(selectedLocation);
+            formatCityState(activeLocation);
           setAlertSummary({
             status: "active",
             event,
@@ -1252,22 +1429,64 @@ function useHomeScreenData(
         });
       }
 
-      if (roadResult.status === "fulfilled") {
-        setRoadReport(resolvedRoadReport);
-      } else {
-        console.log("[Home] Road report request failed", {
+      if (dailyResult.status === "rejected") {
+        console.log("[Home] Daily forecast request failed", {
           reason:
-            roadResult.reason instanceof Error
-              ? roadResult.reason.message
-              : String(roadResult.reason),
+            dailyResult.reason instanceof Error
+              ? dailyResult.reason.message
+              : String(dailyResult.reason),
         });
-        setRoadReport(null);
       }
 
       setHomeSuggestionsReady(true);
     }
 
-    void loadHome();
+    async function loadRoadData() {
+      if (process.env.EXPO_OS === "web") {
+        setRoadReport(null);
+        setRoadState("unavailable");
+        return;
+      }
+
+      try {
+        const report = await getWydotRoadReport(activeLocation);
+
+        if (!isActive) {
+          return;
+        }
+
+        setRoadReport(report);
+        setRoadState(
+          getRoadFallbackState({
+            hasRoadData: !!report,
+            hasWeatherEstimate: currentWeatherRef.current.hasWeatherData,
+          }),
+        );
+      } catch (error) {
+        console.log("[Home] Road report request failed", {
+          reason: error instanceof Error ? error.message : String(error),
+        });
+
+        if (!isActive) {
+          return;
+        }
+
+        setRoadReport(null);
+        setRoadState(
+          getRoadFallbackState({
+            hasRoadData: false,
+            hasWeatherEstimate: currentWeatherRef.current.hasWeatherData,
+          }),
+        );
+      }
+
+      setHomeSuggestionsReady(true);
+    }
+
+    void loadPersistedCache();
+    void loadCurrentWeather();
+    void loadSecondaryWeatherAndAlerts();
+    void loadRoadData();
 
     return () => {
       isActive = false;
@@ -1281,6 +1500,8 @@ function useHomeScreenData(
     propertyRisk,
     propertyForecastLowF,
     roadReport,
+    hourlyState,
+    roadState,
     homeSuggestionsReady,
   };
 }
@@ -1299,6 +1520,8 @@ export default function HomeScreen() {
     propertyRisk,
     propertyForecastLowF,
     roadReport,
+    hourlyState,
+    roadState,
     homeSuggestionsReady,
   } = useHomeScreenData(selectedLocation, propertyLocation);
 
@@ -1310,7 +1533,12 @@ export default function HomeScreen() {
     return getTopTitle(roadReport, selectedLocation.name);
   }, [roadReport, selectedLocation]);
   const suggestionInput = useMemo<SuggestionInput | null>(() => {
-    if (!selectedLocation || !homeSuggestionsReady) {
+    if (
+      !selectedLocation ||
+      !homeSuggestionsReady ||
+      alertSummary.status === "loading" ||
+      roadState === "loading"
+    ) {
       return null;
     }
 
@@ -1330,8 +1558,8 @@ export default function HomeScreen() {
 
     return {
       road: {
-        available: !!roadReport,
-        mapped: !!roadReport,
+        available: roadState === "fresh" && !!roadReport,
+        mapped: roadState === "fresh" && !!roadReport,
         restriction: roadReport?.primarySegment.restriction ?? null,
         advisory: roadReport?.primarySegment.advisory ?? null,
         officialCondition: roadReport?.primarySegment.officialCondition ?? null,
@@ -1375,6 +1603,7 @@ export default function HomeScreen() {
     propertyForecastLowF,
     propertyLocation,
     roadReport,
+    roadState,
     selectedLocation,
   ]);
   const suggestionDecision = useMemo<SuggestionDecision | null>(
@@ -1394,6 +1623,7 @@ export default function HomeScreen() {
       propertyRisk,
       propertyLocationName: propertyLocation?.name ?? null,
       roadReport,
+      roadState,
       suggestionDecision,
       topTitle,
     });
@@ -1405,16 +1635,25 @@ export default function HomeScreen() {
     propertyLocation,
     propertyRisk,
     roadReport,
+    roadState,
     suggestionDecision,
     topTitle,
   ]);
 
-  const outlookItems = useMemo<HomeOutlookItem[]>(
+  const roadHourly = useMemo<RoadConditionChartPoint[]>(
     () =>
-      buildOutlookItems({
+      buildHomeRoadHourlyPoints({
         hourlyEntries: hourlyForecast,
+        hourlyState,
+        roadReport,
       }),
-    [hourlyForecast],
+    [hourlyForecast, hourlyState, roadReport],
+  );
+  const roadHourlyLoading = useMemo(
+    () =>
+      roadState === "loading" ||
+      (hourlyState === "loading" && roadHourly.length === 0),
+    [hourlyState, roadHourly.length, roadState],
   );
   const statusActionRoute = useMemo(
     () => getHomeSuggestionRoute(suggestionDecision?.primary?.code),
@@ -1556,7 +1795,8 @@ export default function HomeScreen() {
           updatedLabel={homeViewModel.updatedLabel}
           statusBanner={homeViewModel.statusBanner}
           metrics={homeViewModel.metrics}
-          outlookItems={outlookItems}
+          roadHourly={roadHourly}
+          roadHourlyLoading={roadHourlyLoading}
           monitoringCard={homeViewModel.monitoringCard}
           monitoredLocationCard={homeViewModel.monitoredLocationCard}
           onPressSettings={() => router.push("/settings")}

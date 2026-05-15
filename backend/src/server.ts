@@ -19,6 +19,12 @@ const MAPBOX_ACCESS_TOKEN = process.env.MAPBOX_ACCESS_TOKEN;
 const TOMORROW_WEATHER_BASE_URL = "https://api.tomorrow.io/v4/weather";
 const TOMORROW_TIMELINES_URL = "https://api.tomorrow.io/v4/timelines";
 const TOMORROW_BODY_PREVIEW_LIMIT = 600;
+const TOMORROW_CURRENT_TIMEOUT_MS = 1200;
+const TOMORROW_FORECAST_TIMEOUT_MS = 2500;
+const TOMORROW_COMBINED_TIMEOUT_MS = 2500;
+const TOMORROW_DEBUG_TIMEOUT_MS = 3500;
+const WYDOT_MEDIA_TIMEOUT_MS = 2500;
+const MAPBOX_GEOCODING_TIMEOUT_MS = 2500;
 const COMBINED_CURRENT_AND_HOURLY_FIELDS = [
   "temperature",
   "weatherCode",
@@ -89,6 +95,25 @@ function debugLog(message: string, payload?: unknown) {
 
   console.log(message, payload);
 }
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit | undefined,
+  timeoutMs: number,
+) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: init?.signal ?? controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 const STATION_SELECT = `
   SELECT
     station_id AS stationId,
@@ -505,12 +530,16 @@ async function getWydotMediaConditions() {
   }
 
   try {
-    const response = await fetch(WYDOT_MEDIA_STATEWIDE_URL, {
-      headers: {
-        Accept: "text/html",
-        "User-Agent": "RoadSignal/1.1 (+https://roadsignal.app)",
+    const response = await fetchWithTimeout(
+      WYDOT_MEDIA_STATEWIDE_URL,
+      {
+        headers: {
+          Accept: "text/html",
+          "User-Agent": "RoadSignal/1.1 (+https://roadsignal.app)",
+        },
       },
-    });
+      WYDOT_MEDIA_TIMEOUT_MS,
+    );
 
     if (!response.ok) {
       throw new Error(`WYDOT media request failed: ${response.status}`);
@@ -706,11 +735,12 @@ async function requestTomorrowJson<T>(
   url: string,
   context: TomorrowFetchContext,
   init?: RequestInit,
+  timeoutMs = TOMORROW_FORECAST_TIMEOUT_MS,
 ): Promise<TomorrowFetchResult<T>> {
   const startedAtMs = Date.now();
 
   try {
-    const response = await fetch(url, init);
+    const response = await fetchWithTimeout(url, init, timeoutMs);
     const elapsedMs = Date.now() - startedAtMs;
     const responseText = await response.text();
     const bodyPreview = sanitizeTomorrowBodyPreview(responseText);
@@ -792,8 +822,9 @@ async function fetchTomorrowJson<T>(
   url: string,
   context: TomorrowFetchContext,
   init?: RequestInit,
+  timeoutMs = TOMORROW_FORECAST_TIMEOUT_MS,
 ): Promise<T> {
-  const result = await requestTomorrowJson<T>(url, context, init);
+  const result = await requestTomorrowJson<T>(url, context, init, timeoutMs);
 
   if (!result.ok) {
     throw new Error(buildTomorrowFailureMessage(context, result));
@@ -1009,6 +1040,162 @@ function toAppHourlyForecastResponse(
   };
 }
 
+function getFiniteTomorrowNumber(
+  values: Record<string, number | string | null> | undefined,
+  field: string,
+) {
+  const value = values?.[field];
+
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function celsiusToFahrenheit(value: number | null) {
+  return value === null ? null : (value * 9) / 5 + 32;
+}
+
+function metersPerSecondToMph(value: number | null) {
+  return value === null ? null : value * 2.2369362920544;
+}
+
+function kilometersToMiles(value: number | null) {
+  return value === null ? null : value * 0.62137119223733;
+}
+
+function roundNullable(value: number | null, digits = 0) {
+  if (value === null) {
+    return null;
+  }
+
+  const factor = 10 ** digits;
+  return Math.round(value * factor) / factor;
+}
+
+function getConditionLabelFromWeatherCode(weatherCode: number | null) {
+  switch (weatherCode) {
+    case 1000:
+      return "Clear";
+    case 1100:
+      return "Mostly clear";
+    case 1101:
+      return "Partly cloudy";
+    case 1102:
+      return "Mostly cloudy";
+    case 1001:
+      return "Cloudy";
+    case 4000:
+      return "Drizzle";
+    case 4001:
+      return "Rain";
+    case 4200:
+      return "Light rain";
+    case 4201:
+      return "Heavy rain";
+    case 5000:
+      return "Snow";
+    case 5001:
+      return "Flurries";
+    case 5100:
+      return "Light snow";
+    case 5101:
+      return "Heavy snow";
+    case 6000:
+      return "Freezing drizzle";
+    case 6001:
+      return "Freezing rain";
+    case 6200:
+      return "Light freezing rain";
+    case 6201:
+      return "Heavy freezing rain";
+    case 7000:
+      return "Ice pellets";
+    case 7101:
+      return "Heavy ice pellets";
+    case 7102:
+      return "Light ice pellets";
+    case 8000:
+      return "Thunderstorm";
+    default:
+      return "Current conditions";
+  }
+}
+
+function toHomeCurrentPayload(
+  values: Record<string, number | string | null> | undefined,
+) {
+  const weatherCode = getFiniteTomorrowNumber(values, "weatherCode");
+  const windSpeedMph = roundNullable(
+    metersPerSecondToMph(getFiniteTomorrowNumber(values, "windSpeed")),
+    1,
+  );
+  const windGustMph = roundNullable(
+    metersPerSecondToMph(getFiniteTomorrowNumber(values, "windGust")),
+    1,
+  );
+
+  return {
+    currentTemp: roundNullable(
+      celsiusToFahrenheit(getFiniteTomorrowNumber(values, "temperature")),
+    ),
+    feelsLike: roundNullable(
+      celsiusToFahrenheit(
+        getFiniteTomorrowNumber(values, "temperatureApparent"),
+      ),
+    ),
+    windSpeed: windSpeedMph,
+    windGust: windGustMph,
+    humidity: roundNullable(getFiniteTomorrowNumber(values, "humidity")),
+    precipProbability: roundNullable(
+      getFiniteTomorrowNumber(values, "precipitationProbability"),
+    ),
+    visibility: roundNullable(
+      kilometersToMiles(getFiniteTomorrowNumber(values, "visibility")),
+      1,
+    ),
+    weatherCode,
+    condition: getConditionLabelFromWeatherCode(weatherCode),
+  };
+}
+
+function buildHomeSummary(current: ReturnType<typeof toHomeCurrentPayload>) {
+  const windGust = current.windGust ?? current.windSpeed;
+  const precipProbability = current.precipProbability;
+  const visibility = current.visibility;
+  const isHighImpact =
+    (typeof windGust === "number" && windGust >= 45) ||
+    (typeof visibility === "number" && visibility <= 1) ||
+    (typeof precipProbability === "number" && precipProbability >= 80);
+  const isModerateImpact =
+    isHighImpact ||
+    (typeof windGust === "number" && windGust >= 30) ||
+    (typeof visibility === "number" && visibility <= 3) ||
+    (typeof precipProbability === "number" && precipProbability >= 40);
+
+  if (isHighImpact) {
+    return {
+      headline: current.condition,
+      impactLevel: "High",
+      recommendation: "Expect travel impacts and check road guidance.",
+    };
+  }
+
+  if (isModerateImpact) {
+    return {
+      headline:
+        typeof windGust === "number" && windGust >= 30
+          ? "Wind may affect travel"
+          : current.condition,
+      impactLevel: "Moderate",
+      recommendation: "Use extra caution on exposed routes.",
+    };
+  }
+
+  return {
+    headline: current.condition,
+    impactLevel: "Low",
+    recommendation: "No major weather impact detected right now.",
+  };
+}
+
 app.get("/", (_req, res) => {
   res.json({
     ok: true,
@@ -1018,6 +1205,151 @@ app.get("/", (_req, res) => {
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
+});
+
+app.get("/api/home/initial", async (req, res) => {
+  const coordinates = getRequiredLatLon(req, res);
+  const apiKey = assertTomorrowApiKey(res);
+
+  if (!coordinates || !apiKey) {
+    return;
+  }
+
+  const locationName =
+    typeof req.query.name === "string" && req.query.name.trim()
+      ? req.query.name.trim()
+      : "Selected location";
+
+  const url = buildTomorrowWeatherUrl(coordinates.lat, coordinates.lon, apiKey);
+  const result = await requestTomorrowJson<TomorrowRealtimeApiResponse>(
+    url,
+    {
+      operation: "home initial current weather realtime",
+      providerEndpoint: "weather/realtime",
+    },
+    undefined,
+    TOMORROW_CURRENT_TIMEOUT_MS,
+  );
+
+  if (!result.ok) {
+    res.status(502).json({
+      error: "Failed to fetch home initial weather data",
+      current: buildTomorrowBranchMeta(result),
+      status: {
+        current: "unavailable",
+        alerts: "loading",
+        hourly: "loading",
+        daily: "loading",
+        roadRisk: "loading",
+      },
+    });
+    return;
+  }
+
+  logCurrentNormalizationDiagnostics({
+    source: "/api/home/initial",
+    observedAt: result.payload.data?.time,
+    values: result.payload.data?.values,
+  });
+
+  const current = toHomeCurrentPayload(result.payload.data?.values);
+
+  res.json({
+    location: {
+      name: locationName,
+      lat: coordinates.lat,
+      lon: coordinates.lon,
+    },
+    current,
+    summary: buildHomeSummary(current),
+    freshness: {
+      weatherUpdatedAt: result.payload.data?.time ?? null,
+      alertsUpdatedAt: null,
+      roadUpdatedAt: null,
+    },
+    status: {
+      current: "fresh",
+      alerts: "loading",
+      hourly: "loading",
+      daily: "loading",
+      roadRisk: "loading",
+    },
+    meta: {
+      provider: "tomorrow.io",
+      endpoint: "weather/realtime",
+      elapsedMs: result.elapsedMs,
+    },
+  });
+});
+
+app.get("/api/home/details", async (req, res) => {
+  const coordinates = getRequiredLatLon(req, res);
+  const apiKey = assertTomorrowApiKey(res);
+
+  if (!coordinates || !apiKey) {
+    return;
+  }
+
+  const timelinesUrl = `${TOMORROW_TIMELINES_URL}?apikey=${encodeURIComponent(
+    apiKey,
+  )}`;
+  const hourlyRequestBody = buildTomorrowTimelinesRequestBody(
+    coordinates.lat,
+    coordinates.lon,
+    "1h",
+  );
+  const dailyUrl = buildTomorrowWeatherUrl(
+    coordinates.lat,
+    coordinates.lon,
+    apiKey,
+    "1d",
+  );
+
+  const [hourlyResult, dailyResult] = await Promise.all([
+    requestTomorrowJson<TomorrowHourlyTimelinesResponse>(
+      timelinesUrl,
+      {
+        operation: "home details hourly weather timelines",
+        providerEndpoint: "timelines",
+      },
+      buildTomorrowJsonPostInit(hourlyRequestBody),
+      TOMORROW_FORECAST_TIMEOUT_MS,
+    ),
+    requestTomorrowJson<unknown>(
+      dailyUrl,
+      {
+        operation: "home details daily weather forecast",
+        providerEndpoint: "weather/forecast",
+      },
+      undefined,
+      TOMORROW_FORECAST_TIMEOUT_MS,
+    ),
+  ]);
+  const hourlyEntries = hourlyResult.ok
+    ? getTimelineIntervals(hourlyResult.payload, "1h")
+    : [];
+
+  if (hourlyResult.ok) {
+    logHourlyNormalizationDiagnostics({
+      source: "/api/home/details hourly",
+      entries: hourlyEntries,
+    });
+  }
+
+  res.json({
+    hourly: {
+      ...buildTomorrowBranchMeta(hourlyResult),
+      data: hourlyResult.ok ? toAppHourlyForecastResponse(hourlyEntries) : null,
+    },
+    daily: {
+      ...buildTomorrowBranchMeta(dailyResult),
+      data: dailyResult.ok ? dailyResult.payload : null,
+    },
+    status: {
+      hourly: hourlyResult.ok ? "fresh" : "unavailable",
+      daily: dailyResult.ok ? "fresh" : "unavailable",
+    },
+  });
 });
 
 app.get("/api/debug/tomorrow/realtime", async (req, res) => {
@@ -1033,10 +1365,15 @@ app.get("/api/debug/tomorrow/realtime", async (req, res) => {
   }
 
   const url = buildTomorrowWeatherUrl(coordinates.lat, coordinates.lon, apiKey);
-  const result = await requestTomorrowJson<TomorrowRealtimeApiResponse>(url, {
-    operation: "debug realtime weather",
-    providerEndpoint: "weather/realtime",
-  });
+  const result = await requestTomorrowJson<TomorrowRealtimeApiResponse>(
+    url,
+    {
+      operation: "debug realtime weather",
+      providerEndpoint: "weather/realtime",
+    },
+    undefined,
+    TOMORROW_DEBUG_TIMEOUT_MS,
+  );
 
   if (result.ok) {
     logCurrentNormalizationDiagnostics({
@@ -1076,10 +1413,15 @@ app.get("/api/debug/tomorrow/forecast", async (req, res) => {
     apiKey,
     timestep,
   );
-  const result = await requestTomorrowJson<unknown>(url, {
-    operation: "debug forecast weather",
-    providerEndpoint: "weather/forecast",
-  });
+  const result = await requestTomorrowJson<unknown>(
+    url,
+    {
+      operation: "debug forecast weather",
+      providerEndpoint: "weather/forecast",
+    },
+    undefined,
+    TOMORROW_DEBUG_TIMEOUT_MS,
+  );
 
   res.json({
     request: {
@@ -1120,6 +1462,7 @@ app.get("/api/debug/tomorrow/timelines", async (req, res) => {
       providerEndpoint: "timelines",
     },
     buildTomorrowJsonPostInit(requestBody),
+    TOMORROW_DEBUG_TIMEOUT_MS,
   );
 
   if (result.ok && timestep === "current") {
@@ -1296,11 +1639,15 @@ app.get("/api/geocoding/search", async (req, res) => {
       query,
     )}.json?${params.toString()}`;
 
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/json",
+    const response = await fetchWithTimeout(
+      url,
+      {
+        headers: {
+          Accept: "application/json",
+        },
       },
-    });
+      MAPBOX_GEOCODING_TIMEOUT_MS,
+    );
 
     if (!response.ok) {
       const responseText = await response.text();
@@ -1799,10 +2146,15 @@ app.get("/api/weather/current", async (req, res) => {
       coordinates.lon,
       apiKey,
     );
-    const payload = await fetchTomorrowJson<TomorrowRealtimeApiResponse>(url, {
-      operation: "current weather realtime",
-      providerEndpoint: "weather/realtime",
-    });
+    const payload = await fetchTomorrowJson<TomorrowRealtimeApiResponse>(
+      url,
+      {
+        operation: "current weather realtime",
+        providerEndpoint: "weather/realtime",
+      },
+      undefined,
+      TOMORROW_CURRENT_TIMEOUT_MS,
+    );
 
     logCurrentNormalizationDiagnostics({
       source: "/api/weather/current",
@@ -1850,6 +2202,7 @@ app.get("/api/weather/hourly", async (req, res) => {
         providerEndpoint: "timelines",
       },
       buildTomorrowJsonPostInit(requestBody),
+      TOMORROW_FORECAST_TIMEOUT_MS,
     );
     const hourlyEntries = getTimelineIntervals(payload, "1h");
 
@@ -1895,10 +2248,15 @@ app.get("/api/weather/daily", async (req, res) => {
       apiKey,
       "1d",
     );
-    const payload = await fetchTomorrowJson<unknown>(url, {
-      operation: "daily weather forecast",
-      providerEndpoint: "weather/forecast",
-    });
+    const payload = await fetchTomorrowJson<unknown>(
+      url,
+      {
+        operation: "daily weather forecast",
+        providerEndpoint: "weather/forecast",
+      },
+      undefined,
+      TOMORROW_FORECAST_TIMEOUT_MS,
+    );
     res.json(payload);
   } catch (error) {
     console.log("[WeatherAPI] Daily forecast request failed", {
@@ -1946,6 +2304,7 @@ app.get("/api/weather/current-hourly", async (req, res) => {
           providerEndpoint: "timelines",
         },
         buildTomorrowJsonPostInit(currentRequestBody),
+        TOMORROW_CURRENT_TIMEOUT_MS,
       ),
       requestTomorrowJson<TomorrowHourlyTimelinesResponse>(
         url,
@@ -1954,6 +2313,7 @@ app.get("/api/weather/current-hourly", async (req, res) => {
           providerEndpoint: "timelines",
         },
         buildTomorrowJsonPostInit(hourlyRequestBody),
+        TOMORROW_COMBINED_TIMEOUT_MS,
       ),
     ]);
 

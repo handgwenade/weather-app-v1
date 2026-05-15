@@ -1,7 +1,9 @@
 import type { AppLocation } from "@/data/locationStore";
 
 const ROAD_API_BASE_URL = process.env.EXPO_PUBLIC_ROAD_API_BASE_URL;
-const WEATHER_REQUEST_TIMEOUT_MS = 20000;
+const CURRENT_WEATHER_REQUEST_TIMEOUT_MS = 1500;
+const FORECAST_REQUEST_TIMEOUT_MS = 3000;
+const COMBINED_WEATHER_REQUEST_TIMEOUT_MS = 3500;
 const WEATHER_TRANSPORT_RETRY_DELAY_MS = 750;
 const WEATHER_TRANSPORT_RETRY_ATTEMPTS = 1;
 const WEATHER_DEBUG_LOGGING_ENABLED = __DEV__;
@@ -81,6 +83,42 @@ type RoadSignalCombinedWeatherResponse = {
   hourlyForecast: TomorrowHourlyForecastResponse;
 };
 
+export type RoadSignalHomeInitialResponse = {
+  location: {
+    name: string;
+    lat: number;
+    lon: number;
+  };
+  current: {
+    currentTemp: number | null;
+    feelsLike: number | null;
+    windSpeed: number | null;
+    windGust: number | null;
+    humidity: number | null;
+    precipProbability: number | null;
+    visibility: number | null;
+    weatherCode: number | null;
+    condition: string;
+  };
+  summary: {
+    headline: string;
+    impactLevel: "Low" | "Moderate" | "High";
+    recommendation: string;
+  };
+  freshness: {
+    weatherUpdatedAt: string | null;
+    alertsUpdatedAt: string | null;
+    roadUpdatedAt: string | null;
+  };
+  status: {
+    current: "fresh" | "unavailable";
+    alerts: "loading" | "fresh" | "unavailable";
+    hourly: "loading" | "fresh" | "unavailable";
+    daily: "loading" | "fresh" | "unavailable";
+    roadRisk: "loading" | "fresh" | "unavailable" | "estimated";
+  };
+};
+
 function assertRoadApiBaseUrl() {
   if (!ROAD_API_BASE_URL) {
     throw new Error("Missing EXPO_PUBLIC_ROAD_API_BASE_URL");
@@ -89,11 +127,16 @@ function assertRoadApiBaseUrl() {
   return ROAD_API_BASE_URL.replace(/\/$/, "");
 }
 
-function buildRoadSignalUrl(path: string, location: AppLocation) {
+function buildRoadSignalUrl(
+  path: string,
+  location: AppLocation,
+  extras?: Record<string, string>,
+) {
   const baseUrl = assertRoadApiBaseUrl();
   const params = new URLSearchParams({
     lat: String(location.latitude),
     lon: String(location.longitude),
+    ...extras,
   });
 
   return `${baseUrl}${path}?${params.toString()}`;
@@ -107,12 +150,10 @@ async function fetchRoadSignalJson<T>(
   url: string,
   errorLabel: string,
   init?: RequestInit,
+  timeoutMs = FORECAST_REQUEST_TIMEOUT_MS,
 ): Promise<T> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(
-    () => controller.abort(),
-    WEATHER_REQUEST_TIMEOUT_MS,
-  );
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   const startedAt = Date.now();
   let lastTransportError: unknown = null;
@@ -208,6 +249,22 @@ export async function getCurrentWeather(
   return fetchRoadSignalJson<TomorrowRealtimeResponse>(
     url,
     "Failed to fetch current weather data",
+    undefined,
+    CURRENT_WEATHER_REQUEST_TIMEOUT_MS,
+  );
+}
+
+export async function getHomeInitialWeather(
+  location: AppLocation,
+): Promise<RoadSignalHomeInitialResponse> {
+  const url = buildRoadSignalUrl("/api/home/initial", location, {
+    name: location.name,
+  });
+  return fetchRoadSignalJson<RoadSignalHomeInitialResponse>(
+    url,
+    "Failed to fetch home initial weather data",
+    undefined,
+    CURRENT_WEATHER_REQUEST_TIMEOUT_MS,
   );
 }
 
@@ -218,6 +275,8 @@ export async function getDailyForecast(
   return fetchRoadSignalJson<TomorrowDailyForecastResponse>(
     url,
     "Failed to fetch daily forecast data",
+    undefined,
+    FORECAST_REQUEST_TIMEOUT_MS,
   );
 }
 
@@ -228,6 +287,8 @@ export async function getHourlyForecast(
   return fetchRoadSignalJson<TomorrowHourlyForecastResponse>(
     url,
     "Failed to fetch hourly forecast data",
+    undefined,
+    FORECAST_REQUEST_TIMEOUT_MS,
   );
 }
 
@@ -238,5 +299,7 @@ export async function getCurrentAndHourlyWeather(
   return fetchRoadSignalJson<RoadSignalCombinedWeatherResponse>(
     url,
     "Failed to fetch combined current and hourly weather data",
+    undefined,
+    COMBINED_WEATHER_REQUEST_TIMEOUT_MS,
   );
 }

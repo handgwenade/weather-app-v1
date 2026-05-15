@@ -1,26 +1,31 @@
 import { Palette, Radius, Shadows } from "@/constants/theme";
 import { useScrollToTopOnFocus } from "@/hooks/useScrollToTopOnFocus";
+import InteractiveRoadConditionChart from "@/components/home/InteractiveRoadConditionChart";
+import type {
+  RoadConditionChartMetric,
+  RoadConditionChartPoint,
+} from "@/utils/roadConditionChart";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { ComponentProps } from "react";
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Svg, { Circle, Line, Path, Text as SvgText } from "react-native-svg";
 
 export type HomeIconName = ComponentProps<typeof Ionicons>["name"];
 
 type Tone = "good" | "neutral" | "warning" | "alert";
+type HomeCardState =
+  | "loading"
+  | "fresh"
+  | "stale"
+  | "unavailable"
+  | "estimated";
 
 export type HomeMetric = {
   label: string;
   value: string;
-};
-
-export type HomeOutlookItem = {
-  id: string;
-  time: string;
-  temperature: string;
-  condition: string;
+  state?: HomeCardState;
+  freshnessLabel?: string;
 };
 
 export type HomeBullet = {
@@ -54,7 +59,8 @@ type HomeScreenV2Props = {
   updatedLabel: string;
   statusBanner: HomeStatusBanner;
   metrics: HomeMetric[];
-  outlookItems: HomeOutlookItem[];
+  roadHourly: RoadConditionChartPoint[];
+  roadHourlyLoading: boolean;
   monitoringCard: HomeMonitoringCard;
   monitoredLocationCard: HomeLocationCard;
   onPressSettings: () => void;
@@ -134,141 +140,13 @@ function getHeroMetric(metrics: HomeMetric[]) {
   );
 }
 
-type ForecastMode = "road" | "wind" | "air";
-
-type ForecastChartPoint = {
-  id: string;
-  time: string;
-  label: string;
-  value: number;
-  icon: HomeIconName;
-};
-
-const FORECAST_CHART_HEIGHT = 128;
-const FORECAST_CHART_WIDTH = 320;
-
-function parseNumberFromText(value: string) {
-  const match = value.match(/-?\d+(?:\.\d+)?/);
-
-  if (!match) {
-    return null;
-  }
-
-  return Number(match[0]);
-}
-
-function getMetricValue(metrics: HomeMetric[], terms: string[]) {
-  const metric = metrics.find((item) => {
-    const label = item.label.toLowerCase();
-    return terms.some((term) => label.includes(term));
-  });
-
-  return metric?.value ?? "--";
-}
-
-function buildForecastPoints({
-  mode,
-  metrics,
-  outlookItems,
-}: {
-  mode: ForecastMode;
-  metrics: HomeMetric[];
-  outlookItems: HomeOutlookItem[];
-}): ForecastChartPoint[] {
-  const availableOutlookItems = outlookItems.slice(0, 6);
-
-  if (mode === "wind") {
-    const windValue =
-      parseNumberFromText(getMetricValue(metrics, ["wind"])) ?? 0;
-
-    return availableOutlookItems.map((item, index) => ({
-      id: item.id,
-      time: item.time,
-      label: `${Math.max(0, Math.round(windValue + (index % 3) - 1))} mph`,
-      value: Math.max(0, windValue + (index % 3) - 1),
-      icon: "partly-sunny-outline",
-    }));
-  }
-
-  const currentRoadTemp =
-    parseNumberFromText(getMetricValue(metrics, ["road", "surface"])) ?? null;
-  const firstAirTemp =
-    parseNumberFromText(availableOutlookItems[0]?.temperature ?? "") ?? null;
-
-  return availableOutlookItems.map((item, index) => {
-    const airTemp = parseNumberFromText(item.temperature) ?? 0;
-    const value =
-      mode === "road" && currentRoadTemp !== null && firstAirTemp !== null
-        ? currentRoadTemp + (airTemp - firstAirTemp) * 0.45
-        : airTemp;
-
-    return {
-      id: item.id,
-      time: item.time,
-      label: mode === "road" ? `${Math.round(value)}°` : item.temperature,
-      value,
-      icon: "partly-sunny-outline",
-    };
-  });
-}
-
-function buildChartDots(points: ForecastChartPoint[]) {
-  if (points.length === 0) {
-    return [];
-  }
-
-  const values = points.map((point) => point.value);
-  const minValue = Math.min(...values);
-  const maxValue = Math.max(...values);
-  const range = Math.max(1, maxValue - minValue);
-  const stepX =
-    points.length > 1 ? FORECAST_CHART_WIDTH / (points.length - 1) : 0;
-
-  return points.map((point, index) => ({
-    id: point.id,
-    x: index * stepX,
-    y: 22 + ((maxValue - point.value) / range) * 72,
-  }));
-}
-
-function buildChartPath(dots: ReturnType<typeof buildChartDots>) {
-  if (dots.length === 0) {
-    return "";
-  }
-
-  if (dots.length === 1) {
-    return `M ${dots[0].x} ${dots[0].y}`;
-  }
-
-  return dots
-    .map((dot, index) => {
-      if (index === 0) {
-        return `M ${dot.x} ${dot.y}`;
-      }
-
-      const previousDot = dots[index - 1];
-      const controlX = (previousDot.x + dot.x) / 2;
-
-      return `C ${controlX} ${previousDot.y}, ${controlX} ${dot.y}, ${dot.x} ${dot.y}`;
-    })
-    .join(" ");
-}
-
-function buildSecondaryChartPath(dots: ReturnType<typeof buildChartDots>) {
-  const secondaryDots = dots.map((dot, index) => ({
-    ...dot,
-    y: Math.min(112, dot.y + 34 + (index % 2 === 0 ? 8 : -6)),
-  }));
-
-  return buildChartPath(secondaryDots);
-}
-
 export default function HomeScreenV2({
   topTitle,
   updatedLabel,
   statusBanner,
   metrics,
-  outlookItems,
+  roadHourly,
+  roadHourlyLoading,
   monitoringCard,
   monitoredLocationCard,
   onPressSettings,
@@ -290,30 +168,8 @@ export default function HomeScreenV2({
 
   useScrollToTopOnFocus(scrollViewRef);
 
-  const [forecastMode, setForecastMode] = useState<ForecastMode>("road");
-  const forecastPoints = useMemo(
-    () =>
-      buildForecastPoints({
-        mode: forecastMode,
-        metrics,
-        outlookItems,
-      }),
-    [forecastMode, metrics, outlookItems],
-  );
-  const forecastDots = useMemo(
-    () => buildChartDots(forecastPoints),
-    [forecastPoints],
-  );
-  const forecastPath = useMemo(
-    () => buildChartPath(forecastDots),
-    [forecastDots],
-  );
-  const secondaryForecastPath = useMemo(
-    () => buildSecondaryChartPath(forecastDots),
-    [forecastDots],
-  );
-  const activeForecastPoint = forecastPoints[2] ?? forecastPoints[0] ?? null;
-  const activeForecastDot = forecastDots[2] ?? forecastDots[0] ?? null;
+  const [forecastMode, setForecastMode] =
+    useState<RoadConditionChartMetric>("precipitationProbability");
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -397,7 +253,16 @@ export default function HomeScreenV2({
 
         <View style={styles.metricsGrid}>
           {visibleMetrics.map((metric) => (
-            <View key={metric.label} style={styles.metricTile}>
+            <View
+              key={metric.label}
+              style={[
+                styles.metricTile,
+                metric.state === "loading" ? styles.metricTileLoading : null,
+                metric.state === "stale" || metric.state === "estimated"
+                  ? styles.metricTileStale
+                  : null,
+              ]}
+            >
               <View style={styles.metricIconWrap}>
                 <Ionicons
                   name={getMetricIcon(metric.label)}
@@ -407,6 +272,11 @@ export default function HomeScreenV2({
               </View>
               <Text style={styles.metricValue}>{metric.value}</Text>
               <Text style={styles.metricLabel}>{metric.label}</Text>
+              {metric.freshnessLabel ? (
+                <Text style={styles.metricFreshness} numberOfLines={1}>
+                  {metric.freshnessLabel}
+                </Text>
+              ) : null}
             </View>
           ))}
         </View>
@@ -414,9 +284,9 @@ export default function HomeScreenV2({
         <View style={styles.forecastCard}>
           <View style={styles.forecastHeaderRow}>
             {[
-              ["road", "Road Temp"],
-              ["wind", "Wind"],
-              ["air", "Air Temp"],
+              ["precipitationProbability", "Precipitation"],
+              ["windSpeed", "Wind"],
+              ["airTemp", "Air Temp"],
             ].map(([mode, label]) => {
               const isActive = forecastMode === mode;
 
@@ -424,7 +294,9 @@ export default function HomeScreenV2({
                 <Pressable
                   key={mode}
                   accessibilityRole="button"
-                  onPress={() => setForecastMode(mode as ForecastMode)}
+                  onPress={() =>
+                    setForecastMode(mode as RoadConditionChartMetric)
+                  }
                   style={
                     isActive ? styles.forecastTabActive : styles.forecastTab
                   }
@@ -443,108 +315,12 @@ export default function HomeScreenV2({
             })}
           </View>
 
-          <View style={styles.forecastCurveWrap}>
-            <Svg
-              width="100%"
-              height={FORECAST_CHART_HEIGHT}
-              viewBox={`0 0 ${FORECAST_CHART_WIDTH} ${FORECAST_CHART_HEIGHT}`}
-            >
-              <Line
-                x1="0"
-                y1="82"
-                x2={FORECAST_CHART_WIDTH}
-                y2="82"
-                stroke="rgba(105, 106, 112, 0.09)"
-                strokeWidth="2"
-              />
-              <Line
-                x1="0"
-                y1="96"
-                x2={FORECAST_CHART_WIDTH}
-                y2="96"
-                stroke="rgba(105, 106, 112, 0.18)"
-                strokeWidth="2"
-                strokeDasharray="6 7"
-              />
-              {secondaryForecastPath ? (
-                <Path
-                  d={secondaryForecastPath}
-                  fill="none"
-                  stroke="rgba(105, 106, 112, 0.22)"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeDasharray="7 8"
-                />
-              ) : null}
-              {forecastPath ? (
-                <Path
-                  d={forecastPath}
-                  fill="none"
-                  stroke="rgba(105, 106, 112, 0.36)"
-                  strokeWidth="4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              ) : null}
-              {forecastDots.map((dot) => (
-                <Circle
-                  key={dot.id}
-                  cx={dot.x}
-                  cy={dot.y}
-                  r="3"
-                  fill="rgba(105, 106, 112, 0.24)"
-                />
-              ))}
-              {activeForecastPoint && activeForecastDot ? (
-                <>
-                  <Line
-                    x1={activeForecastDot.x}
-                    y1="14"
-                    x2={activeForecastDot.x}
-                    y2="108"
-                    stroke="rgba(105, 106, 112, 0.18)"
-                    strokeWidth="1.5"
-                  />
-                  <Circle
-                    cx={activeForecastDot.x}
-                    cy={activeForecastDot.y}
-                    r="8"
-                    fill="#8A8796"
-                    stroke="rgba(255, 255, 255, 0.92)"
-                    strokeWidth="2"
-                  />
-                  <SvgText
-                    x={Math.max(
-                      24,
-                      Math.min(FORECAST_CHART_WIDTH - 48, activeForecastDot.x),
-                    )}
-                    y={Math.max(18, activeForecastDot.y - 18)}
-                    textAnchor="middle"
-                    fill={Palette.textPrimary}
-                    fontSize="13"
-                    fontWeight="800"
-                  >
-                    {activeForecastPoint.label}
-                  </SvgText>
-                </>
-              ) : null}
-            </Svg>
-          </View>
-
-          <View style={styles.outlookRow}>
-            {forecastPoints.map((item) => (
-              <View key={item.id} style={styles.outlookItem}>
-                <Text style={styles.outlookTime}>{item.time}</Text>
-                <Ionicons
-                  name={item.icon}
-                  size={25}
-                  color={Palette.textSecondary}
-                />
-                <Text style={styles.outlookTemp}>{item.label}</Text>
-              </View>
-            ))}
-          </View>
+          <InteractiveRoadConditionChart
+            points={roadHourly}
+            metric={forecastMode}
+            units={{ temperature: "F", windSpeed: "mph" }}
+            isLoading={roadHourlyLoading}
+          />
         </View>
 
         <View style={styles.sectionBlock}>
@@ -824,6 +600,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 14,
   },
+  metricTileLoading: {
+    backgroundColor: "rgba(248, 250, 252, 0.88)",
+  },
+  metricTileStale: {
+    borderColor: "rgba(202, 213, 226, 0.95)",
+  },
   metricIconWrap: {
     width: 48,
     height: 48,
@@ -848,6 +630,15 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     textAlign: "center",
     marginTop: 6,
+  },
+  metricFreshness: {
+    color: Palette.textSecondary,
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: "700",
+    textAlign: "center",
+    marginTop: 4,
+    maxWidth: "100%",
   },
   forecastCard: {
     backgroundColor: "rgba(255, 255, 255, 0.72)",
@@ -896,11 +687,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
   },
-  forecastCurveWrap: {
-    height: FORECAST_CHART_HEIGHT,
-    marginHorizontal: 0,
-    marginBottom: 8,
-  },
   sectionCardTitle: {
     color: Palette.textPrimary,
     fontSize: 18,
@@ -908,39 +694,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: -0.44,
     marginBottom: 12,
-  },
-  outlookRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  outlookItem: {
-    flex: 1,
-    minWidth: 0,
-    alignItems: "center",
-    gap: 8,
-  },
-  outlookTime: {
-    color: "#74757D",
-    fontSize: 12,
-    lineHeight: 17,
-    textAlign: "center",
-    fontWeight: "800",
-  },
-  outlookTemp: {
-    color: Palette.textSecondary,
-    fontSize: 11,
-    lineHeight: 15,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  outlookCondition: {
-    color: Palette.textSecondary,
-    fontSize: 11,
-    lineHeight: 15,
-    textAlign: "center",
-    marginTop: 4,
-    width: "100%",
   },
   sectionBlock: {
     gap: 12,

@@ -76,6 +76,7 @@ type WydotHtmlCacheEntry = {
 
 const ROUTE_CACHE_TTL_MS = 10 * 60 * 1000;
 const STATION_CACHE_TTL_MS = 10 * 60 * 1000;
+const WYDOT_HTML_TIMEOUT_MS = 3500;
 
 const routePageCache = new Map<string, WydotHtmlCacheEntry>();
 
@@ -197,6 +198,20 @@ const WYDOT_LOCATION_MAPPINGS: WydotLocationMapping[] = [
     lookupKeys: ["gillette"],
   },
 ];
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: init.signal ?? controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 function decodeHtmlEntities(value: string) {
   return value
@@ -734,12 +749,16 @@ async function fetchWydotHtml(url: string) {
     );
   }
 
-  const response = await fetch(url, {
-    headers: {
-      Accept: "text/html,application/xhtml+xml",
-      "User-Agent": "roadsignal-app",
+  const response = await fetchWithTimeout(
+    url,
+    {
+      headers: {
+        Accept: "text/html,application/xhtml+xml",
+        "User-Agent": "roadsignal-app",
+      },
     },
-  });
+    WYDOT_HTML_TIMEOUT_MS,
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to fetch WYDOT HTML: ${response.status}`);
