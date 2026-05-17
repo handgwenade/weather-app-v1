@@ -454,6 +454,7 @@ function getRoadActionDestination(
       return "alerts";
     case SuggestionCode.HIGH_WIND_CAUTION:
     case SuggestionCode.USE_CAUTION:
+    case SuggestionCode.VISIBILITY_RISK:
     case SuggestionCode.WEATHER_DATA_UNAVAILABLE:
     case SuggestionCode.FREEZE_RISK_TONIGHT:
       return "conditions";
@@ -558,6 +559,8 @@ function getRoadStatusTitle(
         : hasMeaningfulRoadText(advisory)
           ? "WYDOT advisory"
           : "No active WYDOT advisory reported";
+    case SuggestionCode.VISIBILITY_RISK:
+      return "Visibility risk reported";
     case SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE:
       return hasUsableSourceText(alertEvent)
         ? (alertEvent ?? "Official alert reported")
@@ -612,6 +615,10 @@ function getRoadStatusSubtitle(
         ? officialRoadStatus.description
         : (getOfficialStatusRouteLabel(roadReport) ??
             "Official WYDOT status detail unavailable.");
+    case SuggestionCode.VISIBILITY_RISK:
+      return roadReport
+        ? `${roadReport.routeCode} near ${roadReport.townGroup}`
+        : "Visibility is reduced near this route.";
     case SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE:
       return hasUsableSourceText(alertEvent)
         ? "Official alert for this location."
@@ -673,6 +680,9 @@ function buildRoadRecommendationText(
   switch (primarySuggestion?.code) {
     case SuggestionCode.HIGH_WIND_CAUTION:
       return "Observed wind is elevated. Use extra caution on exposed road segments.";
+
+    case SuggestionCode.VISIBILITY_RISK:
+      return "Visibility is reduced near this route. Use extra caution and monitor road conditions.";
 
     case SuggestionCode.USE_CAUTION:
       return shouldTrustReportedSurface(roadReport, officialCondition)

@@ -225,6 +225,8 @@ function getHomeStatusTitle(
         : hasMeaningfulHomeText(advisory)
           ? "WYDOT advisory"
           : "No active WYDOT advisory reported";
+    case SuggestionCode.VISIBILITY_RISK:
+      return "Visibility risk reported";
     case SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE:
       return hasMeaningfulHomeText(alertSummary.event)
         ? (alertSummary.event ?? "Official alert reported")
@@ -288,6 +290,10 @@ function getHomeStatusSubtitle(
           ? `${roadReport.routeCode} near ${roadReport.townGroup}`
           : (primarySuggestion.whyBullets[0] ?? "Road guidance is active");
     }
+    case SuggestionCode.VISIBILITY_RISK:
+      return roadReport
+        ? `${roadReport.routeCode} near ${roadReport.townGroup}`
+        : "Reduced visibility is reported near this location.";
     case SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE:
       return formatHomeAlertAreaSubtitle(alertSummary.area);
     case SuggestionCode.FREEZE_RISK_TONIGHT:
@@ -366,6 +372,8 @@ function getHomeRecommendationText(
           ? `WYDOT advisory: ${advisory}.`
           : "No active WYDOT advisory is reported near this location.";
     }
+    case SuggestionCode.VISIBILITY_RISK:
+      return "WYDOT station visibility is reduced. Travel may require extra caution.";
     case SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE:
       return hasMeaningfulHomeText(alertSummary.event)
         ? `Official alert: ${alertSummary.event ?? "Active alert"}.`

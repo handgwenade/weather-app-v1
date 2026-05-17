@@ -4,6 +4,7 @@ export enum SuggestionCode {
   ROAD_CLOSED = "ROAD_CLOSED",
   TRAVEL_RESTRICTION_POSTED = "TRAVEL_RESTRICTION_POSTED",
   TRAVEL_ADVISORY_POSTED = "TRAVEL_ADVISORY_POSTED",
+  VISIBILITY_RISK = "VISIBILITY_RISK",
   OFFICIAL_WEATHER_ALERT_ACTIVE = "OFFICIAL_WEATHER_ALERT_ACTIVE",
   HIGH_WIND_CAUTION = "HIGH_WIND_CAUTION",
   USE_CAUTION = "USE_CAUTION",
@@ -50,6 +51,7 @@ export const FIRST_IMPLEMENTATION_RULES: SuggestionCode[] = [
   SuggestionCode.ROAD_CLOSED,
   SuggestionCode.TRAVEL_RESTRICTION_POSTED,
   SuggestionCode.TRAVEL_ADVISORY_POSTED,
+  SuggestionCode.VISIBILITY_RISK,
   SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE,
   SuggestionCode.HIGH_WIND_CAUTION,
   SuggestionCode.USE_CAUTION,
@@ -70,6 +72,10 @@ export const SUGGESTION_THRESHOLDS = {
     highRiskLowF: 32,
     moderateRiskLowF: 36,
     nearFreezingF: 40,
+  },
+  visibility: {
+    highRiskFt: 1320,
+    moderateRiskFt: 2640,
   },
 } as const;
 
@@ -401,6 +407,46 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
     },
   },
   {
+    code: SuggestionCode.VISIBILITY_RISK,
+    title: "Visibility risk posted",
+    basis: SuggestionBasis.OBSERVATION,
+    priority: SuggestionPriority.P1,
+    supportStatus: SupportStatus.SUPPORTED_NOW,
+    sourceStrength: RuleSourceStrength.DIRECT_SOURCE,
+    blockers: [
+      SuggestionCode.ROAD_CLOSED,
+      SuggestionCode.TRAVEL_RESTRICTION_POSTED,
+      SuggestionCode.TRAVEL_ADVISORY_POSTED,
+      SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE,
+    ],
+    evaluate: ({ input }) => {
+      const visibility = input.road.visibilityFt;
+      if (typeof visibility !== "number") {
+        return null;
+      }
+
+      if (visibility <= SUGGESTION_THRESHOLDS.visibility.highRiskFt) {
+        return buildRuleMatch(OBSERVATION_RULES[4], SuggestionConfidence.HIGH, [
+          "WYDOT station visibility is severely reduced",
+          "Travel may be significantly impaired",
+        ]);
+      }
+
+      if (visibility <= SUGGESTION_THRESHOLDS.visibility.moderateRiskFt) {
+        return buildRuleMatch(
+          OBSERVATION_RULES[4],
+          SuggestionConfidence.MEDIUM,
+          [
+            "WYDOT station visibility is reduced",
+            "Travel may require extra caution",
+          ],
+        );
+      }
+
+      return null;
+    },
+  },
+  {
     code: SuggestionCode.HIGH_WIND_CAUTION,
     title: "High wind caution",
     basis: SuggestionBasis.OBSERVATION,
@@ -625,6 +671,7 @@ export function isObservationBasedCaution(match: RuleMatch) {
       SuggestionCode.TRAVEL_RESTRICTION_POSTED,
       SuggestionCode.TRAVEL_ADVISORY_POSTED,
       SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE,
+      SuggestionCode.VISIBILITY_RISK,
       SuggestionCode.HIGH_WIND_CAUTION,
       SuggestionCode.USE_CAUTION,
       SuggestionCode.DRIFTING_CONCERN,
@@ -752,6 +799,15 @@ export function getSuggestionPresentation(
         actionLabel: "Monitor",
         recommendationText:
           "Advisory is active. Continue monitoring before travel.",
+        levelLabel: "Moderate",
+        homeTone: "warning",
+        roadTone: "caution",
+      };
+    case SuggestionCode.VISIBILITY_RISK:
+      return {
+        actionLabel: "Monitor",
+        recommendationText:
+          "Visibility is reduced. Use extra caution and review WYDOT guidance.",
         levelLabel: "Moderate",
         homeTone: "warning",
         roadTone: "caution",
