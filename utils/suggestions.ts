@@ -6,6 +6,7 @@ export enum SuggestionCode {
   TRAVEL_ADVISORY_POSTED = "TRAVEL_ADVISORY_POSTED",
   VISIBILITY_RISK = "VISIBILITY_RISK",
   OFFICIAL_WEATHER_ALERT_ACTIVE = "OFFICIAL_WEATHER_ALERT_ACTIVE",
+  HIGH_PROFILE_VEHICLE_RISK = "HIGH_PROFILE_VEHICLE_RISK",
   HIGH_WIND_CAUTION = "HIGH_WIND_CAUTION",
   USE_CAUTION = "USE_CAUTION",
   DRIFTING_CONCERN = "DRIFTING_CONCERN",
@@ -53,6 +54,7 @@ export const FIRST_IMPLEMENTATION_RULES: SuggestionCode[] = [
   SuggestionCode.TRAVEL_ADVISORY_POSTED,
   SuggestionCode.VISIBILITY_RISK,
   SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE,
+  SuggestionCode.HIGH_PROFILE_VEHICLE_RISK,
   SuggestionCode.HIGH_WIND_CAUTION,
   SuggestionCode.USE_CAUTION,
   SuggestionCode.FREEZE_RISK_TONIGHT,
@@ -67,6 +69,10 @@ export const SUGGESTION_THRESHOLDS = {
     cautionMph: 25,
     highGustMph: 35,
     driftingWindMph: 25,
+    highProfileHighGustMph: 50,
+    highProfileHighSustainedMph: 40,
+    highProfileModerateGustMph: 40,
+    highProfileModerateSustainedMph: 30,
   },
   freeze: {
     highRiskLowF: 32,
@@ -447,6 +453,58 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
     },
   },
   {
+    code: SuggestionCode.HIGH_PROFILE_VEHICLE_RISK,
+    title: "High-profile vehicle wind risk posted",
+    basis: SuggestionBasis.OBSERVATION,
+    priority: SuggestionPriority.P1,
+    supportStatus: SupportStatus.SUPPORTED_NOW,
+    sourceStrength: RuleSourceStrength.SYNTHESIZED_FACT,
+    blockers: [
+      SuggestionCode.ROAD_CLOSED,
+      SuggestionCode.TRAVEL_RESTRICTION_POSTED,
+      SuggestionCode.TRAVEL_ADVISORY_POSTED,
+      SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE,
+      SuggestionCode.VISIBILITY_RISK,
+    ],
+    evaluate: ({ input }) => {
+      const stationSustained = input.road.windAvgMph;
+      const stationGust = input.road.windGustMph;
+      const sustainedWindAvailable = typeof stationSustained === "number";
+      const sustainedWind = sustainedWindAvailable
+        ? stationSustained
+        : input.weather.windSpeedMph;
+
+      const highRisk =
+        (typeof stationGust === "number" &&
+          stationGust >= SUGGESTION_THRESHOLDS.wind.highProfileHighGustMph) ||
+        (typeof sustainedWind === "number" &&
+          sustainedWind >=
+            SUGGESTION_THRESHOLDS.wind.highProfileHighSustainedMph);
+      const moderateRisk =
+        (typeof stationGust === "number" &&
+          stationGust >=
+            SUGGESTION_THRESHOLDS.wind.highProfileModerateGustMph) ||
+        (typeof sustainedWind === "number" &&
+          sustainedWind >=
+            SUGGESTION_THRESHOLDS.wind.highProfileModerateSustainedMph);
+
+      if (!highRisk && !moderateRisk) {
+        return null;
+      }
+
+      return buildRuleMatch(
+        OBSERVATION_RULES[5],
+        highRisk ? SuggestionConfidence.HIGH : SuggestionConfidence.MEDIUM,
+        [
+          "WYDOT station wind indicates high-profile vehicle risk",
+          highRisk
+            ? "Conditions exceed high-risk wind thresholds"
+            : "Conditions exceed moderate risk wind thresholds",
+        ],
+      );
+    },
+  },
+  {
     code: SuggestionCode.HIGH_WIND_CAUTION,
     title: "High wind caution",
     basis: SuggestionBasis.OBSERVATION,
@@ -472,7 +530,7 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
       }
 
       return buildRuleMatch(
-        OBSERVATION_RULES[4],
+        OBSERVATION_RULES[6],
         highByStation ? SuggestionConfidence.HIGH : SuggestionConfidence.MEDIUM,
         ["Observed wind is elevated", "Travel handling may be affected"],
       );
@@ -514,7 +572,7 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
       }
 
       return buildRuleMatch(
-        OBSERVATION_RULES[5],
+        OBSERVATION_RULES[7],
         !isNeutralRoadCondition(officialCondition) || freezing
           ? SuggestionConfidence.HIGH
           : SuggestionConfidence.MEDIUM,
@@ -557,7 +615,7 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
         return null;
       }
 
-      return buildRuleMatch(OBSERVATION_RULES[6], SuggestionConfidence.MEDIUM, [
+      return buildRuleMatch(OBSERVATION_RULES[8], SuggestionConfidence.MEDIUM, [
         "Wind is elevated",
         "Snow-related conditions are present",
         "Drifting impacts are more likely",
@@ -576,7 +634,7 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
         return null;
       }
 
-      return buildRuleMatch(OBSERVATION_RULES[7], SuggestionConfidence.HIGH, [
+      return buildRuleMatch(OBSERVATION_RULES[9], SuggestionConfidence.HIGH, [
         "WYDOT road data could not be loaded",
         "Road-specific guidance is limited",
       ]);
@@ -594,7 +652,7 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
         return null;
       }
 
-      return buildRuleMatch(OBSERVATION_RULES[8], SuggestionConfidence.HIGH, [
+      return buildRuleMatch(OBSERVATION_RULES[10], SuggestionConfidence.HIGH, [
         "Current weather data could not be loaded",
         "Weather-based guidance is limited",
       ]);
@@ -623,7 +681,7 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
       }
 
       return buildRuleMatch(
-        OBSERVATION_RULES[9],
+        OBSERVATION_RULES[11],
         weatherSufficient
           ? SuggestionConfidence.HIGH
           : SuggestionConfidence.MEDIUM,
@@ -672,6 +730,7 @@ export function isObservationBasedCaution(match: RuleMatch) {
       SuggestionCode.TRAVEL_ADVISORY_POSTED,
       SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE,
       SuggestionCode.VISIBILITY_RISK,
+      SuggestionCode.HIGH_PROFILE_VEHICLE_RISK,
       SuggestionCode.HIGH_WIND_CAUTION,
       SuggestionCode.USE_CAUTION,
       SuggestionCode.DRIFTING_CONCERN,
@@ -811,6 +870,16 @@ export function getSuggestionPresentation(
         levelLabel: "Moderate",
         homeTone: "warning",
         roadTone: "caution",
+      };
+    case SuggestionCode.HIGH_PROFILE_VEHICLE_RISK:
+      return {
+        actionLabel: "Monitor",
+        recommendationText:
+          "High-profile vehicle wind risk is present. Use extra caution on exposed routes.",
+        levelLabel:
+          match.confidence === SuggestionConfidence.HIGH ? "High" : "Moderate",
+        homeTone: match.confidence === SuggestionConfidence.HIGH ? "alert" : "warning",
+        roadTone: match.confidence === SuggestionConfidence.HIGH ? "high" : "caution",
       };
     case SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE:
       return {

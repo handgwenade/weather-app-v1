@@ -452,6 +452,7 @@ function getRoadActionDestination(
   switch (code) {
     case SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE:
       return "alerts";
+    case SuggestionCode.HIGH_PROFILE_VEHICLE_RISK:
     case SuggestionCode.HIGH_WIND_CAUTION:
     case SuggestionCode.USE_CAUTION:
     case SuggestionCode.VISIBILITY_RISK:
@@ -565,6 +566,8 @@ function getRoadStatusTitle(
       return hasUsableSourceText(alertEvent)
         ? (alertEvent ?? "Official alert reported")
         : "Official alert reported";
+    case SuggestionCode.HIGH_PROFILE_VEHICLE_RISK:
+      return buildObservedWindTitle(windValue);
     case SuggestionCode.HIGH_WIND_CAUTION:
       return buildObservedWindTitle(windValue);
     case SuggestionCode.USE_CAUTION:
@@ -623,6 +626,10 @@ function getRoadStatusSubtitle(
       return hasUsableSourceText(alertEvent)
         ? "Official alert for this location."
         : "Official guidance is active for this area.";
+    case SuggestionCode.HIGH_PROFILE_VEHICLE_RISK:
+      return shouldTrustReportedSurface(roadReport, officialCondition)
+        ? `Surface: ${officialCondition}`
+        : buildObservedWindTitle(windValue);
     case SuggestionCode.HIGH_WIND_CAUTION:
       return shouldTrustReportedSurface(roadReport, officialCondition)
         ? `Surface: ${officialCondition}`
@@ -678,6 +685,9 @@ function buildRoadRecommendationText(
   }
 
   switch (primarySuggestion?.code) {
+    case SuggestionCode.HIGH_PROFILE_VEHICLE_RISK:
+      return "High-profile vehicle wind risk is present. Use extra caution on exposed road segments.";
+
     case SuggestionCode.HIGH_WIND_CAUTION:
       return "Observed wind is elevated. Use extra caution on exposed road segments.";
 
