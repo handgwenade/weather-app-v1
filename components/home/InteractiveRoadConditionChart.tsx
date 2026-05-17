@@ -12,11 +12,7 @@ import {
   type RoadConditionChartUnits,
 } from "@/utils/roadConditionChart";
 import { scaleLinear } from "d3-scale";
-import {
-  area as d3Area,
-  curveMonotoneX,
-  line as d3Line,
-} from "d3-shape";
+import { curveMonotoneX, area as d3Area, line as d3Line } from "d3-shape";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { LayoutChangeEvent, StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -25,8 +21,8 @@ import Svg, {
   Circle,
   Defs,
   G,
-  LinearGradient,
   Line,
+  LinearGradient,
   Path,
   Rect,
   Stop,
@@ -61,8 +57,12 @@ function getMetricColor(metric: RoadConditionChartMetric) {
   }
 }
 
-function formatTimeLabel(value: string) {
-  return formatTime24Hour(value) ?? "Time unavailable";
+function formatTimeLabel(value?: string) {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return "hour unavailable";
+  }
+
+  return formatTime24Hour(value) ?? "hour unavailable";
 }
 
 export default function InteractiveRoadConditionChart({
@@ -76,21 +76,29 @@ export default function InteractiveRoadConditionChart({
     () => getValidRoadConditionPoints(points, metric),
     [metric, points],
   );
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(
-    validPoints[0]?.index ?? null,
-  );
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    setSelectedIndex(validPoints[0]?.index ?? null);
+    setSelectedIndex((currentIndex) => {
+      if (validPoints.length === 0) {
+        return null;
+      }
+
+      const currentStillValid = validPoints.some(
+        (point) => point.index === currentIndex,
+      );
+
+      return currentStillValid ? currentIndex : validPoints[0].index;
+    });
   }, [validPoints]);
 
   const chart = useMemo(() => {
-    if (chartWidth <= 0 || points.length === 0 || validPoints.length === 0) {
+    if (chartWidth <= 0 || validPoints.length === 0) {
       return null;
     }
 
     const color = getMetricColor(metric);
-    const maxIndex = Math.max(1, points.length - 1);
+    const maxIndex = Math.max(1, ...validPoints.map((point) => point.index));
     const xScale = scaleLinear()
       .domain([0, maxIndex])
       .range([PLOT_LEFT, chartWidth - PLOT_RIGHT])
@@ -111,18 +119,18 @@ export default function InteractiveRoadConditionChart({
       (segment, index) => {
         const linePath =
           segment.length > 1
-            ? d3Line<(typeof segment)[number]>()
+            ? (d3Line<(typeof segment)[number]>()
                 .x((point) => xScale(point.index))
                 .y((point) => yScale(point.value))
-                .curve(curveMonotoneX)(segment) ?? ""
+                .curve(curveMonotoneX)(segment) ?? "")
             : "";
         const areaPath =
           segment.length > 1
-            ? d3Area<(typeof segment)[number]>()
+            ? (d3Area<(typeof segment)[number]>()
                 .x((point) => xScale(point.index))
                 .y0(CHART_HEIGHT - PLOT_BOTTOM)
                 .y1((point) => yScale(point.value))
-                .curve(curveMonotoneX)(segment) ?? ""
+                .curve(curveMonotoneX)(segment) ?? "")
             : "";
 
         return {
@@ -142,7 +150,7 @@ export default function InteractiveRoadConditionChart({
       selectedPoint,
       segments,
     };
-  }, [chartWidth, metric, points.length, selectedIndex, validPoints]);
+  }, [chartWidth, metric, selectedIndex, validPoints]);
 
   const updateSelectionFromX = useCallback(
     (rawX: number) => {

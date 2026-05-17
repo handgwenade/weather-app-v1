@@ -1,6 +1,6 @@
+import InteractiveRoadConditionChart from "@/components/home/InteractiveRoadConditionChart";
 import { Palette, Radius, Shadows } from "@/constants/theme";
 import { useScrollToTopOnFocus } from "@/hooks/useScrollToTopOnFocus";
-import InteractiveRoadConditionChart from "@/components/home/InteractiveRoadConditionChart";
 import type {
   RoadConditionChartMetric,
   RoadConditionChartPoint,
@@ -168,8 +168,9 @@ export default function HomeScreenV2({
 
   useScrollToTopOnFocus(scrollViewRef);
 
-  const [forecastMode, setForecastMode] =
-    useState<RoadConditionChartMetric>("precipitationProbability");
+  const [forecastMode, setForecastMode] = useState<RoadConditionChartMetric>(
+    "precipitationProbability",
+  );
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -491,17 +492,17 @@ const styles = StyleSheet.create({
     maxWidth: "64%",
   },
   heroMetricValue: {
-    color: "#696A70",
+    color: Palette.textPrimary,
     fontSize: 48,
     lineHeight: 54,
     fontWeight: "900",
     letterSpacing: -1.8,
   },
   heroTitle: {
-    color: "#696A70",
+    color: Palette.textPrimary,
     fontSize: 17,
     lineHeight: 23,
-    fontWeight: "900",
+    fontWeight: "800",
     letterSpacing: -0.35,
     marginTop: 12,
   },
@@ -509,6 +510,7 @@ const styles = StyleSheet.create({
     color: Palette.textSecondary,
     fontSize: 13,
     lineHeight: 19,
+    fontWeight: "500",
     letterSpacing: -0.15,
     marginTop: 6,
   },
@@ -616,7 +618,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   metricValue: {
-    color: "#8A8796",
+    color: Palette.textPrimary,
     fontSize: 16,
     lineHeight: 22,
     fontWeight: "800",
@@ -624,7 +626,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   metricLabel: {
-    color: "#696A70",
+    color: Palette.textSecondary,
     fontSize: 13,
     lineHeight: 18,
     fontWeight: "900",
@@ -683,7 +685,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   forecastTabText: {
-    color: "#74757D",
+    color: Palette.textSecondary,
     fontSize: 12,
     fontWeight: "800",
   },
