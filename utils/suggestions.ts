@@ -878,8 +878,10 @@ export function getSuggestionPresentation(
           "High-profile vehicle wind risk is present. Use extra caution on exposed routes.",
         levelLabel:
           match.confidence === SuggestionConfidence.HIGH ? "High" : "Moderate",
-        homeTone: match.confidence === SuggestionConfidence.HIGH ? "alert" : "warning",
-        roadTone: match.confidence === SuggestionConfidence.HIGH ? "high" : "caution",
+        homeTone:
+          match.confidence === SuggestionConfidence.HIGH ? "alert" : "warning",
+        roadTone:
+          match.confidence === SuggestionConfidence.HIGH ? "high" : "caution",
       };
     case SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE:
       return {
