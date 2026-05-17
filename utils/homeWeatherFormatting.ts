@@ -1,12 +1,12 @@
 import type {
-  RoadSignalHomeInitialResponse,
-  TomorrowHourlyForecastEntry,
+    RoadSignalHomeInitialResponse,
+    TomorrowHourlyForecastEntry,
 } from "@/services/tomorrow";
 import type { WydotRoadReport } from "@/services/wydot";
 import { formatTime24Hour, formatUpdatedTimeLabel } from "@/utils/dateTime";
 import {
-  getHomeCardStateLabel,
-  type HomeCardDataState,
+    getHomeCardStateLabel,
+    type HomeCardDataState,
 } from "@/utils/homePerformance";
 import { celsiusToFahrenheit } from "@/utils/weather";
 
@@ -33,6 +33,12 @@ export type HomeAlertSummary = {
   status: "loading" | "none" | "active" | "unavailable";
   event: string | null;
   area: string | null;
+  severity: string | null;
+  certainty: string | null;
+  headline: string | null;
+  description: string | null;
+  effective: string | null;
+  ends: string | null;
 };
 
 export const INITIAL_CURRENT_WEATHER: HomeCurrentWeatherSnapshot = {
@@ -55,6 +61,12 @@ export const INITIAL_ALERT_SUMMARY: HomeAlertSummary = {
   status: "loading",
   event: null,
   area: null,
+  severity: null,
+  certainty: null,
+  headline: null,
+  description: null,
+  effective: null,
+  ends: null,
 };
 
 export function getConditionLabel(weatherCode?: number) {
@@ -152,18 +164,16 @@ function isThinHomeWeatherSnapshot(snapshot: HomeCurrentWeatherSnapshot) {
   );
 }
 
-export function hasUsableHomeRoadObservation(
-  report: WydotRoadReport | null,
-) {
+export function hasUsableHomeRoadObservation(report: WydotRoadReport | null) {
   const observation = report?.primaryStationObservation;
 
   return Boolean(
     observation &&
-      (observation.observedAt ||
-        typeof observation.airTempF === "number" ||
-        typeof observation.windAvgMph === "number" ||
-        typeof observation.windGustMph === "number" ||
-        typeof observation.surfaceTempF === "number"),
+    (observation.observedAt ||
+      typeof observation.airTempF === "number" ||
+      typeof observation.windAvgMph === "number" ||
+      typeof observation.windGustMph === "number" ||
+      typeof observation.surfaceTempF === "number"),
   );
 }
 
@@ -286,9 +296,7 @@ export function getHomeForecastLowFFromHourlyEntries(
   return Math.min(...temperatureValuesF);
 }
 
-export function getHomePropertyRiskFromLowF(
-  lowF: number | null,
-): PropertyRisk {
+export function getHomePropertyRiskFromLowF(lowF: number | null): PropertyRisk {
   if (lowF === null) {
     return "Unavailable";
   }
@@ -321,7 +329,10 @@ export function formatPercentValue(value?: number | null) {
     : `${Math.round(value)}%`;
 }
 
-export function formatWindValue(value?: number | null, direction?: string | null) {
+export function formatWindValue(
+  value?: number | null,
+  direction?: string | null,
+) {
   if (value === null || value === undefined || Number.isNaN(value)) {
     return "--";
   }

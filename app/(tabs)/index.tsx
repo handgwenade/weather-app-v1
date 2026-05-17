@@ -7,28 +7,25 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import HomeScreenV2 from "@/components/home/HomeScreenV2";
 import QuickSwitchModal from "@/components/quickSwitchModal";
 import {
-  setSelectedLocation,
-  usePropertyLocation,
-  useSavedLocations,
-  useSelectedLocation,
+    setSelectedLocation,
+    usePropertyLocation,
+    useSavedLocations,
+    useSelectedLocation,
 } from "@/data/locationStore";
 import { useHomeScreenData } from "@/hooks/useHomeScreenData";
 import { buildHomeRoadHourlyPoints } from "@/utils/homeRoadHourly";
+import { buildHomeViewModel, type HomeViewModel } from "@/utils/homeViewModel";
 import {
-  buildHomeViewModel,
-  type HomeViewModel,
-} from "@/utils/homeViewModel";
-import {
-  getTopTitle,
-  hasUsableHomeRoadObservation,
+    getTopTitle,
+    hasUsableHomeRoadObservation,
 } from "@/utils/homeWeatherFormatting";
-import {
-  evaluateSuggestions,
-  SuggestionCode,
-  type SuggestionDecision,
-  type SuggestionInput,
-} from "@/utils/suggestions";
 import type { RoadConditionChartPoint } from "@/utils/roadConditionChart";
+import {
+    evaluateSuggestions,
+    SuggestionCode,
+    type SuggestionDecision,
+    type SuggestionInput,
+} from "@/utils/suggestions";
 
 function getHomeSuggestionRoute(code?: SuggestionCode | null) {
   switch (code) {
@@ -106,6 +103,15 @@ export default function HomeScreen() {
         restriction: roadReport?.primarySegment.restriction ?? null,
         advisory: roadReport?.primarySegment.advisory ?? null,
         officialCondition: roadReport?.primarySegment.officialCondition ?? null,
+        officialRoadStatus: roadReport?.primarySegment.officialRoadStatus ?? {
+          hasOfficialStatus: false,
+          type: "none",
+          impact: "none",
+          title: "",
+          description: "",
+          source: "wydot",
+          lastUpdated: null,
+        },
         fetchedAt: roadReport?.fetchedAt ?? null,
         stationObservedAt: observation?.observedAt ?? null,
         windAvgMph: observation?.windAvgMph ?? null,

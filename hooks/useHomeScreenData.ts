@@ -3,34 +3,34 @@ import { useEffect, useRef, useState } from "react";
 import type { AppLocation } from "@/data/locationStore";
 import { formatCityState } from "@/data/locationStore";
 import {
-  getCachedHomeInitialWeather,
-  getCachedHourlyForecast,
-  getSharedForecast,
-  getSharedHomeInitialWeather,
-  getSharedHourlyForecast,
-  hydrateCachedHomeWeather,
+    getCachedHomeInitialWeather,
+    getCachedHourlyForecast,
+    getSharedForecast,
+    getSharedHomeInitialWeather,
+    getSharedHourlyForecast,
+    hydrateCachedHomeWeather,
 } from "@/data/weatherStore";
 import { getActiveAlertsForLocation } from "@/services/nws";
 import type { TomorrowHourlyForecastEntry } from "@/services/tomorrow";
 import { getWydotRoadReport, type WydotRoadReport } from "@/services/wydot";
 import {
-  getRoadFallbackState,
-  getWeatherFailureState,
+    getRoadFallbackState,
+    getWeatherFailureState,
 } from "@/utils/homePerformance";
 import {
-  buildHomeWeatherSnapshotFromInitialPayload,
-  formatClockLabel,
-  getHomeForecastLowFFromHourlyEntries,
-  getHomePropertyRiskFromLowF,
-  getHomeWeatherSnapshotKey,
-  INITIAL_ALERT_SUMMARY,
-  INITIAL_CURRENT_WEATHER,
-  mergeHomeWeatherSnapshot,
-  sameHomeLocation,
-  type HomeAlertSummary,
-  type HomeCurrentWeatherSnapshot,
-  type HomeDataState,
-  type PropertyRisk,
+    buildHomeWeatherSnapshotFromInitialPayload,
+    formatClockLabel,
+    getHomeForecastLowFFromHourlyEntries,
+    getHomePropertyRiskFromLowF,
+    getHomeWeatherSnapshotKey,
+    INITIAL_ALERT_SUMMARY,
+    INITIAL_CURRENT_WEATHER,
+    mergeHomeWeatherSnapshot,
+    sameHomeLocation,
+    type HomeAlertSummary,
+    type HomeCurrentWeatherSnapshot,
+    type HomeDataState,
+    type PropertyRisk,
 } from "@/utils/homeWeatherFormatting";
 
 export type UseHomeScreenDataResult = {
@@ -192,7 +192,8 @@ export function useHomeScreenData(
       }
 
       if (persistedCache.hourly) {
-        const hourlyEntries = persistedCache.hourly.data.timelines?.hourly ?? [];
+        const hourlyEntries =
+          persistedCache.hourly.data.timelines?.hourly ?? [];
         const nextPropertyForecastLowF = sameHomeLocation(
           propertyLocation,
           activeLocation,
@@ -343,17 +344,28 @@ export function useHomeScreenData(
             status: "none",
             event: null,
             area: formatCityState(activeLocation),
+            severity: null,
+            certainty: null,
+            headline: null,
+            description: null,
+            effective: null,
+            ends: null,
           });
         } else {
           const firstAlert = features[0];
           const event = firstAlert.properties?.event ?? "Active alert";
           const area =
-            firstAlert.properties?.areaDesc ??
-            formatCityState(activeLocation);
+            firstAlert.properties?.areaDesc ?? formatCityState(activeLocation);
           setAlertSummary({
             status: "active",
             event,
             area,
+            severity: firstAlert.properties?.severity ?? null,
+            certainty: firstAlert.properties?.certainty ?? null,
+            headline: firstAlert.properties?.headline ?? null,
+            description: firstAlert.properties?.description ?? null,
+            effective: firstAlert.properties?.effective ?? null,
+            ends: firstAlert.properties?.ends ?? null,
           });
         }
 
@@ -372,6 +384,12 @@ export function useHomeScreenData(
           status: "unavailable",
           event: null,
           area: null,
+          severity: null,
+          certainty: null,
+          headline: null,
+          description: null,
+          effective: null,
+          ends: null,
         });
         setAlertSummaryLocationKey(selectedLocationWeatherKey);
         setHomeSuggestionsReady(true);

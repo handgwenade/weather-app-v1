@@ -1,3 +1,5 @@
+import type { WydotOfficialRoadStatus } from "@/services/wydot";
+
 export enum SuggestionCode {
   ROAD_CLOSED = "ROAD_CLOSED",
   TRAVEL_RESTRICTION_POSTED = "TRAVEL_RESTRICTION_POSTED",
@@ -78,6 +80,7 @@ export type SuggestionInput = {
     restriction: string | null;
     advisory: string | null;
     officialCondition: string | null;
+    officialRoadStatus: WydotOfficialRoadStatus;
     fetchedAt: string | null;
     stationObservedAt: string | null;
     windAvgMph: number | null;
@@ -205,24 +208,24 @@ function isNeutralRoadCondition(value: string | null) {
 function hasRoadObservationSignal(input: SuggestionInput) {
   return Boolean(
     input.road.stationObservedAt ||
-      typeof input.road.windAvgMph === "number" ||
-      typeof input.road.windGustMph === "number" ||
-      typeof input.road.visibilityFt === "number" ||
-      typeof input.road.airTempF === "number" ||
-      typeof input.road.surfaceTempF === "number",
+    typeof input.road.windAvgMph === "number" ||
+    typeof input.road.windGustMph === "number" ||
+    typeof input.road.visibilityFt === "number" ||
+    typeof input.road.airTempF === "number" ||
+    typeof input.road.surfaceTempF === "number",
   );
 }
 
 function hasRoadSourceSignal(input: SuggestionInput) {
   return Boolean(
     input.road.available &&
-      input.road.mapped &&
-      (input.road.fetchedAt ||
-        input.road.stationObservedAt ||
-        input.road.restriction ||
-        input.road.advisory ||
-        input.road.officialCondition ||
-        hasRoadObservationSignal(input)),
+    input.road.mapped &&
+    (input.road.fetchedAt ||
+      input.road.stationObservedAt ||
+      input.road.restriction ||
+      input.road.advisory ||
+      input.road.officialCondition ||
+      hasRoadObservationSignal(input)),
   );
 }
 
@@ -285,14 +288,10 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
         return null;
       }
 
-      return buildRuleMatch(
-        OBSERVATION_RULES[0],
-        SuggestionConfidence.HIGH,
-        [
-          "WYDOT restriction indicates full road closure",
-          "Travel should not continue on this segment",
-        ],
-      );
+      return buildRuleMatch(OBSERVATION_RULES[0], SuggestionConfidence.HIGH, [
+        "WYDOT restriction indicates full road closure",
+        "Travel should not continue on this segment",
+      ]);
     },
   },
   {
@@ -312,16 +311,12 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
         return null;
       }
 
-      return buildRuleMatch(
-        OBSERVATION_RULES[1],
-        SuggestionConfidence.HIGH,
-        [
-          isVehicleSpecificRestriction(restriction)
-            ? "WYDOT restriction limits travel for some vehicle classes"
-            : "WYDOT restriction limits travel on this segment",
-          "Travel is limited on this segment",
-        ],
-      );
+      return buildRuleMatch(OBSERVATION_RULES[1], SuggestionConfidence.HIGH, [
+        isVehicleSpecificRestriction(restriction)
+          ? "WYDOT restriction limits travel for some vehicle classes"
+          : "WYDOT restriction limits travel on this segment",
+        "Travel is limited on this segment",
+      ]);
     },
   },
   {
@@ -341,14 +336,10 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
         return null;
       }
 
-      return buildRuleMatch(
-        OBSERVATION_RULES[2],
-        SuggestionConfidence.HIGH,
-        [
-          "WYDOT advisory is active",
-          "Conditions require elevated caution",
-        ],
-      );
+      return buildRuleMatch(OBSERVATION_RULES[2], SuggestionConfidence.HIGH, [
+        "WYDOT advisory is active",
+        "Conditions require elevated caution",
+      ]);
     },
   },
   {
@@ -367,14 +358,10 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
         return null;
       }
 
-      return buildRuleMatch(
-        OBSERVATION_RULES[3],
-        SuggestionConfidence.HIGH,
-        [
-          "An official alert is active for this area",
-          "Agency guidance should be reviewed",
-        ],
-      );
+      return buildRuleMatch(OBSERVATION_RULES[3], SuggestionConfidence.HIGH, [
+        "An official alert is active for this area",
+        "Agency guidance should be reviewed",
+      ]);
     },
   },
   {
@@ -405,10 +392,7 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
       return buildRuleMatch(
         OBSERVATION_RULES[4],
         highByStation ? SuggestionConfidence.HIGH : SuggestionConfidence.MEDIUM,
-        [
-          "Observed wind is elevated",
-          "Travel handling may be affected",
-        ],
+        ["Observed wind is elevated", "Travel handling may be affected"],
       );
     },
   },
@@ -468,7 +452,9 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
     sourceStrength: RuleSourceStrength.HEURISTIC,
     evaluate: ({ input }) => {
       const wind =
-        input.road.windAvgMph ?? input.road.windGustMph ?? input.weather.windSpeedMph;
+        input.road.windAvgMph ??
+        input.road.windGustMph ??
+        input.weather.windSpeedMph;
       const roadText = [
         input.road.officialCondition,
         input.road.advisory,
@@ -489,15 +475,11 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
         return null;
       }
 
-      return buildRuleMatch(
-        OBSERVATION_RULES[6],
-        SuggestionConfidence.MEDIUM,
-        [
-          "Wind is elevated",
-          "Snow-related conditions are present",
-          "Drifting impacts are more likely",
-        ],
-      );
+      return buildRuleMatch(OBSERVATION_RULES[6], SuggestionConfidence.MEDIUM, [
+        "Wind is elevated",
+        "Snow-related conditions are present",
+        "Drifting impacts are more likely",
+      ]);
     },
   },
   {
@@ -512,14 +494,10 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
         return null;
       }
 
-      return buildRuleMatch(
-        OBSERVATION_RULES[7],
-        SuggestionConfidence.HIGH,
-        [
-          "WYDOT road data could not be loaded",
-          "Road-specific guidance is limited",
-        ],
-      );
+      return buildRuleMatch(OBSERVATION_RULES[7], SuggestionConfidence.HIGH, [
+        "WYDOT road data could not be loaded",
+        "Road-specific guidance is limited",
+      ]);
     },
   },
   {
@@ -534,14 +512,10 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
         return null;
       }
 
-      return buildRuleMatch(
-        OBSERVATION_RULES[8],
-        SuggestionConfidence.HIGH,
-        [
-          "Current weather data could not be loaded",
-          "Weather-based guidance is limited",
-        ],
-      );
+      return buildRuleMatch(OBSERVATION_RULES[8], SuggestionConfidence.HIGH, [
+        "Current weather data could not be loaded",
+        "Weather-based guidance is limited",
+      ]);
     },
   },
   {
@@ -568,7 +542,9 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
 
       return buildRuleMatch(
         OBSERVATION_RULES[9],
-        weatherSufficient ? SuggestionConfidence.HIGH : SuggestionConfidence.MEDIUM,
+        weatherSufficient
+          ? SuggestionConfidence.HIGH
+          : SuggestionConfidence.MEDIUM,
         [
           "No restriction reported",
           "No advisory reported",
@@ -597,14 +573,10 @@ export const FORECAST_RULES: SuggestionRuleConfig[] = [
         return null;
       }
 
-      return buildRuleMatch(
-        FORECAST_RULES[0],
-        SuggestionConfidence.MEDIUM,
-        [
-          "Forecast low is in or near freeze range",
-          "Cold-sensitive planning may be needed",
-        ],
-      );
+      return buildRuleMatch(FORECAST_RULES[0], SuggestionConfidence.MEDIUM, [
+        "Forecast low is in or near freeze range",
+        "Cold-sensitive planning may be needed",
+      ]);
     },
   },
 ];
@@ -642,7 +614,8 @@ function applyBlockers(matches: RuleMatch[]) {
 
 function sortMatches(matches: RuleMatch[]) {
   return [...matches].sort((a, b) => {
-    const priorityDelta = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+    const priorityDelta =
+      PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
     if (priorityDelta !== 0) {
       return priorityDelta;
     }
@@ -664,15 +637,17 @@ function sortMatches(matches: RuleMatch[]) {
   });
 }
 
-export function evaluateSuggestions(input: SuggestionInput): SuggestionDecision {
+export function evaluateSuggestions(
+  input: SuggestionInput,
+): SuggestionDecision {
   const context = { input };
 
-  const observationMatches = OBSERVATION_RULES.map((rule) => rule.evaluate(context)).filter(
-    (match): match is RuleMatch => Boolean(match),
-  );
-  const forecastMatches = FORECAST_RULES.map((rule) => rule.evaluate(context)).filter(
-    (match): match is RuleMatch => Boolean(match),
-  );
+  const observationMatches = OBSERVATION_RULES.map((rule) =>
+    rule.evaluate(context),
+  ).filter((match): match is RuleMatch => Boolean(match));
+  const forecastMatches = FORECAST_RULES.map((rule) =>
+    rule.evaluate(context),
+  ).filter((match): match is RuleMatch => Boolean(match));
 
   const filtered = applyBlockers([...observationMatches, ...forecastMatches]);
   const sorted = sortMatches(filtered);
@@ -686,7 +661,9 @@ export function evaluateSuggestions(input: SuggestionInput): SuggestionDecision 
           sorted.some(isObservationBasedCaution)
         ),
     ) ??
-    sorted.find((match) => match.sourceStrength !== RuleSourceStrength.SYSTEM_STATUS) ??
+    sorted.find(
+      (match) => match.sourceStrength !== RuleSourceStrength.SYSTEM_STATUS,
+    ) ??
     sorted[0] ??
     null;
 
@@ -712,12 +689,15 @@ export function evaluateSuggestions(input: SuggestionInput): SuggestionDecision 
   return { primary, secondary, systemStates };
 }
 
-export function getSuggestionPresentation(match: RuleMatch): SuggestionPresentation {
+export function getSuggestionPresentation(
+  match: RuleMatch,
+): SuggestionPresentation {
   switch (match.code) {
     case SuggestionCode.ROAD_CLOSED:
       return {
         actionLabel: "Review now",
-        recommendationText: "Road is closed. Do not route travel through this segment.",
+        recommendationText:
+          "Road is closed. Do not route travel through this segment.",
         levelLabel: "High",
         homeTone: "alert",
         roadTone: "high",
@@ -734,7 +714,8 @@ export function getSuggestionPresentation(match: RuleMatch): SuggestionPresentat
     case SuggestionCode.TRAVEL_ADVISORY_POSTED:
       return {
         actionLabel: "Monitor",
-        recommendationText: "Advisory is active. Continue monitoring before travel.",
+        recommendationText:
+          "Advisory is active. Continue monitoring before travel.",
         levelLabel: "Moderate",
         homeTone: "warning",
         roadTone: "caution",
@@ -742,7 +723,8 @@ export function getSuggestionPresentation(match: RuleMatch): SuggestionPresentat
     case SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE:
       return {
         actionLabel: "Review now",
-        recommendationText: "Official weather guidance is active. Review alert details before travel.",
+        recommendationText:
+          "Official weather guidance is active. Review alert details before travel.",
         levelLabel: "High",
         homeTone: "alert",
         roadTone: "high",
@@ -750,7 +732,8 @@ export function getSuggestionPresentation(match: RuleMatch): SuggestionPresentat
     case SuggestionCode.HIGH_WIND_CAUTION:
       return {
         actionLabel: "Monitor",
-        recommendationText: "Observed wind is elevated. Use extra caution on exposed routes.",
+        recommendationText:
+          "Observed wind is elevated. Use extra caution on exposed routes.",
         levelLabel: "Moderate",
         homeTone: "warning",
         roadTone: "caution",
@@ -758,7 +741,8 @@ export function getSuggestionPresentation(match: RuleMatch): SuggestionPresentat
     case SuggestionCode.USE_CAUTION:
       return {
         actionLabel: "Monitor",
-        recommendationText: "Current road or weather factors may affect travel. Continue monitoring.",
+        recommendationText:
+          "Current road or weather factors may affect travel. Continue monitoring.",
         levelLabel: "Moderate",
         homeTone: "warning",
         roadTone: "caution",
@@ -766,7 +750,8 @@ export function getSuggestionPresentation(match: RuleMatch): SuggestionPresentat
     case SuggestionCode.DRIFTING_CONCERN:
       return {
         actionLabel: "Monitor",
-        recommendationText: "Wind and snow conditions support drifting concern. Watch exposed areas.",
+        recommendationText:
+          "Wind and snow conditions support drifting concern. Watch exposed areas.",
         levelLabel: "Moderate",
         homeTone: "warning",
         roadTone: "caution",
@@ -783,7 +768,8 @@ export function getSuggestionPresentation(match: RuleMatch): SuggestionPresentat
     case SuggestionCode.WEATHER_DATA_UNAVAILABLE:
       return {
         actionLabel: "Check data",
-        recommendationText: "Weather-based guidance is limited right now. Check again before travel.",
+        recommendationText:
+          "Weather-based guidance is limited right now. Check again before travel.",
         levelLabel: "Unavailable",
         homeTone: "neutral",
         roadTone: "neutral",
@@ -791,7 +777,8 @@ export function getSuggestionPresentation(match: RuleMatch): SuggestionPresentat
     case SuggestionCode.FREEZE_RISK_TONIGHT:
       return {
         actionLabel: "Monitor",
-        recommendationText: "Forecast temperatures drop into the freeze-risk range tonight.",
+        recommendationText:
+          "Forecast temperatures drop into the freeze-risk range tonight.",
         levelLabel: "Moderate",
         homeTone: "warning",
         roadTone: "caution",
@@ -800,7 +787,8 @@ export function getSuggestionPresentation(match: RuleMatch): SuggestionPresentat
     default:
       return {
         actionLabel: "Monitor",
-        recommendationText: "No active travel impacts. Continue routine monitoring.",
+        recommendationText:
+          "No active travel impacts. Continue routine monitoring.",
         levelLabel: "Low",
         homeTone: "good",
         roadTone: "good",

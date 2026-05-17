@@ -1,44 +1,44 @@
 import QuickSwitchModal from "@/components/quickSwitchModal";
 import { RoadMapPreviewCard } from "@/components/road/RoadMapPreviewCard";
 import RoadScreenV2, {
-  type RoadActionDestination,
-  type RoadBullet,
-  type RoadMetric,
-  type RoadOutlookItem,
-  type RoadTone,
+    type RoadActionDestination,
+    type RoadBullet,
+    type RoadMetric,
+    type RoadOutlookItem,
+    type RoadTone,
 } from "@/components/road/RoadScreenV2";
 import RoadSegmentsPrototype from "@/components/road/RoadSegmentsPrototype";
 import {
-  type AppLocation,
-  formatCityState,
-  setSelectedLocation,
-  useSavedLocations,
-  useSelectedLocation,
+    type AppLocation,
+    formatCityState,
+    setSelectedLocation,
+    useSavedLocations,
+    useSelectedLocation,
 } from "@/data/locationStore";
 import {
-  getSharedCurrentWeather,
-  getSharedHourlyForecast,
+    getSharedCurrentWeather,
+    getSharedHourlyForecast,
 } from "@/data/weatherStore";
 import { getActiveAlertsForLocation } from "@/services/nws";
 import type { TomorrowHourlyForecastEntry } from "@/services/tomorrow";
 import {
-  getWydotRoadReport,
-  type WydotOfficialRoadStatus,
-  type WydotRoadReport,
-  type WydotStationObservation,
+    getWydotRoadReport,
+    type WydotOfficialRoadStatus,
+    type WydotRoadReport,
+    type WydotStationObservation,
 } from "@/services/wydot";
 import {
-  buildFutureTimeLabels24Hour,
-  formatTime24Hour,
-  formatUpdatedTimeLabel,
+    buildFutureTimeLabels24Hour,
+    formatTime24Hour,
+    formatUpdatedTimeLabel,
 } from "@/utils/dateTime";
 import {
-  evaluateSuggestions,
-  getSuggestionPresentation,
-  type RuleMatch,
-  SuggestionCode,
-  type SuggestionDecision,
-  type SuggestionInput,
+    evaluateSuggestions,
+    getSuggestionPresentation,
+    type RuleMatch,
+    SuggestionCode,
+    type SuggestionDecision,
+    type SuggestionInput,
 } from "@/utils/suggestions";
 import { celsiusToFahrenheit, metersPerSecondToMph } from "@/utils/weather";
 import { useRouter } from "expo-router";
@@ -1318,86 +1318,92 @@ export default function RoadScreen() {
     roadLocation && (roadSuggestionsReady || roadReport || wydotNotice),
   );
 
-  const suggestionInput = useMemo<SuggestionInput | null>(
-    () => {
-      if (!roadLocation || !canEvaluateRoadSuggestions) {
-        return null;
-      }
+  const suggestionInput = useMemo<SuggestionInput | null>(() => {
+    if (!roadLocation || !canEvaluateRoadSuggestions) {
+      return null;
+    }
 
-      const station = roadReport?.primaryStationObservation ?? null;
-      const weatherTemperatureValue =
-        currentWeather.temperatureLabel === "--"
-          ? null
-          : Number.parseInt(currentWeather.temperatureLabel, 10);
-      const parsedWeatherTemperature =
-        typeof weatherTemperatureValue === "number" &&
-        Number.isFinite(weatherTemperatureValue)
-          ? weatherTemperatureValue
-          : null;
-      const weatherWindValue =
-        currentWeather.windLabel === "Not available"
-          ? null
-          : Number.parseInt(currentWeather.windLabel, 10);
-      const parsedWeatherWind =
-        typeof weatherWindValue === "number" && Number.isFinite(weatherWindValue)
-          ? weatherWindValue
-          : null;
+    const station = roadReport?.primaryStationObservation ?? null;
+    const weatherTemperatureValue =
+      currentWeather.temperatureLabel === "--"
+        ? null
+        : Number.parseInt(currentWeather.temperatureLabel, 10);
+    const parsedWeatherTemperature =
+      typeof weatherTemperatureValue === "number" &&
+      Number.isFinite(weatherTemperatureValue)
+        ? weatherTemperatureValue
+        : null;
+    const weatherWindValue =
+      currentWeather.windLabel === "Not available"
+        ? null
+        : Number.parseInt(currentWeather.windLabel, 10);
+    const parsedWeatherWind =
+      typeof weatherWindValue === "number" && Number.isFinite(weatherWindValue)
+        ? weatherWindValue
+        : null;
 
-      return {
-        road: {
-          available: !!roadReport,
-          mapped: !!roadReport,
-          restriction: roadReport?.primarySegment.restriction ?? null,
-          advisory: roadReport?.primarySegment.advisory ?? null,
-          officialCondition: roadReport?.primarySegment.officialCondition ?? null,
-          fetchedAt: roadReport?.fetchedAt ?? null,
-          stationObservedAt: station?.observedAt ?? null,
-          windAvgMph: station?.windAvgMph ?? null,
-          windGustMph: station?.windGustMph ?? null,
-          windDirection: station?.windDirection ?? null,
-          visibilityFt: station?.visibilityFt ?? null,
-          airTempF: station?.airTempF ?? null,
-          surfaceTempF: station?.surfaceTempF ?? null,
+    return {
+      road: {
+        available: !!roadReport,
+        mapped: !!roadReport,
+        restriction: roadReport?.primarySegment.restriction ?? null,
+        advisory: roadReport?.primarySegment.advisory ?? null,
+        officialCondition: roadReport?.primarySegment.officialCondition ?? null,
+        officialRoadStatus: roadReport?.primarySegment.officialRoadStatus ?? {
+          hasOfficialStatus: false,
+          type: "none",
+          impact: "none",
+          title: "",
+          description: "",
+          source: "wydot",
+          lastUpdated: null,
         },
-        weather: {
-          available:
-            currentWeather.hasWeatherData || hasUsableRoadObservation(roadReport),
-          observedAt:
-            currentWeather.sourceUpdatedLabel ??
-            station?.observedAt ??
-            roadReport?.fetchedAt ??
-            null,
-          temperatureF: parsedWeatherTemperature ?? station?.airTempF ?? null,
-          windSpeedMph:
-            parsedWeatherWind ??
-            station?.windAvgMph ??
-            station?.windGustMph ??
-            null,
-          windDirection: station?.windDirection ?? null,
-          precipProbability: currentWeather.precipProbability,
-          weatherCode: null,
-        },
-        alerts: {
-          available: alertEvent !== null,
-          hasActiveAlert: alertEvent !== null,
-          primaryEvent: alertEvent,
-          primarySeverity: null,
-          primaryCertainty: null,
-        },
-        forecast: {
-          available: false,
-          dailyLowF: null,
-        },
-      };
-    },
-    [
-      canEvaluateRoadSuggestions,
-      currentWeather,
-      roadLocation,
-      roadReport,
-      alertEvent,
-    ],
-  );
+        fetchedAt: roadReport?.fetchedAt ?? null,
+        stationObservedAt: station?.observedAt ?? null,
+        windAvgMph: station?.windAvgMph ?? null,
+        windGustMph: station?.windGustMph ?? null,
+        windDirection: station?.windDirection ?? null,
+        visibilityFt: station?.visibilityFt ?? null,
+        airTempF: station?.airTempF ?? null,
+        surfaceTempF: station?.surfaceTempF ?? null,
+      },
+      weather: {
+        available:
+          currentWeather.hasWeatherData || hasUsableRoadObservation(roadReport),
+        observedAt:
+          currentWeather.sourceUpdatedLabel ??
+          station?.observedAt ??
+          roadReport?.fetchedAt ??
+          null,
+        temperatureF: parsedWeatherTemperature ?? station?.airTempF ?? null,
+        windSpeedMph:
+          parsedWeatherWind ??
+          station?.windAvgMph ??
+          station?.windGustMph ??
+          null,
+        windDirection: station?.windDirection ?? null,
+        precipProbability: currentWeather.precipProbability,
+        weatherCode: null,
+      },
+      alerts: {
+        available: alertEvent !== null,
+        hasActiveAlert: alertEvent !== null,
+        primaryEvent: alertEvent,
+        primarySeverity: null,
+        primaryCertainty: null,
+      },
+      forecast: {
+        available: false,
+        dailyLowF: null,
+      },
+    };
+  }, [
+    canEvaluateRoadSuggestions,
+    currentWeather,
+    roadLocation,
+    roadReport,
+    alertEvent,
+  ]);
 
   const suggestionDecision = useMemo(
     () => (suggestionInput ? evaluateSuggestions(suggestionInput) : null),
