@@ -1,15 +1,15 @@
 import { Palette, Radius } from "@/constants/theme";
-import { formatTime24Hour } from "@/utils/dateTime";
 import {
-  formatRoadConditionValue,
-  getNearestRoadConditionPointIndex,
-  getRoadConditionLineSegments,
-  getRoadConditionYDomain,
-  getValidRoadConditionPoints,
-  isRoadConditionSegmentObserved,
-  type RoadConditionChartMetric,
-  type RoadConditionChartPoint,
-  type RoadConditionChartUnits,
+    formatRoadConditionValue,
+    formatSelectedRoadConditionTime,
+    getNearestRoadConditionPointIndex,
+    getRoadConditionLineSegments,
+    getRoadConditionYDomain,
+    getValidRoadConditionPoints,
+    isRoadConditionSegmentObserved,
+    type RoadConditionChartMetric,
+    type RoadConditionChartPoint,
+    type RoadConditionChartUnits,
 } from "@/utils/roadConditionChart";
 import { scaleLinear } from "d3-scale";
 import { curveMonotoneX, area as d3Area, line as d3Line } from "d3-shape";
@@ -18,15 +18,15 @@ import { LayoutChangeEvent, StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
 import Svg, {
-  Circle,
-  Defs,
-  G,
-  Line,
-  LinearGradient,
-  Path,
-  Rect,
-  Stop,
-  Text as SvgText,
+    Circle,
+    Defs,
+    G,
+    Line,
+    LinearGradient,
+    Path,
+    Rect,
+    Stop,
+    Text as SvgText,
 } from "react-native-svg";
 
 type InteractiveRoadConditionChartProps = {
@@ -55,14 +55,6 @@ function getMetricColor(metric: RoadConditionChartMetric) {
     default:
       return Palette.primary;
   }
-}
-
-function formatTimeLabel(value?: string) {
-  if (typeof value !== "string" || value.trim().length === 0) {
-    return "hour unavailable";
-  }
-
-  return formatTime24Hour(value) ?? "hour unavailable";
 }
 
 export default function InteractiveRoadConditionChart({
@@ -353,7 +345,7 @@ export default function InteractiveRoadConditionChart({
       </GestureDetector>
 
       <Text style={styles.selectedTime}>
-        Selected {formatTimeLabel(selectedPoint.time)}
+        {formatSelectedRoadConditionTime(selectedPoint)}
       </Text>
       {hasMixedConfidence ? (
         <Text style={styles.confidenceLegend}>

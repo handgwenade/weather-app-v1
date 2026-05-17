@@ -1,3 +1,5 @@
+import { formatTime24Hour } from "@/utils/dateTime";
+
 export type RoadConditionChartMetric =
   | "roadTemp"
   | "precipitationProbability"
@@ -73,9 +75,7 @@ export function getValidRoadConditionPoints(
         sourceProvider: point.sourceProvider ?? null,
       };
     })
-    .filter(
-      (point): point is RoadConditionValuePoint => point !== null,
-    );
+    .filter((point): point is RoadConditionValuePoint => point !== null);
 }
 
 export function getRoadConditionYDomain(
@@ -132,7 +132,9 @@ export function isObservedRoadConditionPoint(point: RoadConditionValuePoint) {
   return point.confidence === "observed";
 }
 
-export function getRoadConditionLineSegments(points: RoadConditionValuePoint[]) {
+export function getRoadConditionLineSegments(
+  points: RoadConditionValuePoint[],
+) {
   const segments: RoadConditionValuePoint[][] = [];
 
   points.forEach((point) => {
@@ -178,4 +180,25 @@ export function formatRoadConditionValue(params: {
   }
 
   return `${roundedValue}°`;
+}
+
+function formatTimeLabel(value?: string) {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return "hour unavailable";
+  }
+
+  return formatTime24Hour(value) ?? "hour unavailable";
+}
+
+export function formatSelectedRoadConditionTime(
+  point: Pick<
+    RoadConditionChartPoint,
+    "time" | "sourceProvider" | "confidence"
+  >,
+) {
+  if (point.sourceProvider === "wydot" || point.confidence === "observed") {
+    return "Current observation";
+  }
+
+  return `Selected ${formatTimeLabel(point.time)}`;
 }

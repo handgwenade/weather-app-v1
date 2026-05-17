@@ -1,14 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { formatTime24Hour } from "../utils/dateTime";
 
 import {
-  formatRoadConditionValue,
-  getNearestRoadConditionPointIndex,
-  getRoadConditionLineSegments,
-  getRoadConditionYDomain,
-  getValidRoadConditionPoints,
-  isRoadConditionSegmentObserved,
-  type RoadConditionChartPoint,
+    formatRoadConditionValue,
+    formatSelectedRoadConditionTime,
+    getNearestRoadConditionPointIndex,
+    getRoadConditionLineSegments,
+    getRoadConditionYDomain,
+    getValidRoadConditionPoints,
+    isRoadConditionSegmentObserved,
+    type RoadConditionChartPoint,
 } from "../utils/roadConditionChart";
 
 const roadPoints: RoadConditionChartPoint[] = [
@@ -139,5 +141,38 @@ test("road tooltip values use product formatting", () => {
       units: { temperature: "F", windSpeed: "mph" },
     }),
     "15 mph",
+  );
+});
+
+test("observed WYDOT selected point shows current observation label", () => {
+  assert.equal(
+    formatSelectedRoadConditionTime({
+      time: "2026-05-14T12:00:00Z",
+      sourceProvider: "wydot",
+      confidence: "observed",
+    }),
+    "Current observation",
+  );
+});
+
+test("forecast selected point shows formatted selected hour label", () => {
+  assert.equal(
+    formatSelectedRoadConditionTime({
+      time: "2026-05-14T14:00:00Z",
+      sourceProvider: "tomorrow",
+      confidence: "forecast",
+    }),
+    `Selected ${formatTime24Hour("2026-05-14T14:00:00Z")}`,
+  );
+});
+
+test("invalid forecast selected time falls back safely", () => {
+  assert.equal(
+    formatSelectedRoadConditionTime({
+      time: "invalid-time",
+      sourceProvider: "tomorrow",
+      confidence: "forecast",
+    }),
+    "Selected hour unavailable",
   );
 });
