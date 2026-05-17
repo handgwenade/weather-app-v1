@@ -104,6 +104,38 @@ function hasHomeOfficialWydotStatus(status: WydotOfficialRoadStatus) {
   return status.hasOfficialStatus && status.type !== "none";
 }
 
+function getHomeOfficialStatusSubtitle(
+  officialRoadStatus: WydotOfficialRoadStatus,
+): string | null {
+  if (!hasHomeOfficialWydotStatus(officialRoadStatus)) {
+    return null;
+  }
+
+  if (hasMeaningfulHomeText(officialRoadStatus.description)) {
+    return officialRoadStatus.description;
+  }
+
+  return null;
+}
+
+function getHomeOfficialStatusRecommendation(
+  officialRoadStatus: WydotOfficialRoadStatus,
+): string | null {
+  if (!hasHomeOfficialWydotStatus(officialRoadStatus)) {
+    return null;
+  }
+
+  if (hasMeaningfulHomeText(officialRoadStatus.description)) {
+    return `${officialRoadStatus.title}: ${officialRoadStatus.description}.`;
+  }
+
+  if (hasMeaningfulHomeText(officialRoadStatus.title)) {
+    return `${officialRoadStatus.title}.`;
+  }
+
+  return null;
+}
+
 function getHomeObservedConditionTitle(
   currentWeather: HomeCurrentWeatherSnapshot,
 ) {
@@ -247,12 +279,15 @@ function getHomeStatusSubtitle(
   switch (primarySuggestion.code) {
     case SuggestionCode.ROAD_CLOSED:
     case SuggestionCode.TRAVEL_RESTRICTION_POSTED:
-    case SuggestionCode.TRAVEL_ADVISORY_POSTED:
-      return hasHomeOfficialWydotStatus(officialRoadStatus)
-        ? officialRoadStatus.description
+    case SuggestionCode.TRAVEL_ADVISORY_POSTED: {
+      const officialSubtitle =
+        getHomeOfficialStatusSubtitle(officialRoadStatus);
+      return officialSubtitle
+        ? officialSubtitle
         : roadReport
           ? `${roadReport.routeCode} near ${roadReport.townGroup}`
           : (primarySuggestion.whyBullets[0] ?? "Road guidance is active");
+    }
     case SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE:
       return formatHomeAlertAreaSubtitle(alertSummary.area);
     case SuggestionCode.FREEZE_RISK_TONIGHT:
@@ -313,18 +348,24 @@ function getHomeRecommendationText(
 
   switch (primarySuggestion.code) {
     case SuggestionCode.ROAD_CLOSED:
-    case SuggestionCode.TRAVEL_RESTRICTION_POSTED:
-      return hasHomeOfficialWydotStatus(officialRoadStatus)
-        ? `${officialRoadStatus.title}: ${officialRoadStatus.description}.`
+    case SuggestionCode.TRAVEL_RESTRICTION_POSTED: {
+      const officialText =
+        getHomeOfficialStatusRecommendation(officialRoadStatus);
+      return officialText
+        ? officialText
         : hasMeaningfulHomeText(restriction)
           ? `WYDOT restriction: ${restriction}.`
           : "No active WYDOT restriction is reported near this location.";
-    case SuggestionCode.TRAVEL_ADVISORY_POSTED:
-      return hasHomeOfficialWydotStatus(officialRoadStatus)
-        ? `${officialRoadStatus.title}: ${officialRoadStatus.description}.`
+    }
+    case SuggestionCode.TRAVEL_ADVISORY_POSTED: {
+      const officialText =
+        getHomeOfficialStatusRecommendation(officialRoadStatus);
+      return officialText
+        ? officialText
         : hasMeaningfulHomeText(advisory)
           ? `WYDOT advisory: ${advisory}.`
           : "No active WYDOT advisory is reported near this location.";
+    }
     case SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE:
       return hasMeaningfulHomeText(alertSummary.event)
         ? `Official alert: ${alertSummary.event ?? "Active alert"}.`
