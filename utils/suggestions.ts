@@ -253,6 +253,18 @@ function isGeneralTravelClosure(value: string | null) {
   return CLOSURE_REGEX.test(value) && !/\bclosed to\b/i.test(value);
 }
 
+function isOfficialRoadClosure(status: WydotOfficialRoadStatus) {
+  return status.hasOfficialStatus && status.type === "closure";
+}
+
+function isOfficialRoadRestriction(status: WydotOfficialRoadStatus) {
+  return status.hasOfficialStatus && status.type === "restriction";
+}
+
+function isOfficialRoadAdvisory(status: WydotOfficialRoadStatus) {
+  return status.hasOfficialStatus && status.type === "advisory";
+}
+
 function buildRuleMatch(
   config: SuggestionRuleConfig,
   confidence: SuggestionConfidence,
@@ -279,6 +291,14 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
     supportStatus: SupportStatus.SUPPORTED_NOW,
     sourceStrength: RuleSourceStrength.DIRECT_SOURCE,
     evaluate: ({ input }) => {
+      const officialStatus = input.road.officialRoadStatus;
+      if (isOfficialRoadClosure(officialStatus)) {
+        return buildRuleMatch(OBSERVATION_RULES[0], SuggestionConfidence.HIGH, [
+          "WYDOT official status indicates full road closure",
+          "Travel should not continue on this segment",
+        ]);
+      }
+
       const restriction = input.road.restriction?.trim() ?? "";
       if (isInactiveRoadStatusText(restriction)) {
         return null;
@@ -303,6 +323,14 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
     sourceStrength: RuleSourceStrength.DIRECT_SOURCE,
     blockers: [SuggestionCode.ROAD_CLOSED],
     evaluate: ({ input }) => {
+      const officialStatus = input.road.officialRoadStatus;
+      if (isOfficialRoadRestriction(officialStatus)) {
+        return buildRuleMatch(OBSERVATION_RULES[1], SuggestionConfidence.HIGH, [
+          "WYDOT official status indicates a travel restriction",
+          "Travel is limited on this segment",
+        ]);
+      }
+
       const restriction = input.road.restriction?.trim() ?? "";
       if (
         isInactiveRoadStatusText(restriction) ||
@@ -331,6 +359,14 @@ export const OBSERVATION_RULES: SuggestionRuleConfig[] = [
       SuggestionCode.TRAVEL_RESTRICTION_POSTED,
     ],
     evaluate: ({ input }) => {
+      const officialStatus = input.road.officialRoadStatus;
+      if (isOfficialRoadAdvisory(officialStatus)) {
+        return buildRuleMatch(OBSERVATION_RULES[2], SuggestionConfidence.HIGH, [
+          "WYDOT official status indicates an advisory",
+          "Conditions require elevated caution",
+        ]);
+      }
+
       const advisory = input.road.advisory?.trim() ?? "";
       if (isInactiveRoadStatusText(advisory)) {
         return null;
