@@ -213,24 +213,23 @@ function getHomeStatusTitle(
 
   switch (primarySuggestion.code) {
     case SuggestionCode.ROAD_CLOSED:
+      return hasHomeOfficialWydotStatus(officialRoadStatus)
+        ? officialRoadStatus.title
+        : "WYDOT: Road closed";
     case SuggestionCode.TRAVEL_RESTRICTION_POSTED:
       return hasHomeOfficialWydotStatus(officialRoadStatus)
         ? officialRoadStatus.title
-        : hasMeaningfulHomeText(restriction)
-          ? "WYDOT restriction"
-          : "No active WYDOT restriction reported";
+        : "WYDOT: Travel restriction in effect";
     case SuggestionCode.TRAVEL_ADVISORY_POSTED:
       return hasHomeOfficialWydotStatus(officialRoadStatus)
         ? officialRoadStatus.title
-        : hasMeaningfulHomeText(advisory)
-          ? "WYDOT advisory"
-          : "No active WYDOT advisory reported";
+        : "WYDOT advisory in effect";
     case SuggestionCode.VISIBILITY_RISK:
-      return "Visibility risk reported";
+      return "Reduced visibility reported";
     case SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE:
       return hasMeaningfulHomeText(alertSummary.event)
-        ? (alertSummary.event ?? "Official alert reported")
-        : "Official alert reported";
+        ? (alertSummary.event ?? "Official alert active")
+        : "Official alert active";
     case SuggestionCode.HIGH_PROFILE_VEHICLE_RISK:
       return currentWeather.windSpeedMph !== null
         ? `Observed wind: ${Math.round(currentWeather.windSpeedMph)} mph`
@@ -297,9 +296,9 @@ function getHomeStatusSubtitle(
     case SuggestionCode.VISIBILITY_RISK:
       return roadReport
         ? `${roadReport.routeCode} near ${roadReport.townGroup}`
-        : "Reduced visibility is reported near this location.";
+        : "Expect limited sight distance. Reduce speed and use extra caution.";
     case SuggestionCode.HIGH_PROFILE_VEHICLE_RISK:
-      return "High-profile vehicle wind risk is present near this location.";
+      return "High-profile vehicle wind risk is present. High-profile vehicles may be at risk on exposed routes.";
     case SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE:
       return formatHomeAlertAreaSubtitle(alertSummary.area);
     case SuggestionCode.FREEZE_RISK_TONIGHT:
@@ -359,7 +358,15 @@ function getHomeRecommendationText(
   const officialRoadStatus = getHomeOfficialRoadStatus(roadReport);
 
   switch (primarySuggestion.code) {
-    case SuggestionCode.ROAD_CLOSED:
+    case SuggestionCode.ROAD_CLOSED: {
+      const officialText =
+        getHomeOfficialStatusRecommendation(officialRoadStatus);
+      return officialText
+        ? officialText
+        : hasMeaningfulHomeText(restriction)
+          ? `WYDOT restriction: ${restriction}.`
+          : "WYDOT: Road closed. Do not travel this segment.";
+    }
     case SuggestionCode.TRAVEL_RESTRICTION_POSTED: {
       const officialText =
         getHomeOfficialStatusRecommendation(officialRoadStatus);
@@ -367,7 +374,7 @@ function getHomeRecommendationText(
         ? officialText
         : hasMeaningfulHomeText(restriction)
           ? `WYDOT restriction: ${restriction}.`
-          : "No active WYDOT restriction is reported near this location.";
+          : "WYDOT: Travel restriction in effect. Check WYDOT guidance before travel.";
     }
     case SuggestionCode.TRAVEL_ADVISORY_POSTED: {
       const officialText =
@@ -376,16 +383,16 @@ function getHomeRecommendationText(
         ? officialText
         : hasMeaningfulHomeText(advisory)
           ? `WYDOT advisory: ${advisory}.`
-          : "No active WYDOT advisory is reported near this location.";
+          : "WYDOT advisory in effect. Monitor WYDOT guidance before travel.";
     }
     case SuggestionCode.VISIBILITY_RISK:
-      return "WYDOT station visibility is reduced. Travel may require extra caution.";
+      return "Reduced visibility reported. Expect limited sight distance. Reduce speed and use extra caution.";
     case SuggestionCode.HIGH_PROFILE_VEHICLE_RISK:
-      return "High-profile vehicle wind risk is present. Use extra caution on exposed routes.";
+      return "High-profile vehicle wind risk is present. High-profile vehicles may be at risk on exposed routes.";
     case SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE:
       return hasMeaningfulHomeText(alertSummary.event)
         ? `Official alert: ${alertSummary.event ?? "Active alert"}.`
-        : "Official weather guidance is active for this location.";
+        : "Official alert active. Review alert details and follow agency guidance.";
     case SuggestionCode.FREEZE_RISK_TONIGHT:
       return propertyForecastLowF !== null
         ? `${propertyLocationName ?? "Property location"} forecast low is ${Math.round(propertyForecastLowF)}°F tonight.`

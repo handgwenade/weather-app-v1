@@ -528,44 +528,34 @@ function getRoadStatusTitle(
   primarySuggestion: RuleMatch,
   params: {
     alertEvent: string | null;
-    advisory: string;
     officialCondition: string;
-    restriction: string;
     windValue: string;
     roadReport: WydotRoadReport | null;
   },
 ): string {
-  const {
-    alertEvent,
-    advisory,
-    officialCondition,
-    restriction,
-    windValue,
-    roadReport,
-  } = params;
+  const { alertEvent, officialCondition, windValue, roadReport } = params;
 
   const officialRoadStatus = getOfficialRoadStatus(roadReport);
 
   switch (primarySuggestion?.code) {
     case SuggestionCode.ROAD_CLOSED:
+      return hasOfficialWydotStatus(officialRoadStatus)
+        ? officialRoadStatus.title
+        : "WYDOT: Road closed";
     case SuggestionCode.TRAVEL_RESTRICTION_POSTED:
       return hasOfficialWydotStatus(officialRoadStatus)
         ? officialRoadStatus.title
-        : hasMeaningfulRoadText(restriction)
-          ? "WYDOT restriction"
-          : "No active WYDOT restriction reported";
+        : "WYDOT: Travel restriction in effect";
     case SuggestionCode.TRAVEL_ADVISORY_POSTED:
       return hasOfficialWydotStatus(officialRoadStatus)
         ? officialRoadStatus.title
-        : hasMeaningfulRoadText(advisory)
-          ? "WYDOT advisory"
-          : "No active WYDOT advisory reported";
+        : "WYDOT advisory in effect";
     case SuggestionCode.VISIBILITY_RISK:
-      return "Visibility risk reported";
+      return "Reduced visibility reported";
     case SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE:
       return hasUsableSourceText(alertEvent)
-        ? (alertEvent ?? "Official alert reported")
-        : "Official alert reported";
+        ? (alertEvent ?? "Official alert active")
+        : "Official alert active";
     case SuggestionCode.HIGH_PROFILE_VEHICLE_RISK:
       return buildObservedWindTitle(windValue);
     case SuggestionCode.HIGH_WIND_CAUTION:
@@ -621,11 +611,11 @@ function getRoadStatusSubtitle(
     case SuggestionCode.VISIBILITY_RISK:
       return roadReport
         ? `${roadReport.routeCode} near ${roadReport.townGroup}`
-        : "Visibility is reduced near this route.";
+        : "Expect limited sight distance. Reduce speed and use extra caution.";
     case SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE:
       return hasUsableSourceText(alertEvent)
-        ? "Official alert for this location."
-        : "Official guidance is active for this area.";
+        ? "Review alert details and follow agency guidance."
+        : "Review alert details and follow agency guidance.";
     case SuggestionCode.HIGH_PROFILE_VEHICLE_RISK:
       return shouldTrustReportedSurface(roadReport, officialCondition)
         ? `Surface: ${officialCondition}`
@@ -686,13 +676,16 @@ function buildRoadRecommendationText(
 
   switch (primarySuggestion?.code) {
     case SuggestionCode.HIGH_PROFILE_VEHICLE_RISK:
-      return "High-profile vehicle wind risk is present. Use extra caution on exposed road segments.";
+      return "High-profile vehicle wind risk is present. High-profile vehicles may be at risk on exposed road segments.";
+
+    case SuggestionCode.OFFICIAL_WEATHER_ALERT_ACTIVE:
+      return "Official alert active. Review alert details and follow agency guidance.";
 
     case SuggestionCode.HIGH_WIND_CAUTION:
       return "Observed wind is elevated. Use extra caution on exposed road segments.";
 
     case SuggestionCode.VISIBILITY_RISK:
-      return "Visibility is reduced near this route. Use extra caution and monitor road conditions.";
+      return "Reduced visibility is reported near this route. Expect limited sight distance. Reduce speed and use extra caution.";
 
     case SuggestionCode.USE_CAUTION:
       return shouldTrustReportedSurface(roadReport, officialCondition)
@@ -911,9 +904,7 @@ function buildRoadViewModel(params: {
   const statusTitle = primarySuggestion
     ? getRoadStatusTitle(primarySuggestion, {
         alertEvent,
-        advisory,
         officialCondition,
-        restriction,
         windValue: windMetricValue,
         roadReport,
       })

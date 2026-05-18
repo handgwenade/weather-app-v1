@@ -838,8 +838,7 @@ export function getSuggestionPresentation(
     case SuggestionCode.ROAD_CLOSED:
       return {
         actionLabel: "Review now",
-        recommendationText:
-          "Road is closed. Do not route travel through this segment.",
+        recommendationText: "WYDOT: Road closed. Do not travel this segment.",
         levelLabel: "High",
         homeTone: "alert",
         roadTone: "high",
@@ -848,7 +847,7 @@ export function getSuggestionPresentation(
       return {
         actionLabel: "Review now",
         recommendationText:
-          "Travel restriction is posted. Review WYDOT guidance before travel.",
+          "WYDOT: Travel restriction in effect. Check WYDOT guidance before travel.",
         levelLabel: "High",
         homeTone: "alert",
         roadTone: "high",
@@ -857,7 +856,7 @@ export function getSuggestionPresentation(
       return {
         actionLabel: "Monitor",
         recommendationText:
-          "Advisory is active. Continue monitoring before travel.",
+          "WYDOT advisory in effect. Monitor WYDOT guidance before travel.",
         levelLabel: "Moderate",
         homeTone: "warning",
         roadTone: "caution",
@@ -866,7 +865,7 @@ export function getSuggestionPresentation(
       return {
         actionLabel: "Monitor",
         recommendationText:
-          "Visibility is reduced. Use extra caution and review WYDOT guidance.",
+          "Reduced visibility reported. Expect limited sight distance. Reduce speed and use extra caution.",
         levelLabel: "Moderate",
         homeTone: "warning",
         roadTone: "caution",
@@ -875,7 +874,7 @@ export function getSuggestionPresentation(
       return {
         actionLabel: "Monitor",
         recommendationText:
-          "High-profile vehicle wind risk is present. Use extra caution on exposed routes.",
+          "High-profile vehicle wind risk is present. High-profile vehicles may be at risk on exposed routes.",
         levelLabel:
           match.confidence === SuggestionConfidence.HIGH ? "High" : "Moderate",
         homeTone:
@@ -887,7 +886,7 @@ export function getSuggestionPresentation(
       return {
         actionLabel: "Review now",
         recommendationText:
-          "Official weather guidance is active. Review alert details before travel.",
+          "Official alert active. Review alert details and follow agency guidance.",
         levelLabel: "High",
         homeTone: "alert",
         roadTone: "high",
