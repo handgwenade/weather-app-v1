@@ -1,13 +1,19 @@
 import { Palette, Radius, Shadows } from "@/constants/theme";
-import Mapbox from "@rnmapbox/maps";
-import type { FeatureCollection, GeoJsonProperties, Geometry } from "geojson";
-import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
+    getTemporaryCurrentLocation,
+    useSelectedLocation,
+} from "@/data/locationStore";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import Mapbox from "@rnmapbox/maps";
+import * as Location from "expo-location";
+import type { FeatureCollection, GeoJsonProperties, Geometry } from "geojson";
+import { useEffect, useRef, useState } from "react";
+import {
+    ActivityIndicator,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 
 type ObservedFactors = {
@@ -162,6 +168,11 @@ export function RoadMapView({
     useState<SelectedMapSegment | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRecentering, setIsRecentering] = useState(false);
+
+  const mapRef = useRef<Mapbox.MapView>(null);
+  const cameraRef = useRef<Mapbox.Camera>(null);
+  const selectedLocation = useSelectedLocation();
 
   const hasMapboxToken = Boolean(MAPBOX_ACCESS_TOKEN);
   const cameraCenter = focusCoordinate ?? WYOMING_CENTER;
@@ -383,13 +394,68 @@ export function RoadMapView({
     });
   }
 
+  async function handleRecenterOnCurrentLocation() {
+    if (isRecentering || !cameraRef.current) {
+      return;
+    }
+
+    setIsRecentering(true);
+
+    try {
+      let targetLatitude: number | null = null;
+      let targetLongitude: number | null = null;
+
+      const tempCurrentLocation = getTemporaryCurrentLocation();
+      if (tempCurrentLocation) {
+        targetLatitude = tempCurrentLocation.latitude;
+        targetLongitude = tempCurrentLocation.longitude;
+      } else if (selectedLocation) {
+        targetLatitude = selectedLocation.latitude;
+        targetLongitude = selectedLocation.longitude;
+      } else {
+        const servicesEnabled = await Location.hasServicesEnabledAsync();
+        if (!servicesEnabled) {
+          setIsRecentering(false);
+          return;
+        }
+
+        const permission = await Location.requestForegroundPermissionsAsync();
+        if (permission.status !== "granted") {
+          setIsRecentering(false);
+          return;
+        }
+
+        const position = await Location.getCurrentPositionAsync({});
+        targetLatitude = position.coords.latitude;
+        targetLongitude = position.coords.longitude;
+      }
+
+      if (
+        targetLatitude !== null &&
+        targetLongitude !== null &&
+        cameraRef.current
+      ) {
+        await cameraRef.current.setCamera({
+          centerCoordinate: [targetLongitude, targetLatitude],
+          zoomLevel: focusZoomLevel || 8,
+          animationDuration: 500,
+        });
+      }
+    } catch (error) {
+      console.log("Failed to recenter on current location:", error);
+    } finally {
+      setIsRecentering(false);
+    }
+  }
+
   return (
     <View style={styles.mapWrap}>
       <Mapbox.MapView
         attributionEnabled={false}
-        compassEnabled
+        compassEnabled={false}
         logoEnabled={false}
         rotateEnabled={false}
+        ref={mapRef}
         scaleBarEnabled={false}
         scrollEnabled
         style={styles.map}
@@ -399,6 +465,7 @@ export function RoadMapView({
         <Mapbox.Camera
           animationMode="flyTo"
           centerCoordinate={cameraCenter}
+          ref={cameraRef}
           zoomLevel={cameraZoomLevel}
         />
         <Mapbox.ShapeSource id="road-geometry-source" shape={geometry}>
@@ -460,6 +527,15 @@ export function RoadMapView({
           </Mapbox.ShapeSource>
         ) : null}
       </Mapbox.MapView>
+
+      <Pressable
+        accessibilityLabel="Recenter on current location"
+        accessibilityRole="button"
+        onPress={() => void handleRecenterOnCurrentLocation()}
+        style={styles.currentLocationButton}
+      >
+        <Ionicons name="locate-sharp" size={20} color={Palette.primary} />
+      </Pressable>
 
       {selectedMapSegment ? (
         <View
@@ -533,6 +609,20 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  currentLocationButton: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    width: 40,
+    height: 40,
+    borderRadius: Radius.pill,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "rgba(221, 227, 243, 0.9)",
+    alignItems: "center",
+    justifyContent: "center",
+    ...Shadows.card,
   },
   segmentPill: {
     backgroundColor: "rgba(255, 255, 255, 0.96)",
