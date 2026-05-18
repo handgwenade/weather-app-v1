@@ -50,6 +50,7 @@ const LEGACY_SEEDED_LOCATIONS: AppLocation[] = [
 
 let savedLocations: AppLocation[] = [];
 let activeLocation: AppLocation | null = null;
+let temporaryCurrentLocation: AppLocation | null = null;
 let defaultLocationId: string | null = null;
 let propertyLocationId: string | null = null;
 let persistedStateLoadPromise: Promise<void> | null = null;
@@ -289,10 +290,15 @@ export function getSavedLocations() {
   return savedLocations;
 }
 
-export function getSelectedLocation() {
+export function getTemporaryCurrentLocation() {
+  return temporaryCurrentLocation;
+}
+
+function getSelectedLocation() {
   repairIdsIfNeeded();
   repairActiveLocationIfNeeded();
-  return activeLocation;
+
+  return activeLocation ?? temporaryCurrentLocation;
 }
 
 export function getLocationStoreReady() {
@@ -309,6 +315,30 @@ export function getPropertyLocation() {
   return getLocationById(propertyLocationId);
 }
 
+export function setTemporaryCurrentLocation(input: {
+  name: string;
+  city: string;
+  state: string;
+  latitude: number;
+  longitude: number;
+}) {
+  temporaryCurrentLocation = {
+    id: CURRENT_LOCATION_ID,
+    name: input.name.trim(),
+    city: input.city.trim(),
+    state: normalizeState(input.state),
+    latitude: input.latitude,
+    longitude: input.longitude,
+  };
+
+  emitChange();
+}
+
+export function clearTemporaryCurrentLocation() {
+  temporaryCurrentLocation = null;
+  emitChange();
+}
+
 export async function setSelectedLocation(location: AppLocation) {
   const matchingSavedLocation = getLocationById(location.id);
 
@@ -316,6 +346,7 @@ export async function setSelectedLocation(location: AppLocation) {
     return;
   }
 
+  temporaryCurrentLocation = null;
   activeLocation = matchingSavedLocation;
 
   repairIdsIfNeeded();

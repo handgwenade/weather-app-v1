@@ -1,7 +1,7 @@
 import {
-  DarkTheme,
-  DefaultTheme,
-  ThemeProvider,
+    DarkTheme,
+    DefaultTheme,
+    ThemeProvider,
 } from "@react-navigation/native";
 import "expo-dev-client";
 import * as Location from "expo-location";
@@ -13,9 +13,9 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 
 import {
-  upsertCurrentLocationSelection,
-  useLocationStoreReady,
-  useSelectedLocation,
+    setTemporaryCurrentLocation,
+    useLocationStoreReady,
+    useSelectedLocation,
 } from "@/data/locationStore";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { initializeOfficialAlertPushNotifications } from "@/services/pushNotifications";
@@ -146,7 +146,7 @@ export default function RootLayout() {
 
         const labels = buildCurrentLocationLabels(firstPlacemark);
 
-        await upsertCurrentLocationSelection({
+        setTemporaryCurrentLocation({
           ...labels,
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
