@@ -2180,31 +2180,32 @@ app.get("/api/weather/hourly", async (req, res) => {
   }
 
   try {
-    const url = `${TOMORROW_TIMELINES_URL}?apikey=${encodeURIComponent(apiKey)}`;
-    const requestBody = buildTomorrowTimelinesRequestBody(
-      coordinates.lat,
-      coordinates.lon,
-      "1h",
-    );
+    const location = `${coordinates.lat},${coordinates.lon}`;
+    const params = new URLSearchParams({
+      location,
+      timesteps: "1h",
+      apikey: apiKey,
+    });
+    const url = `${TOMORROW_WEATHER_BASE_URL}/forecast?${params.toString()}`;
 
     debugLog("[WeatherAPI] Hourly Tomorrow request", {
-      location: requestBody.location,
-      fields: requestBody.fields,
-      timesteps: requestBody.timesteps,
-      startTime: requestBody.startTime,
-      endTime: requestBody.endTime,
+      location,
+      timesteps: "1h",
     });
 
-    const payload = await fetchTomorrowJson<TomorrowHourlyTimelinesResponse>(
+    const payload = await fetchTomorrowJson<any>(
       url,
       {
-        operation: "hourly weather timelines",
-        providerEndpoint: "timelines",
+        operation: "hourly weather forecast",
+        providerEndpoint: "weather/forecast",
       },
-      buildTomorrowJsonPostInit(requestBody),
+      undefined,
       TOMORROW_FORECAST_TIMEOUT_MS,
     );
-    const hourlyEntries = getTimelineIntervals(payload, "1h");
+    const hourlyEntries: {
+      startTime?: string;
+      values?: Record<string, number | string | null>;
+    }[] = payload.data?.timelines?.[0]?.intervals ?? [];
 
     logHourlyNormalizationDiagnostics({
       source: "/api/weather/hourly",

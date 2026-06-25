@@ -9,17 +9,17 @@ Lightweight workspace for launch planning, store submission materials, and platf
 - **App identity:** RoadSignal
 - **Web deploy status:** Live on Netlify
 - **Custom domain:** roadsignal.app connected to Netlify
-- **iOS / TestFlight status:** Blocked by Apple account access issue
+- **iOS / TestFlight status:** EAS access works; App Store Connect access still needs confirmation
 - **Google Play status:** Not started yet
 - **Support email:** Still undecided
-- **Privacy policy page:** Draft written, not published yet
+- **Privacy policy page:** Published at <https://www.roadsignal.app/privacy>
 
 ## App Identity
 
 - **App name:** RoadSignal
 - **Slug:** roadsignal
 - **Scheme:** roadsignal
-- **iOS bundle ID:** com.gwendolynh.roadsignal
+- **iOS bundle ID:** com.roadsignal.app
 - **Android package name:** com.gwendolynh.roadsignal
 - **Domain:** <https://www.roadsignal.app>
 
@@ -38,7 +38,6 @@ Lightweight workspace for launch planning, store submission materials, and platf
 
 ## Immediate Next Steps
 
-- Publish the privacy policy on the domain
 - Decide on a support email
 - Prepare Apple submission materials while waiting on account access
 - Decide when to open a Google Play developer account
@@ -46,7 +45,7 @@ Lightweight workspace for launch planning, store submission materials, and platf
 
 ## Known Blockers
 
-- Apple Developer / App Store Connect access is still not working correctly
+- Apple Developer / App Store Connect access still needs confirmation before submission
 - Support email is not finalized
 - Native store submission has not started yet
 

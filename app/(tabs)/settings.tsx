@@ -19,7 +19,7 @@ export default function SettingsScreen() {
     <SettingsScreenV2
       defaultView={defaultView}
       autoRefreshData={autoRefreshData}
-      versionText="1.2.4"
+      versionText="1.2.2"
       lastSyncText={lastSyncText}
       onPressClose={() => router.push("/")}
       onPressManageOperationalLocations={() =>

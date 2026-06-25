@@ -79,5 +79,3 @@
 ## Current Blockers
 
 - [ ] Google Play developer account not created yet
-- [ ] ***
-- [ ] ***

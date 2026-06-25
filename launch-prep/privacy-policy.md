@@ -2,7 +2,7 @@
 
 ## Privacy Policy for RoadSignal
 
-Effective date: [INSERT DATE]
+Effective date: June 25, 2026
 
 RoadSignal provides weather, alert, and road-related information for user-selected locations.
 
@@ -49,7 +49,7 @@ RoadSignal is not directed to children under 13, and we do not knowingly collect
 
 ## Changes to This Policy
 
-We may update this Privacy Policy from time to time. Updated versions will be posted at [INSERT URL].
+We may update this Privacy Policy from time to time. Updated versions will be posted at <https://www.roadsignal.app/privacy>.
 
 ## Contact
 

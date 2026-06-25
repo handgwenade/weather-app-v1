@@ -3,7 +3,7 @@
 ## App
 
 - **App name:** RoadSignal
-- **Bundle ID:** com.gwendolynh.roadsignal
+- **Bundle ID:** com.roadsignal.app
 - **Privacy Policy URL:** <https://www.roadsignal.app/privacy>
 
 ## Current Assumptions

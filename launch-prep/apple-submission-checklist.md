@@ -3,9 +3,9 @@
 ## App Identity
 
 - [ ] App name confirmed: **RoadSignal**
-- [ ] Bundle ID confirmed: **com.gwendolynh.roadsignal**
-- [ ] Version number set
-- [ ] Build number set
+- [x] Bundle ID confirmed: **com.roadsignal.app**
+- [x] Version number set: **1.2.2**
+- [x] Build number source confirmed: **EAS remote auto-increment**
 - [ ] App icon finalized
 - [ ] Splash / launch assets finalized
 
@@ -24,8 +24,8 @@
 - [ ] Primary language selected
 - [ ] SKU created
 - [ ] Pricing and availability reviewed
-- [ ] Support URL added
-- [ ] Privacy Policy URL added
+- [ ] Support URL added: <https://www.roadsignal.app>
+- [x] Privacy Policy URL added: <https://www.roadsignal.app/privacy>
 
 ## Privacy / Compliance
 
@@ -84,11 +84,5 @@
 
 ## Current Blockers
 
-- [ ] Apple account access issue resolved
-- [ ] ***
-- [ ] ***
-
-- [ ] Ready for internal TestFlight
-- [ ] Ready for external TestFlight
-- [ ] Ready for App Store submission later
-- [ ] Any blockers documented below
+- [ ] Apple Developer / App Store Connect access confirmed
+- [ ] Support email finalized
