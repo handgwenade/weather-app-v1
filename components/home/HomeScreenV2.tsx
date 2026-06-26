@@ -7,7 +7,7 @@ import type {
 } from "@/utils/roadConditionChart";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import type { ComponentProps } from "react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -60,6 +60,11 @@ type HomeScreenV2Props = {
   statusBanner: HomeStatusBanner;
   metrics: HomeMetric[];
   roadHourly: RoadConditionChartPoint[];
+  conditionChartDebugContext?: {
+    hourlyCount: number;
+    currentKeys: string[];
+    firstHourly?: unknown;
+  };
   roadHourlyLoading: boolean;
   monitoringCard: HomeMonitoringCard;
   monitoredLocationCard: HomeLocationCard;
@@ -146,6 +151,7 @@ export default function HomeScreenV2({
   statusBanner,
   metrics,
   roadHourly,
+  conditionChartDebugContext,
   roadHourlyLoading,
   monitoringCard,
   monitoredLocationCard,
@@ -171,6 +177,18 @@ export default function HomeScreenV2({
   const [forecastMode, setForecastMode] = useState<RoadConditionChartMetric>(
     "precipitationProbability",
   );
+
+  useEffect(() => {
+    if (typeof __DEV__ === "undefined" || !__DEV__) {
+      return;
+    }
+
+    console.log("[HomeChartInput]", {
+      hourlyForecastCount: conditionChartDebugContext?.hourlyCount,
+      firstHourly: conditionChartDebugContext?.firstHourly,
+      selectedMetric: forecastMode,
+    });
+  }, [conditionChartDebugContext, forecastMode]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -321,6 +339,7 @@ export default function HomeScreenV2({
             metric={forecastMode}
             units={{ temperature: "F", windSpeed: "mph" }}
             isLoading={roadHourlyLoading}
+            debugContext={conditionChartDebugContext}
           />
         </View>
 

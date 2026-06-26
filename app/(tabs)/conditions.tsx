@@ -23,16 +23,18 @@ import {
   getSharedHourlyForecast,
 } from "@/data/weatherStore";
 import { useScrollToTopOnFocus } from "@/hooks/useScrollToTopOnFocus";
-import type { TomorrowHourlyForecastEntry } from "@/services/tomorrow";
+import {
+  getHourlyForecastEntries,
+  type TomorrowHourlyForecastEntry,
+} from "@/services/tomorrow";
 import { formatTime24Hour, formatUpdatedTimeLabel } from "@/utils/dateTime";
 import type {
   ForecastChartHour,
   ForecastChartMetric,
   ForecastChartUnits,
 } from "@/utils/forecastChart";
-import { celsiusToFahrenheit, metersPerSecondToMph } from "@/utils/weather";
 
-type HourlyForecastStatus = "loading" | "ready" | "unavailable";
+type HourlyForecastStatus = "loading" | "fresh" | "unavailable";
 
 type ConditionsViewModel = {
   updatedLabel: string;
@@ -57,6 +59,68 @@ type ConditionsScreenV2Props = {
   onPressSettings: () => void;
   onPressLocationSearch: () => void;
 };
+
+const CONDITIONS_FIELD_LOGGED_KEYS = new Set<string>();
+
+function warnMissingConditionsWeatherField(params: {
+  locationName: string;
+  response: unknown;
+  entries: TomorrowHourlyForecastEntry[];
+}) {
+  if (typeof __DEV__ === "undefined" || !__DEV__) {
+    return;
+  }
+
+  const missingFields = params.entries.slice(0, 12).flatMap((entry, index) => {
+    const checks = [
+      ["temp", entry.temp],
+      ["windSpeed", entry.windSpeed],
+      ["windGust", entry.windGust],
+      ["precipProbability", entry.precipProbability],
+      ["weatherCode", entry.weatherCode],
+    ] as const;
+
+    return checks
+      .filter(([, value]) => value === null || value === undefined)
+      .map(([field, value]) => ({
+        index,
+        field,
+        value,
+        valueKind: value === null ? "null" : typeof value,
+      }));
+  });
+
+  if (params.entries.length > 0 && missingFields.length === 0) {
+    return;
+  }
+
+  const logKey = [
+    params.locationName,
+    params.entries.length,
+    missingFields.map((field) => `${field.index}:${field.field}`).join(","),
+  ].join(":");
+
+  if (CONDITIONS_FIELD_LOGGED_KEYS.has(logKey)) {
+    return;
+  }
+
+  CONDITIONS_FIELD_LOGGED_KEYS.add(logKey);
+  console.warn("[WeatherFieldMissing]", {
+    screen: "Conditions",
+    activeLocation: params.locationName,
+    endpoint: "/api/weather/hourly",
+    status: "fulfilled",
+    responseKeys:
+      params.response && typeof params.response === "object"
+        ? Object.keys(params.response)
+        : [],
+    hourlyCount: params.entries.length,
+    missingFields:
+      params.entries.length === 0
+        ? [{ field: "hourlyForecast", value: undefined, valueKind: "undefined" }]
+        : missingFields,
+  });
+}
 
 const CONDITIONS_CHART_UNITS: ForecastChartUnits = {
   temperature: "F",
@@ -216,12 +280,12 @@ function getNextPrecipSignal(hourlyEntries: TomorrowHourlyForecastEntry[]) {
 
   for (const entry of nextTwelveHours) {
     const conditionLabel =
-      typeof entry.values.weatherCode === "number"
-        ? getConditionLabel(entry.values.weatherCode)
+      typeof entry.weatherCode === "number"
+        ? getConditionLabel(entry.weatherCode)
         : null;
     const precipProbability =
-      typeof entry.values.precipitationProbability === "number"
-        ? entry.values.precipitationProbability
+      typeof entry.precipProbability === "number"
+        ? entry.precipProbability
         : null;
 
     if (
@@ -264,26 +328,12 @@ function buildInteractiveHourlyForecast(
 ): ForecastChartHour[] {
   return getNextTwelveHours(hourlyEntries).map((entry) => ({
     time: entry.time,
-    temperature:
-      typeof entry.values.temperature === "number"
-        ? celsiusToFahrenheit(entry.values.temperature)
-        : undefined,
-    windSpeed:
-      typeof entry.values.windSpeed === "number"
-        ? metersPerSecondToMph(entry.values.windSpeed)
-        : undefined,
-    windGust:
-      typeof entry.values.windGust === "number"
-        ? metersPerSecondToMph(entry.values.windGust)
-        : undefined,
+    temperature: entry.temp,
+    windSpeed: entry.windSpeed,
+    windGust: entry.windGust,
     precipitationProbability:
-      typeof entry.values.precipitationProbability === "number"
-        ? entry.values.precipitationProbability
-        : undefined,
-    weatherCode:
-      typeof entry.values.weatherCode === "number"
-        ? entry.values.weatherCode
-        : undefined,
+      entry.precipProbability,
+    weatherCode: entry.weatherCode,
   }));
 }
 
@@ -295,30 +345,18 @@ function buildSummaryText(hourlyEntries: TomorrowHourlyForecastEntry[]) {
   const nextTwelveHours = getNextTwelveHours(hourlyEntries);
   const firstEntry = nextTwelveHours[0];
   const temperatures = nextTwelveHours
-    .map((entry) =>
-      typeof entry.values.temperature === "number"
-        ? celsiusToFahrenheit(entry.values.temperature)
-        : null,
-    )
+    .map((entry) => entry.temp)
     .filter((value): value is number => value !== null);
   const windSpeeds = nextTwelveHours
-    .map((entry) =>
-      typeof entry.values.windSpeed === "number"
-        ? metersPerSecondToMph(entry.values.windSpeed)
-        : null,
-    )
+    .map((entry) => entry.windSpeed)
     .filter((value): value is number => value !== null);
   const precipProbabilities = nextTwelveHours
-    .map((entry) =>
-      typeof entry.values.precipitationProbability === "number"
-        ? entry.values.precipitationProbability
-        : null,
-    )
+    .map((entry) => entry.precipProbability)
     .filter((value): value is number => value !== null);
 
   const conditionLabel =
-    typeof firstEntry?.values.weatherCode === "number"
-      ? getConditionLabel(firstEntry.values.weatherCode)
+    typeof firstEntry?.weatherCode === "number"
+      ? getConditionLabel(firstEntry.weatherCode)
       : "Hourly forecast";
   const minTemp =
     temperatures.length > 0
@@ -350,36 +388,34 @@ function buildTakeawayText(hourlyEntries: TomorrowHourlyForecastEntry[]) {
 
   const nextTwelveHours = getNextTwelveHours(hourlyEntries);
   const minTempF = nextTwelveHours.reduce<number | null>((lowest, entry) => {
-    if (typeof entry.values.temperature !== "number") {
+    if (typeof entry.temp !== "number") {
       return lowest;
     }
 
-    const value = celsiusToFahrenheit(entry.values.temperature);
-    return lowest === null ? value : Math.min(lowest, value);
+    return lowest === null ? entry.temp : Math.min(lowest, entry.temp);
   }, null);
   const maxWindMph = nextTwelveHours.reduce<number | null>((highest, entry) => {
-    if (typeof entry.values.windSpeed !== "number") {
+    if (typeof entry.windSpeed !== "number") {
       return highest;
     }
 
-    const value = metersPerSecondToMph(entry.values.windSpeed);
-    return highest === null ? value : Math.max(highest, value);
+    return highest === null ? entry.windSpeed : Math.max(highest, entry.windSpeed);
   }, null);
   const maxPrecipProbability = nextTwelveHours.reduce<number | null>(
     (highest, entry) => {
-      if (typeof entry.values.precipitationProbability !== "number") {
+      if (typeof entry.precipProbability !== "number") {
         return highest;
       }
 
       return highest === null
-        ? entry.values.precipitationProbability
-        : Math.max(highest, entry.values.precipitationProbability);
+        ? entry.precipProbability
+        : Math.max(highest, entry.precipProbability);
     },
     null,
   );
   const weatherLabels = nextTwelveHours.map((entry) =>
-    typeof entry.values.weatherCode === "number"
-      ? getConditionLabel(entry.values.weatherCode)
+    typeof entry.weatherCode === "number"
+      ? getConditionLabel(entry.weatherCode)
       : "",
   );
   const hasWetSignal = weatherLabels.some(isWetConditionLabel);
@@ -493,12 +529,12 @@ function useConditionsScreenData(
 
       if (currentResult.status === "fulfilled") {
         setSourceUpdatedLabel(
-          typeof currentResult.value.data.time === "string"
-            ? currentResult.value.data.time
+          typeof currentResult.value.updatedAt === "string"
+            ? currentResult.value.updatedAt
             : null,
         );
         setFallbackRefreshLabel(
-          typeof currentResult.value.data.time === "string"
+          typeof currentResult.value.updatedAt === "string"
             ? null
             : fallbackLabel,
         );
@@ -512,25 +548,29 @@ function useConditionsScreenData(
       }
 
       if (hourlyResult.status === "fulfilled") {
-        const nextHourly = hourlyResult.value.timelines?.hourly ?? [];
+        const nextHourly = getHourlyForecastEntries(hourlyResult.value);
+        warnMissingConditionsWeatherField({
+          locationName: selectedLocation.name,
+          response: hourlyResult.value,
+          entries: nextHourly,
+        });
         console.log(
           "[Conditions] Hourly payload sample",
           nextHourly.slice(0, 12).map((entry) => ({
             time: entry.time,
-            temperature: entry.values.temperature ?? null,
-            windSpeed: entry.values.windSpeed ?? null,
-            windGust: entry.values.windGust ?? null,
-            precipitationProbability:
-              entry.values.precipitationProbability ?? null,
-            weatherCode: entry.values.weatherCode ?? null,
+            temperature: entry.temp,
+            windSpeed: entry.windSpeed,
+            windGust: entry.windGust,
+            precipProbability: entry.precipProbability,
+            weatherCode: entry.weatherCode,
             conditionLabel:
-              typeof entry.values.weatherCode === "number"
-                ? getConditionLabel(entry.values.weatherCode)
+              typeof entry.weatherCode === "number"
+                ? getConditionLabel(entry.weatherCode)
                 : null,
           })),
         );
         setHourlyForecast(nextHourly);
-        setHourlyStatus(nextHourly.length > 0 ? "ready" : "unavailable");
+        setHourlyStatus(nextHourly.length > 0 ? "fresh" : "unavailable");
       } else {
         console.log(
           "Conditions screen hourly weather fetch failed:",

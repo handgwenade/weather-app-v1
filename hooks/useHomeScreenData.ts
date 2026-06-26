@@ -11,7 +11,10 @@ import {
     hydrateCachedHomeWeather,
 } from "@/data/weatherStore";
 import { getActiveAlertsForLocation } from "@/services/nws";
-import type { TomorrowHourlyForecastEntry } from "@/services/tomorrow";
+import {
+    getHourlyForecastEntries,
+    type TomorrowHourlyForecastEntry,
+} from "@/services/tomorrow";
 import { getWydotRoadReport, type WydotRoadReport } from "@/services/wydot";
 import {
     getRoadFallbackState,
@@ -151,7 +154,7 @@ export function useHomeScreenData(
     }
 
     if (cachedHourly) {
-      const hourlyEntries = cachedHourly.data.timelines?.hourly ?? [];
+      const hourlyEntries = getHourlyForecastEntries(cachedHourly.data);
       setHourlyForecast(hourlyEntries);
       setHourlyState(cachedHourly.freshness);
       setHourlyForecastLocationKey(selectedLocationWeatherKey);
@@ -192,8 +195,9 @@ export function useHomeScreenData(
       }
 
       if (persistedCache.hourly) {
-        const hourlyEntries =
-          persistedCache.hourly.data.timelines?.hourly ?? [];
+        const hourlyEntries = getHourlyForecastEntries(
+          persistedCache.hourly.data,
+        );
         const nextPropertyForecastLowF = sameHomeLocation(
           propertyLocation,
           activeLocation,
@@ -273,7 +277,7 @@ export function useHomeScreenData(
           return;
         }
 
-        const hourlyEntries = result.timelines?.hourly ?? [];
+        const hourlyEntries = getHourlyForecastEntries(result);
         const nextPropertyForecastLowF = sameHomeLocation(
           propertyLocation,
           activeLocation,
@@ -299,7 +303,7 @@ export function useHomeScreenData(
         }
 
         if (fallbackHourly) {
-          const hourlyEntries = fallbackHourly.data.timelines?.hourly ?? [];
+          const hourlyEntries = getHourlyForecastEntries(fallbackHourly.data);
           const nextPropertyForecastLowF = sameHomeLocation(
             propertyLocation,
             activeLocation,

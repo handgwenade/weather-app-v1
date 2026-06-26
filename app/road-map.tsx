@@ -1,21 +1,39 @@
 import { RoadMapView } from "@/components/road/RoadMapView";
 import { Palette, Radius, Shadows } from "@/constants/theme";
+import {
+  getRoadMapStatusColor,
+  ROAD_MAP_LAYER_PLAN_COPY,
+  ROAD_MAP_LEGEND_GROUP_LABELS,
+} from "@/utils/roadMapStatus";
 import { router, useLocalSearchParams } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
-const LEGEND_ITEMS = [
+const CONDITION_LEGEND_ITEMS = [
   {
-    label: "Normal",
-    description: "Monitored route, no active impact detected",
-    style: "normal",
+    label: "Normal / Low",
+    description: "No active impact detected",
+    color: getRoadMapStatusColor("normal"),
   },
-  { label: "Caution", description: "Weather-based caution", style: "caution" },
+  {
+    label: "Caution / Moderate",
+    description: "Weather-based caution",
+    color: getRoadMapStatusColor("caution"),
+  },
   {
     label: "Elevated",
-    description: "Elevated weather risk",
-    style: "elevated",
+    description: "Elevated risk",
+    color: getRoadMapStatusColor("elevated"),
   },
-  { label: "High", description: "High risk or official impact", style: "high" },
+  {
+    label: "High / Closed",
+    description: "High risk or official impact",
+    color: getRoadMapStatusColor("high"),
+  },
+  {
+    label: "Unknown",
+    description: "Data unavailable or status unknown",
+    color: getRoadMapStatusColor("unknown"),
+  },
 ] as const;
 
 function getFocusCoordinateFromParams(params: {
@@ -69,27 +87,42 @@ export default function RoadMapScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <RoadMapView
-          focusCoordinate={focusCoordinate}
-          focusZoomLevel={8.2}
-          selectedSegmentId={selectedSegmentId ?? null}
-        />
+        <View style={styles.mapLane}>
+          <RoadMapView
+            focusCoordinate={focusCoordinate}
+            focusZoomLevel={8.2}
+            selectedSegmentId={selectedSegmentId ?? null}
+          />
+        </View>
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Layer plan</Text>
-          <Text style={styles.cardBody}>
-            Monitored roads will show as a green base layer. Caution, elevated,
-            and high-risk markers will appear above the route layer as road
-            conditions change.
-          </Text>
+          <Text style={styles.cardBody}>{ROAD_MAP_LAYER_PLAN_COPY}</Text>
         </View>
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Legend</Text>
+          <Text style={styles.legendGroupTitle}>
+            {ROAD_MAP_LEGEND_GROUP_LABELS.routeLayer}
+          </Text>
+          <View style={styles.legendItem}>
+            <View style={styles.legendLine} />
+            <View style={styles.legendTextWrap}>
+              <Text style={styles.legendLabel}>Monitored route</Text>
+              <Text style={styles.legendDescription}>
+                Green line showing route coverage
+              </Text>
+            </View>
+          </View>
+          <Text style={[styles.legendGroupTitle, styles.legendGroupSpacing]}>
+            {ROAD_MAP_LEGEND_GROUP_LABELS.conditionMarkers}
+          </Text>
           <View style={styles.legendList}>
-            {LEGEND_ITEMS.map((item) => (
+            {CONDITION_LEGEND_ITEMS.map((item) => (
               <View key={item.label} style={styles.legendItem}>
-                <View style={[styles.legendDot, styles[item.style]]} />
+                <View
+                  style={[styles.legendDot, { backgroundColor: item.color }]}
+                />
                 <View style={styles.legendTextWrap}>
                   <Text style={styles.legendLabel}>{item.label}</Text>
                   <Text style={styles.legendDescription}>
@@ -158,14 +191,19 @@ const styles = StyleSheet.create({
   },
   content: {
     gap: 16,
-    padding: 20,
+    paddingHorizontal: 0,
+    paddingTop: 16,
     paddingBottom: 40,
+  },
+  mapLane: {
+    paddingHorizontal: 12,
   },
   card: {
     backgroundColor: Palette.surface,
     borderColor: "rgba(221, 227, 243, 0.9)",
     borderRadius: Radius.xl,
     borderWidth: 1,
+    marginHorizontal: 20,
     padding: 18,
     ...Shadows.card,
   },
@@ -196,17 +234,21 @@ const styles = StyleSheet.create({
     height: 18,
     width: 18,
   },
-  normal: {
+  legendLine: {
     backgroundColor: Palette.normal,
+    borderRadius: Radius.pill,
+    height: 5,
+    width: 34,
   },
-  caution: {
-    backgroundColor: Palette.caution,
+  legendGroupTitle: {
+    color: Palette.textPrimary,
+    fontSize: 13,
+    fontWeight: "900",
+    marginBottom: 10,
+    textTransform: "uppercase",
   },
-  elevated: {
-    backgroundColor: Palette.elevated,
-  },
-  high: {
-    backgroundColor: Palette.high,
+  legendGroupSpacing: {
+    marginTop: 18,
   },
   legendTextWrap: {
     flex: 1,

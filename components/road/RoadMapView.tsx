@@ -13,8 +13,14 @@ import {
     Pressable,
     StyleSheet,
     Text,
+    useWindowDimensions,
     View,
 } from "react-native";
+import {
+  getRoadMapStatusColor,
+  getRoadMapStatusDescription,
+  getRoadMapStatusLabel,
+} from "@/utils/roadMapStatus";
 
 type ObservedFactors = {
   observedAt: string | null;
@@ -90,19 +96,6 @@ function assertRoadApiBaseUrl() {
   return ROAD_API_BASE_URL.replace(/\/$/, "");
 }
 
-function getImpactColor(impactLevel?: string | null) {
-  switch (impactLevel) {
-    case "high":
-      return Palette.high;
-    case "moderate":
-      return Palette.elevated;
-    case "low":
-      return Palette.normal;
-    default:
-      return Palette.textMuted;
-  }
-}
-
 function formatNumber(
   value: number | null | undefined,
   maximumFractionDigits = 0,
@@ -173,10 +166,12 @@ export function RoadMapView({
   const mapRef = useRef<Mapbox.MapView>(null);
   const cameraRef = useRef<Mapbox.Camera>(null);
   const selectedLocation = useSelectedLocation();
+  const { height: windowHeight } = useWindowDimensions();
 
   const hasMapboxToken = Boolean(MAPBOX_ACCESS_TOKEN);
   const cameraCenter = focusCoordinate ?? WYOMING_CENTER;
   const cameraZoomLevel = focusCoordinate ? focusZoomLevel : 5.2;
+  const mapHeight = Math.max(520, Math.min(660, windowHeight * 0.58));
 
   useEffect(() => {
     if (MAPBOX_ACCESS_TOKEN) {
@@ -240,6 +235,8 @@ export function RoadMapView({
                 toLabel: segment.toLabel,
                 impactLevel: segment.impactLevel,
                 impactReason: segment.impactReason,
+                statusColor: getRoadMapStatusColor(segment.impactLevel),
+                statusLabel: getRoadMapStatusLabel(segment.impactLevel),
                 officialConditionLabel: segment.officialConditionLabel,
                 officialConditionDescription:
                   segment.officialConditionDescription,
@@ -449,7 +446,7 @@ export function RoadMapView({
   }
 
   return (
-    <View style={styles.mapWrap}>
+    <View style={[styles.mapWrap, { height: mapHeight }]}>
       <Mapbox.MapView
         attributionEnabled={false}
         compassEnabled={false}
@@ -492,12 +489,24 @@ export function RoadMapView({
                 circleColor: [
                   "match",
                   ["get", "impactLevel"],
-                  "high",
-                  Palette.high,
-                  "moderate",
-                  Palette.elevated,
+                  "normal",
+                  Palette.normal,
                   "low",
                   Palette.normal,
+                  "caution",
+                  Palette.caution,
+                  "moderate",
+                  Palette.caution,
+                  "elevated",
+                  Palette.elevated,
+                  "high",
+                  Palette.high,
+                  "closed",
+                  Palette.high,
+                  "unknown",
+                  Palette.textMuted,
+                  "unavailable",
+                  Palette.textMuted,
                   Palette.textMuted,
                 ],
                 circleOpacity: 0.92,
@@ -541,7 +550,11 @@ export function RoadMapView({
         <View
           style={[
             styles.segmentPill,
-            { borderLeftColor: getImpactColor(selectedMapSegment.impactLevel) },
+            {
+              borderLeftColor: getRoadMapStatusColor(
+                selectedMapSegment.impactLevel,
+              ),
+            },
           ]}
         >
           <Pressable
@@ -558,7 +571,7 @@ export function RoadMapView({
               style={[
                 styles.segmentPillImpactDot,
                 {
-                  backgroundColor: getImpactColor(
+                  backgroundColor: getRoadMapStatusColor(
                     selectedMapSegment.impactLevel,
                   ),
                 },
@@ -571,6 +584,21 @@ export function RoadMapView({
           <Text style={styles.segmentPillBody}>
             {selectedMapSegment.fromLabel ?? "Unknown"} →{" "}
             {selectedMapSegment.toLabel ?? "Unknown"}
+          </Text>
+
+          <Text style={styles.segmentPillSectionLabel}>Status</Text>
+          <Text style={styles.segmentPillMeta}>
+            {getRoadMapStatusLabel(selectedMapSegment.impactLevel)} —{" "}
+            {getRoadMapStatusDescription({
+              status: selectedMapSegment.impactLevel,
+              hasOfficialImpact: Boolean(
+                selectedMapSegment.officialRestriction ||
+                  selectedMapSegment.officialConditionLabel,
+              ),
+              reason:
+                selectedMapSegment.impactReason ??
+                selectedMapSegment.computedImpactReason,
+            })}
           </Text>
 
           <Text style={styles.segmentPillSectionLabel}>WYDOT condition</Text>
@@ -600,9 +628,8 @@ export function RoadMapView({
 const styles = StyleSheet.create({
   mapWrap: {
     borderColor: "rgba(221, 227, 243, 0.9)",
-    borderRadius: Radius.xl,
+    borderRadius: 28,
     borderWidth: 1,
-    height: 430,
     overflow: "hidden",
     position: "relative",
     ...Shadows.card,

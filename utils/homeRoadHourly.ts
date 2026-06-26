@@ -1,20 +1,46 @@
 import type { TomorrowHourlyForecastEntry } from "@/services/tomorrow";
 import type { WydotRoadReport } from "@/services/wydot";
 import type { RoadConditionChartPoint } from "@/utils/roadConditionChart";
-import type { HomeDataState } from "@/utils/homeWeatherFormatting";
-import { celsiusToFahrenheit, metersPerSecondToMph } from "@/utils/weather";
+import type {
+  HomeCurrentWeatherSnapshot,
+  HomeDataState,
+} from "@/utils/homeWeatherFormatting";
 
 export function buildHomeRoadHourlyPoints(params: {
+  currentWeather?: HomeCurrentWeatherSnapshot;
   hourlyEntries: TomorrowHourlyForecastEntry[];
   hourlyState: HomeDataState;
   roadReport: WydotRoadReport | null;
 }): RoadConditionChartPoint[] {
-  const { hourlyEntries, hourlyState, roadReport } = params;
+  const { currentWeather, hourlyEntries, hourlyState, roadReport } = params;
   const points: RoadConditionChartPoint[] = [];
   const observation = roadReport?.primaryStationObservation ?? null;
   const observationTime = observation?.observedAt ?? roadReport?.fetchedAt;
+  const hasHourlyForecast = hourlyEntries.length > 0;
 
-  if (
+  if (!hasHourlyForecast && currentWeather) {
+    const currentWeatherTime =
+      currentWeather.sourceTimestamp ??
+      currentWeather.refreshFallbackLabel ??
+      new Date().toISOString();
+
+    if (
+      currentWeather.temperatureF !== null ||
+      currentWeather.windSpeedMph !== null ||
+      currentWeather.precipProbability !== null
+    ) {
+      points.push({
+        time: currentWeatherTime,
+        airTemp: currentWeather.temperatureF,
+        windSpeed: currentWeather.windSpeedMph,
+        windGust: currentWeather.windGustMph,
+        precipitationProbability: currentWeather.precipProbability,
+        weatherCode: currentWeather.weatherCode,
+        sourceProvider: "tomorrow",
+        confidence: "observed",
+      });
+    }
+  } else if (
     observation &&
     observationTime &&
     (typeof observation.surfaceTempF === "number" ||
@@ -34,45 +60,17 @@ export function buildHomeRoadHourlyPoints(params: {
     });
   }
 
-  const currentHour = new Date();
-  currentHour.setMinutes(0, 0, 0);
-
-  const futureOrCurrentEntries = hourlyEntries.filter((entry) => {
-    const entryDate = new Date(entry.time);
-
-    if (Number.isNaN(entryDate.getTime())) {
-      return true;
-    }
-
-    return entryDate.getTime() >= currentHour.getTime();
-  });
-
-  const visibleEntries =
-    futureOrCurrentEntries.length > 0 ? futureOrCurrentEntries : hourlyEntries;
-
-  visibleEntries.slice(0, 12).forEach((entry) => {
+  hourlyEntries.slice(0, 12).forEach((entry) => {
     points.push({
       time: entry.time,
       precipitationProbability:
-        typeof entry.values.precipitationProbability === "number"
-          ? entry.values.precipitationProbability
+        typeof entry.precipProbability === "number"
+          ? entry.precipProbability
           : undefined,
-      airTemp:
-        typeof entry.values.temperature === "number"
-          ? celsiusToFahrenheit(entry.values.temperature)
-          : undefined,
-      windSpeed:
-        typeof entry.values.windSpeed === "number"
-          ? metersPerSecondToMph(entry.values.windSpeed)
-          : undefined,
-      windGust:
-        typeof entry.values.windGust === "number"
-          ? metersPerSecondToMph(entry.values.windGust)
-          : undefined,
-      weatherCode:
-        typeof entry.values.weatherCode === "number"
-          ? entry.values.weatherCode
-          : undefined,
+      airTemp: typeof entry.temp === "number" ? entry.temp : undefined,
+      windSpeed: typeof entry.windSpeed === "number" ? entry.windSpeed : undefined,
+      windGust: typeof entry.windGust === "number" ? entry.windGust : undefined,
+      weatherCode: typeof entry.weatherCode === "number" ? entry.weatherCode : undefined,
       sourceProvider: "tomorrow",
       confidence: hourlyState === "stale" ? "estimated" : "forecast",
     });

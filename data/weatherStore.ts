@@ -7,6 +7,7 @@ import {
   getDailyForecast,
   getHomeInitialWeather,
   getHourlyForecast,
+  getHourlyForecastEntries,
   type RoadSignalHomeInitialResponse,
   type TomorrowDailyForecastResponse,
   type TomorrowHourlyForecastResponse,
@@ -147,6 +148,10 @@ function getCachedDataSnapshot<T>(
     ageMs,
     freshness: ageMs < ttlMs ? "fresh" : "stale",
   };
+}
+
+function hasHourlyForecastData(response: TomorrowHourlyForecastResponse) {
+  return getHourlyForecastEntries(response).length > 0;
 }
 
 function buildCacheEntry<T>(cacheKey: string, data: T): WeatherCacheEntry<T> {
@@ -407,29 +412,147 @@ export function getCachedCurrentWeather(
   );
 }
 
+async function fetchHourlyForecastWithFallback(
+  location: AppLocation,
+  cacheKey: string,
+) {
+  const directHourly = await getHourlyForecast(location);
+
+  if (getHourlyForecastEntries(directHourly).length > 0) {
+    return directHourly;
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    console.warn("[HourlyForecastFallback]", {
+      reason: "empty /api/weather/hourly response",
+      location: {
+        name: location.name,
+        latitude: location.latitude,
+        longitude: location.longitude,
+      },
+      directKeys: Object.keys(directHourly || {}),
+      directHourlyForecastCount: directHourly.hourlyForecast?.length,
+      directTimelineCount: directHourly.timelines?.hourly?.length,
+    });
+  }
+
+  const combined = await getCurrentAndHourlyWeather(location);
+
+  cachedCurrentAndHourlyWeather.set(
+    cacheKey,
+    buildCacheEntry(cacheKey, {
+      currentWeather: combined.currentWeather,
+      hourlyForecast: combined.hourlyForecast,
+    }),
+  );
+  cachedCurrentWeather.set(
+    cacheKey,
+    buildCacheEntry(cacheKey, combined.currentWeather),
+  );
+  failedCurrentAndHourlyWeather.delete(cacheKey);
+  failedCurrentWeather.delete(cacheKey);
+
+  return combined.hourlyForecast;
+}
+
 export async function getSharedHourlyForecast(
   location: AppLocation,
 ): Promise<TomorrowHourlyForecastResponse> {
   const cacheKey = getLocationCacheKey(location);
-  return getSharedWeatherData({
+  const cachedSnapshot = getCachedDataSnapshot(
+    cachedHourlyForecast,
     cacheKey,
-    cacheEntries: cachedHourlyForecast,
-    ttlMs: HOURLY_FORECAST_TTL_MS,
-    fetcher: () => getHourlyForecast(location),
-    inFlight: inFlightHourlyForecast,
-    failures: failedHourlyForecast,
-  });
+    HOURLY_FORECAST_TTL_MS,
+  );
+
+  if (cachedSnapshot?.freshness === "fresh") {
+    if (hasHourlyForecastData(cachedSnapshot.data)) {
+      return cachedSnapshot.data;
+    }
+
+    cachedHourlyForecast.delete(cacheKey);
+
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[HourlyForecastCacheBypass]", {
+        reason: "fresh cached hourly response had no entries",
+        cacheKey,
+        cachedKeys: Object.keys(cachedSnapshot.data || {}),
+      });
+    }
+  }
+
+  const bypassFailureCache = shouldBypassWeatherFailureCache();
+
+  if (bypassFailureCache) {
+    failedHourlyForecast.delete(cacheKey);
+  }
+
+  const recentFailure = bypassFailureCache
+    ? null
+    : getRecentFailure(failedHourlyForecast, cacheKey);
+
+  if (recentFailure) {
+    throw recentFailure;
+  }
+
+  const inFlightRequest = inFlightHourlyForecast.get(cacheKey);
+
+  if (inFlightRequest) {
+    return inFlightRequest;
+  }
+
+  const request = fetchHourlyForecastWithFallback(location, cacheKey)
+    .then((data) => {
+      if (hasHourlyForecastData(data)) {
+        cachedHourlyForecast.set(cacheKey, buildCacheEntry(cacheKey, data));
+        persistWeatherCacheSafely();
+      } else {
+        cachedHourlyForecast.delete(cacheKey);
+      }
+
+      failedHourlyForecast.delete(cacheKey);
+      return data;
+    })
+    .catch((error: unknown) => {
+      const normalizedError =
+        error instanceof Error ? error : new Error(String(error));
+
+      if (bypassFailureCache) {
+        failedHourlyForecast.delete(cacheKey);
+      } else {
+        failedHourlyForecast.set(cacheKey, {
+          error: normalizedError,
+          failedAtMs: Date.now(),
+        });
+      }
+
+      throw normalizedError;
+    })
+    .finally(() => {
+      inFlightHourlyForecast.delete(cacheKey);
+    });
+
+  inFlightHourlyForecast.set(cacheKey, request);
+
+  return request;
 }
 
 export function getCachedHourlyForecast(
   location: AppLocation,
 ): WeatherCacheSnapshot<TomorrowHourlyForecastResponse> | null {
   const cacheKey = getLocationCacheKey(location);
-  return getCachedDataSnapshot(
+  const cachedSnapshot = getCachedDataSnapshot(
     cachedHourlyForecast,
     cacheKey,
     HOURLY_FORECAST_TTL_MS,
   );
+
+  if (cachedSnapshot && !hasHourlyForecastData(cachedSnapshot.data)) {
+    cachedHourlyForecast.delete(cacheKey);
+    return null;
+  }
+
+  return cachedSnapshot;
 }
 
 /**

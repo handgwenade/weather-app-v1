@@ -1,4 +1,5 @@
 import { Palette, Radius, Shadows } from "@/constants/theme";
+import { getRoadMapStatusColor } from "@/utils/roadMapStatus";
 import { router } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -49,22 +50,41 @@ export function RoadMapPreviewCard({
 
       <View style={styles.legendStrip}>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, styles.legendDotNormal]} />
-          <Text style={styles.legendText}>Normal</Text>
+          <View style={styles.legendLine} />
+          <Text style={styles.legendText}>Route</Text>
         </View>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, styles.legendDotElevated]} />
+          <View
+            style={[
+              styles.legendDot,
+              { backgroundColor: getRoadMapStatusColor("elevated") },
+            ]}
+          />
           <Text style={styles.legendText}>Elevated</Text>
         </View>
         <View style={styles.legendItem}>
-          <View style={[styles.legendDot, styles.legendDotHigh]} />
+          <View
+            style={[
+              styles.legendDot,
+              { backgroundColor: getRoadMapStatusColor("unknown") },
+            ]}
+          />
+          <Text style={styles.legendText}>Unknown</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View
+            style={[
+              styles.legendDot,
+              { backgroundColor: getRoadMapStatusColor("high") },
+            ]}
+          />
           <Text style={styles.legendText}>High</Text>
         </View>
       </View>
 
       <Text style={styles.body}>
-        View monitored WYDOT route coverage and current weather-based risk
-        markers.
+        View monitored WYDOT route coverage and condition markers when status
+        data is available.
       </Text>
 
       {routeLabel ? (
@@ -146,14 +166,11 @@ const styles = StyleSheet.create({
     height: 10,
     width: 10,
   },
-  legendDotNormal: {
+  legendLine: {
     backgroundColor: Palette.normal,
-  },
-  legendDotElevated: {
-    backgroundColor: Palette.elevated,
-  },
-  legendDotHigh: {
-    backgroundColor: Palette.high,
+    borderRadius: Radius.pill,
+    height: 4,
+    width: 18,
   },
   legendText: {
     color: Palette.textSecondary,

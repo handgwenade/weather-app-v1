@@ -32,6 +32,7 @@ const COMBINED_CURRENT_AND_HOURLY_FIELDS = [
   "windDirection",
   "windGust",
   "precipitationProbability",
+  "precipitationType",
   "humidity",
   "visibility",
   "temperatureApparent",
@@ -840,13 +841,18 @@ function buildTomorrowWeatherUrl(
   timesteps?: "1h" | "1d",
 ) {
   const location = `${lat},${lon}`;
-  const params = new URLSearchParams({ location, apikey: apiKey });
+  const params = new URLSearchParams({
+    location,
+    apikey: apiKey,
+    units: "metric",
+  });
 
   if (timesteps) {
     params.set("timesteps", timesteps);
     return `${TOMORROW_WEATHER_BASE_URL}/forecast?${params.toString()}`;
   }
 
+  params.set("fields", COMBINED_CURRENT_AND_HOURLY_FIELDS.join(","));
   return `${TOMORROW_WEATHER_BASE_URL}/realtime?${params.toString()}`;
 }
 
@@ -1016,7 +1022,11 @@ function toAppCurrentWeatherResponse(
       }
     | undefined,
 ) {
+  const current = toHomeCurrentPayload(entry?.values);
+
   return {
+    ...current,
+    updatedAt: entry?.startTime ?? null,
     data: {
       time: entry?.startTime,
       values: entry?.values ?? {},
@@ -1030,7 +1040,33 @@ function toAppHourlyForecastResponse(
     values?: Record<string, number | string | null>;
   }[],
 ) {
+  const hourlyForecast = entries.map((entry) => {
+    const values = entry.values;
+
+    return {
+      time: entry.startTime ?? "",
+      temp: roundNullable(
+        celsiusToFahrenheit(getFiniteTomorrowNumber(values, "temperature")),
+      ),
+      windSpeed: roundNullable(
+        metersPerSecondToMph(getFiniteTomorrowNumber(values, "windSpeed")),
+        1,
+      ),
+      windGust: roundNullable(
+        metersPerSecondToMph(getFiniteTomorrowNumber(values, "windGust")),
+        1,
+      ),
+      precipProbability: roundNullable(
+        getFiniteTomorrowNumber(values, "precipitationProbability"),
+      ),
+      weatherCode: getFiniteTomorrowNumber(values, "weatherCode"),
+      precipType: getFiniteTomorrowNumber(values, "precipitationType"),
+    };
+  });
+
   return {
+    hourlyForecast,
+    updatedAt: hourlyForecast[0]?.time || null,
     timelines: {
       hourly: entries.map((entry) => ({
         time: entry.startTime ?? "",
@@ -2162,7 +2198,12 @@ app.get("/api/weather/current", async (req, res) => {
       values: payload.data?.values,
     });
 
-    res.json(payload);
+    res.json(
+      toAppCurrentWeatherResponse({
+        startTime: payload.data?.time,
+        values: payload.data?.values,
+      }),
+    );
   } catch (error) {
     console.log("[WeatherAPI] Current weather request failed", {
       error: error instanceof Error ? error.message : String(error),
@@ -2180,32 +2221,31 @@ app.get("/api/weather/hourly", async (req, res) => {
   }
 
   try {
-    const location = `${coordinates.lat},${coordinates.lon}`;
-    const params = new URLSearchParams({
-      location,
-      timesteps: "1h",
-      apikey: apiKey,
-    });
-    const url = `${TOMORROW_WEATHER_BASE_URL}/forecast?${params.toString()}`;
+    const url = `${TOMORROW_TIMELINES_URL}?apikey=${encodeURIComponent(apiKey)}`;
+    const requestBody = buildTomorrowTimelinesRequestBody(
+      coordinates.lat,
+      coordinates.lon,
+      "1h",
+    );
 
     debugLog("[WeatherAPI] Hourly Tomorrow request", {
-      location,
+      location: requestBody.location,
+      fields: requestBody.fields,
       timesteps: "1h",
+      startTime: requestBody.startTime,
+      endTime: requestBody.endTime,
     });
 
-    const payload = await fetchTomorrowJson<any>(
+    const payload = await fetchTomorrowJson<TomorrowHourlyTimelinesResponse>(
       url,
       {
         operation: "hourly weather forecast",
-        providerEndpoint: "weather/forecast",
+        providerEndpoint: "timelines",
       },
-      undefined,
+      buildTomorrowJsonPostInit(requestBody),
       TOMORROW_FORECAST_TIMEOUT_MS,
     );
-    const hourlyEntries: {
-      startTime?: string;
-      values?: Record<string, number | string | null>;
-    }[] = payload.data?.timelines?.[0]?.intervals ?? [];
+    const hourlyEntries = getTimelineIntervals(payload, "1h");
 
     logHourlyNormalizationDiagnostics({
       source: "/api/weather/hourly",

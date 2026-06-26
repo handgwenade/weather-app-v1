@@ -8,7 +8,6 @@ import {
     getHomeCardStateLabel,
     type HomeCardDataState,
 } from "@/utils/homePerformance";
-import { celsiusToFahrenheit } from "@/utils/weather";
 
 export type PropertyRisk = "High" | "Moderate" | "Low" | "Unavailable";
 export type HomeDataState = HomeCardDataState;
@@ -121,12 +120,12 @@ export function getNextHomePrecipSignal(
 ) {
   for (const entry of hourlyEntries.slice(0, 12)) {
     const conditionLabel =
-      typeof entry.values.weatherCode === "number"
-        ? getConditionLabel(entry.values.weatherCode)
+      typeof entry.weatherCode === "number"
+        ? getConditionLabel(entry.weatherCode)
         : null;
     const precipProbability =
-      typeof entry.values.precipitationProbability === "number"
-        ? entry.values.precipitationProbability
+      typeof entry.precipProbability === "number"
+        ? entry.precipProbability
         : null;
 
     if (
@@ -282,11 +281,7 @@ export function getHomeForecastLowFFromHourlyEntries(
 ) {
   const temperatureValuesF = hourlyEntries
     .slice(0, 24)
-    .map((entry) =>
-      typeof entry.values.temperature === "number"
-        ? celsiusToFahrenheit(entry.values.temperature)
-        : null,
-    )
+    .map((entry) => entry.temp)
     .filter((value): value is number => typeof value === "number");
 
   if (temperatureValuesF.length === 0) {

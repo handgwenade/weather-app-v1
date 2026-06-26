@@ -193,11 +193,12 @@ export default function HomeScreen() {
   const roadHourly = useMemo<RoadConditionChartPoint[]>(
     () =>
       buildHomeRoadHourlyPoints({
+        currentWeather,
         hourlyEntries: hourlyForecast,
         hourlyState,
         roadReport,
       }),
-    [hourlyForecast, hourlyState, roadReport],
+    [currentWeather, hourlyForecast, hourlyState, roadReport],
   );
   const roadHourlyLoading = useMemo(
     () => hourlyState === "loading" && roadHourly.length === 0,
@@ -344,6 +345,11 @@ export default function HomeScreen() {
           statusBanner={homeViewModel.statusBanner}
           metrics={homeViewModel.metrics}
           roadHourly={roadHourly}
+          conditionChartDebugContext={{
+            hourlyCount: hourlyForecast.length,
+            currentKeys: Object.keys(currentWeather),
+            firstHourly: hourlyForecast[0],
+          }}
           roadHourlyLoading={roadHourlyLoading}
           monitoringCard={homeViewModel.monitoringCard}
           monitoredLocationCard={homeViewModel.monitoredLocationCard}

@@ -51,6 +51,49 @@ const EMPTY_HOME_WYDOT_OFFICIAL_STATUS: WydotOfficialRoadStatus = {
   lastUpdated: null,
 };
 
+const WEATHER_FIELD_LOGGED_KEYS = new Set<string>();
+
+function warnMissingHomeWeatherField(params: {
+  field: "precipProbability" | "humidity";
+  value: number | null;
+  currentWeather: HomeCurrentWeatherSnapshot;
+}) {
+  if (
+    typeof __DEV__ === "undefined" ||
+    !__DEV__ ||
+    params.currentWeather.dataState === "loading"
+  ) {
+    return;
+  }
+
+  if (params.value !== null && params.value !== undefined) {
+    return;
+  }
+
+  const logKey = [
+    "Home",
+    params.field,
+    params.currentWeather.sourceTimestamp,
+    params.currentWeather.dataState,
+  ].join(":");
+
+  if (WEATHER_FIELD_LOGGED_KEYS.has(logKey)) {
+    return;
+  }
+
+  WEATHER_FIELD_LOGGED_KEYS.add(logKey);
+  console.warn("[WeatherFieldMissing]", {
+    screen: "Home",
+    endpoint: "/api/home/initial",
+    field: params.field,
+    value: params.value,
+    valueKind: params.value === null ? "null" : typeof params.value,
+    responseKeys: Object.keys(params.currentWeather),
+    dataState: params.currentWeather.dataState,
+    sourceTimestamp: params.currentWeather.sourceTimestamp,
+  });
+}
+
 function formatHomeAlertAreaSubtitle(area: string | null) {
   if (!area) {
     return "Affects nearby areas";
@@ -539,6 +582,16 @@ export function buildHomeViewModel(params: {
   const windMetric = observation?.windDirection
     ? formatWindValue(observation.windAvgMph, observation.windDirection)
     : formatWindValue(currentWeather.windSpeedMph);
+  warnMissingHomeWeatherField({
+    field: "precipProbability",
+    value: currentWeather.precipProbability,
+    currentWeather,
+  });
+  warnMissingHomeWeatherField({
+    field: "humidity",
+    value: currentWeather.humidity,
+    currentWeather,
+  });
   const metrics: HomeMetric[] = [
     {
       label: "Air Temp",

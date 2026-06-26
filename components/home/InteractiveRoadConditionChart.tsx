@@ -34,6 +34,11 @@ type InteractiveRoadConditionChartProps = {
   metric: RoadConditionChartMetric;
   units: RoadConditionChartUnits;
   isLoading?: boolean;
+  debugContext?: {
+    hourlyCount: number;
+    currentKeys: string[];
+    firstHourly?: unknown;
+  };
 };
 
 const CHART_HEIGHT = 166;
@@ -62,6 +67,7 @@ export default function InteractiveRoadConditionChart({
   metric,
   units,
   isLoading = false,
+  debugContext,
 }: InteractiveRoadConditionChartProps) {
   const [chartWidth, setChartWidth] = useState(0);
   const validPoints = useMemo(
@@ -83,6 +89,35 @@ export default function InteractiveRoadConditionChart({
       return currentStillValid ? currentIndex : validPoints[0].index;
     });
   }, [validPoints]);
+
+  useEffect(() => {
+    if (typeof __DEV__ === "undefined" || !__DEV__ || isLoading) {
+      return;
+    }
+
+    if (validPoints.length === 1) {
+      console.warn("[ConditionChartSinglePoint]", {
+        tab: metric,
+        hourlyCount: debugContext?.hourlyCount,
+        seriesCount: validPoints.length,
+        currentKeys: debugContext?.currentKeys ?? [],
+        firstHourly: debugContext?.firstHourly,
+      });
+    }
+
+    if (metric === "precipitationProbability" && validPoints.length === 0) {
+      console.warn("[ConditionChartMissingPrecip]", {
+        currentPrecip: points.find(
+          (point) => point.precipitationProbability !== null &&
+            point.precipitationProbability !== undefined,
+        )?.precipitationProbability,
+        hourlyPrecipValues: points
+          .filter((point) => point.sourceProvider === "tomorrow")
+          .slice(0, 12)
+          .map((point) => point.precipitationProbability),
+      });
+    }
+  }, [debugContext, isLoading, metric, points, validPoints.length]);
 
   const chart = useMemo(() => {
     if (chartWidth <= 0 || validPoints.length === 0) {

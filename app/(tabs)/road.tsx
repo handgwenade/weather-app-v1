@@ -20,7 +20,10 @@ import {
     getSharedHourlyForecast,
 } from "@/data/weatherStore";
 import { getActiveAlertsForLocation } from "@/services/nws";
-import type { TomorrowHourlyForecastEntry } from "@/services/tomorrow";
+import {
+    getHourlyForecastEntries,
+    type TomorrowHourlyForecastEntry,
+} from "@/services/tomorrow";
 import {
     getWydotRoadReport,
     type WydotOfficialRoadStatus,
@@ -40,7 +43,6 @@ import {
     type SuggestionDecision,
     type SuggestionInput,
 } from "@/utils/suggestions";
-import { celsiusToFahrenheit, metersPerSecondToMph } from "@/utils/weather";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Text, View } from "react-native";
@@ -1118,15 +1120,8 @@ function useRoadScreenData(
       let weatherSourceUpdatedLabel: string | null = null;
 
       if (weatherResult.status === "fulfilled") {
-        const values = weatherResult.value.data.values;
-        const temperatureF =
-          typeof values.temperature === "number"
-            ? celsiusToFahrenheit(values.temperature)
-            : null;
-        const windSpeedMph =
-          typeof values.windSpeed === "number"
-            ? metersPerSecondToMph(values.windSpeed)
-            : null;
+        const temperatureF = weatherResult.value.currentTemp;
+        const windSpeedMph = weatherResult.value.windSpeed;
 
         if (temperatureF !== null && windSpeedMph !== null) {
           const cautionResult = getRoadCautionResult(
@@ -1138,8 +1133,8 @@ function useRoadScreenData(
         }
 
         weatherSourceUpdatedLabel = formatTimestampLabel(
-          typeof weatherResult.value.data.time === "string"
-            ? weatherResult.value.data.time
+          typeof weatherResult.value.updatedAt === "string"
+            ? weatherResult.value.updatedAt
             : null,
         );
 
@@ -1147,10 +1142,7 @@ function useRoadScreenData(
           temperatureLabel: temperatureF === null ? "--" : `${temperatureF}°F`,
           windLabel:
             windSpeedMph === null ? "Not available" : `${windSpeedMph} mph`,
-          precipProbability:
-            typeof values.precipitationProbability === "number"
-              ? Math.round(values.precipitationProbability)
-              : null,
+          precipProbability: weatherResult.value.precipProbability,
           sourceUpdatedLabel: weatherSourceUpdatedLabel,
           fallbackRefreshLabel: fallbackUpdatedLabel,
           hasWeatherData: temperatureF !== null || windSpeedMph !== null,
@@ -1168,7 +1160,7 @@ function useRoadScreenData(
       }
 
       if (hourlyResult.status === "fulfilled") {
-        setHourlyForecast(hourlyResult.value.timelines?.hourly ?? []);
+        setHourlyForecast(getHourlyForecastEntries(hourlyResult.value));
       } else {
         setHourlyForecast([]);
       }
