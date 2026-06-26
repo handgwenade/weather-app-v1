@@ -2,6 +2,15 @@ import Database from "better-sqlite3";
 import express from "express";
 import fs from "node:fs";
 import path from "node:path";
+import {
+  getConditionLabelFromWeatherCode as getAppConditionLabelFromWeatherCode,
+  getFiniteTomorrowNumber as getAppFiniteTomorrowNumber,
+  toAppCurrentWeatherResponse as buildAppCurrentWeatherResponse,
+  toAppDailyForecastResponse as buildAppDailyForecastResponse,
+  toAppHourlyForecastResponse as buildAppHourlyForecastResponse,
+  toHomeCurrentPayload as buildAppHomeCurrentPayload,
+  withWeatherDebug,
+} from "./weatherContract";
 
 const dbPath = path.resolve(__dirname, "..", "weatherapp.db");
 const roadGeometryPath = path.resolve(
@@ -95,6 +104,14 @@ function debugLog(message: string, payload?: unknown) {
   }
 
   console.log(message, payload);
+}
+
+function shouldIncludeWeatherDebug(req: express.Request) {
+  return (
+    ENABLE_DEBUG_LOGS &&
+    typeof req.query.debug === "string" &&
+    req.query.debug.toLowerCase() === "true"
+  );
 }
 
 async function fetchWithTimeout(
@@ -1018,20 +1035,12 @@ function toAppCurrentWeatherResponse(
   entry:
     | {
         startTime?: string;
+        time?: string;
         values?: Record<string, number | string | null>;
       }
     | undefined,
 ) {
-  const current = toHomeCurrentPayload(entry?.values);
-
-  return {
-    ...current,
-    updatedAt: entry?.startTime ?? null,
-    data: {
-      time: entry?.startTime,
-      values: entry?.values ?? {},
-    },
-  };
+  return buildAppCurrentWeatherResponse(entry);
 }
 
 function toAppHourlyForecastResponse(
@@ -1040,49 +1049,14 @@ function toAppHourlyForecastResponse(
     values?: Record<string, number | string | null>;
   }[],
 ) {
-  const hourlyForecast = entries.map((entry) => {
-    const values = entry.values;
-
-    return {
-      time: entry.startTime ?? "",
-      temp: roundNullable(
-        celsiusToFahrenheit(getFiniteTomorrowNumber(values, "temperature")),
-      ),
-      windSpeed: roundNullable(
-        metersPerSecondToMph(getFiniteTomorrowNumber(values, "windSpeed")),
-        1,
-      ),
-      windGust: roundNullable(
-        metersPerSecondToMph(getFiniteTomorrowNumber(values, "windGust")),
-        1,
-      ),
-      precipProbability: roundNullable(
-        getFiniteTomorrowNumber(values, "precipitationProbability"),
-      ),
-      weatherCode: getFiniteTomorrowNumber(values, "weatherCode"),
-      precipType: getFiniteTomorrowNumber(values, "precipitationType"),
-    };
-  });
-
-  return {
-    hourlyForecast,
-    updatedAt: hourlyForecast[0]?.time || null,
-    timelines: {
-      hourly: entries.map((entry) => ({
-        time: entry.startTime ?? "",
-        values: entry.values ?? {},
-      })),
-    },
-  };
+  return buildAppHourlyForecastResponse(entries);
 }
 
 function getFiniteTomorrowNumber(
   values: Record<string, number | string | null> | undefined,
   field: string,
 ) {
-  const value = values?.[field];
-
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
+  return getAppFiniteTomorrowNumber(values, field);
 }
 
 function celsiusToFahrenheit(value: number | null) {
@@ -1107,89 +1081,13 @@ function roundNullable(value: number | null, digits = 0) {
 }
 
 function getConditionLabelFromWeatherCode(weatherCode: number | null) {
-  switch (weatherCode) {
-    case 1000:
-      return "Clear";
-    case 1100:
-      return "Mostly clear";
-    case 1101:
-      return "Partly cloudy";
-    case 1102:
-      return "Mostly cloudy";
-    case 1001:
-      return "Cloudy";
-    case 4000:
-      return "Drizzle";
-    case 4001:
-      return "Rain";
-    case 4200:
-      return "Light rain";
-    case 4201:
-      return "Heavy rain";
-    case 5000:
-      return "Snow";
-    case 5001:
-      return "Flurries";
-    case 5100:
-      return "Light snow";
-    case 5101:
-      return "Heavy snow";
-    case 6000:
-      return "Freezing drizzle";
-    case 6001:
-      return "Freezing rain";
-    case 6200:
-      return "Light freezing rain";
-    case 6201:
-      return "Heavy freezing rain";
-    case 7000:
-      return "Ice pellets";
-    case 7101:
-      return "Heavy ice pellets";
-    case 7102:
-      return "Light ice pellets";
-    case 8000:
-      return "Thunderstorm";
-    default:
-      return "Current conditions";
-  }
+  return getAppConditionLabelFromWeatherCode(weatherCode);
 }
 
 function toHomeCurrentPayload(
   values: Record<string, number | string | null> | undefined,
 ) {
-  const weatherCode = getFiniteTomorrowNumber(values, "weatherCode");
-  const windSpeedMph = roundNullable(
-    metersPerSecondToMph(getFiniteTomorrowNumber(values, "windSpeed")),
-    1,
-  );
-  const windGustMph = roundNullable(
-    metersPerSecondToMph(getFiniteTomorrowNumber(values, "windGust")),
-    1,
-  );
-
-  return {
-    currentTemp: roundNullable(
-      celsiusToFahrenheit(getFiniteTomorrowNumber(values, "temperature")),
-    ),
-    feelsLike: roundNullable(
-      celsiusToFahrenheit(
-        getFiniteTomorrowNumber(values, "temperatureApparent"),
-      ),
-    ),
-    windSpeed: windSpeedMph,
-    windGust: windGustMph,
-    humidity: roundNullable(getFiniteTomorrowNumber(values, "humidity")),
-    precipProbability: roundNullable(
-      getFiniteTomorrowNumber(values, "precipitationProbability"),
-    ),
-    visibility: roundNullable(
-      kilometersToMiles(getFiniteTomorrowNumber(values, "visibility")),
-      1,
-    ),
-    weatherCode,
-    condition: getConditionLabelFromWeatherCode(weatherCode),
-  };
+  return buildAppHomeCurrentPayload(values);
 }
 
 function buildHomeSummary(current: ReturnType<typeof toHomeCurrentPayload>) {
@@ -1373,13 +1271,18 @@ app.get("/api/home/details", async (req, res) => {
   }
 
   res.json({
-    hourly: {
-      ...buildTomorrowBranchMeta(hourlyResult),
-      data: hourlyResult.ok ? toAppHourlyForecastResponse(hourlyEntries) : null,
-    },
+    hourlyForecast: hourlyResult.ok
+      ? toAppHourlyForecastResponse(hourlyEntries).hourlyForecast
+      : [],
+    hourlyUpdatedAt: hourlyResult.ok
+      ? toAppHourlyForecastResponse(hourlyEntries).updatedAt
+      : null,
+    hourly: buildTomorrowBranchMeta(hourlyResult),
     daily: {
       ...buildTomorrowBranchMeta(dailyResult),
-      data: dailyResult.ok ? dailyResult.payload : null,
+      data: dailyResult.ok
+        ? buildAppDailyForecastResponse(dailyResult.payload as object)
+        : null,
     },
     status: {
       hourly: hourlyResult.ok ? "fresh" : "unavailable",
@@ -2198,10 +2101,16 @@ app.get("/api/weather/current", async (req, res) => {
       values: payload.data?.values,
     });
 
-    res.json(
-      toAppCurrentWeatherResponse({
+    const currentResponse = toAppCurrentWeatherResponse({
         startTime: payload.data?.time,
         values: payload.data?.values,
+      });
+
+    res.json(
+      withWeatherDebug(currentResponse, {
+        includeDebug: shouldIncludeWeatherDebug(req),
+        provider: "tomorrow",
+        raw: payload,
       }),
     );
   } catch (error) {
@@ -2265,7 +2174,15 @@ app.get("/api/weather/hourly", async (req, res) => {
       })),
     );
 
-    res.json(toAppHourlyForecastResponse(hourlyEntries));
+    const hourlyResponse = toAppHourlyForecastResponse(hourlyEntries);
+
+    res.json(
+      withWeatherDebug(hourlyResponse, {
+        includeDebug: shouldIncludeWeatherDebug(req),
+        provider: "tomorrow",
+        raw: payload,
+      }),
+    );
   } catch (error) {
     console.log("[WeatherAPI] Hourly forecast request failed", {
       error: error instanceof Error ? error.message : String(error),
@@ -2298,7 +2215,15 @@ app.get("/api/weather/daily", async (req, res) => {
       undefined,
       TOMORROW_FORECAST_TIMEOUT_MS,
     );
-    res.json(payload);
+    const dailyResponse = buildAppDailyForecastResponse(payload as object);
+
+    res.json(
+      withWeatherDebug(dailyResponse, {
+        includeDebug: shouldIncludeWeatherDebug(req),
+        provider: "tomorrow",
+        raw: payload,
+      }),
+    );
   } catch (error) {
     console.log("[WeatherAPI] Daily forecast request failed", {
       error: error instanceof Error ? error.message : String(error),
@@ -2402,12 +2327,23 @@ app.get("/api/weather/current-hourly", async (req, res) => {
       })),
     );
 
-    res.json({
+    const combinedResponse = {
       current: buildTomorrowBranchMeta(currentResult),
       hourly: buildTomorrowBranchMeta(hourlyResult),
       currentWeather: toAppCurrentWeatherResponse(currentEntry),
       hourlyForecast: toAppHourlyForecastResponse(hourlyEntries),
-    });
+    };
+
+    res.json(
+      withWeatherDebug(combinedResponse, {
+        includeDebug: shouldIncludeWeatherDebug(req),
+        provider: "tomorrow",
+        raw: {
+          current: currentResult.ok ? currentResult.payload : null,
+          hourly: hourlyResult.ok ? hourlyResult.payload : null,
+        },
+      }),
+    );
   } catch (error) {
     console.log("[WeatherAPI] Combined current/hourly request failed", {
       error: error instanceof Error ? error.message : String(error),

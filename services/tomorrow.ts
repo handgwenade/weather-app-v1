@@ -39,6 +39,14 @@ export type TomorrowDailyForecastEntry = {
 };
 
 export type TomorrowDailyForecastResponse = {
+  dailyForecast?: {
+    date: string;
+    highTemp: number | null;
+    lowTemp: number | null;
+    precipProbability: number | null;
+    weatherCode: number | null;
+  }[];
+  updatedAt?: string | null;
   timelines?: {
     daily?: TomorrowDailyForecastEntry[];
   };
