@@ -3,6 +3,8 @@ import test from "node:test";
 
 import {
   getRoadMapStatusColor,
+  getRoadMapStatusDescription,
+  getRoadMapStatusLabel,
   ROAD_MAP_LAYER_PLAN_COPY,
   ROAD_MAP_LEGEND_GROUP_LABELS,
   ROAD_MAP_STATUS_COLORS,
@@ -10,6 +12,11 @@ import {
 
 test("marker without risk status uses neutral gray", () => {
   assert.equal(getRoadMapStatusColor(undefined), ROAD_MAP_STATUS_COLORS.unknown);
+  assert.equal(getRoadMapStatusLabel(undefined), "Data unavailable");
+  assert.equal(
+    getRoadMapStatusDescription({ status: undefined }),
+    "No current road status data",
+  );
 });
 
 test("low and normal statuses use green", () => {

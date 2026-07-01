@@ -118,6 +118,7 @@ function buildObservedFactorText(observedFactors?: ObservedFactors | null) {
   const gust = formatNumber(observedFactors.windGustMph);
   const sustainedWind = formatNumber(observedFactors.windSpeedMph);
   const roadSurfaceTemp = formatNumber(observedFactors.roadSurfaceTempF);
+  const visibility = formatNumber(observedFactors.visibilityMi, 1);
 
   if (observedFactors.roadStateLabel) {
     factors.push(`Road state ${observedFactors.roadStateLabel}`);
@@ -131,6 +132,10 @@ function buildObservedFactorText(observedFactors?: ObservedFactors | null) {
 
   if (roadSurfaceTemp) {
     factors.push(`Surface ${roadSurfaceTemp}°F`);
+  }
+
+  if (visibility) {
+    factors.push(`Visibility ${visibility} mi`);
   }
 
   if (factors.length === 0) {
@@ -704,7 +709,9 @@ const styles = StyleSheet.create({
     color: Palette.textPrimary,
     fontSize: 15,
     fontWeight: "900",
-    letterSpacing: -0.2,
+    flex: 1,
+    letterSpacing: 0,
+    paddingRight: 4,
   },
   segmentPillBody: {
     color: Palette.midnight,
@@ -727,6 +734,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 17,
     marginTop: 2,
+    flexShrink: 1,
   },
   fallbackPanel: {
     alignItems: "center",

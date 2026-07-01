@@ -209,9 +209,10 @@ function getHomeMonitoredImpactLabel(params: {
   if (
     suggestionDecision?.secondary.find(
       (match) => match.code === SuggestionCode.FREEZE_RISK_TONIGHT,
-    )
+    ) ||
+    suggestionDecision?.primary?.code === SuggestionCode.FREEZE_RISK_TONIGHT
   ) {
-    return "Forecast outlook";
+    return "Forecast-based outlook";
   }
 
   const restriction = roadReport?.primarySegment.restriction ?? null;

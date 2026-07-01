@@ -1,7 +1,10 @@
 import Database from "better-sqlite3";
+import cors from "cors";
 import express from "express";
+import rateLimit from "express-rate-limit";
 import fs from "node:fs";
 import path from "node:path";
+import helmet from "helmet";
 import {
   getConditionLabelFromWeatherCode as getAppConditionLabelFromWeatherCode,
   getFiniteTomorrowNumber as getAppFiniteTomorrowNumber,
@@ -11,6 +14,12 @@ import {
   toHomeCurrentPayload as buildAppHomeCurrentPayload,
   withWeatherDebug,
 } from "./weatherContract";
+import {
+  computeSegmentImpact,
+  type OfficialSegmentCondition,
+  type SegmentPrimaryStation,
+} from "./lib/roadRisk";
+import { ROAD_RISK_THRESHOLDS } from "../../utils/roadRiskThresholds";
 
 const dbPath = path.resolve(__dirname, "..", "weatherapp.db");
 const roadGeometryPath = path.resolve(
@@ -20,7 +29,24 @@ const roadGeometryPath = path.resolve(
   "data",
   "road-geometry.cleaned.geojson",
 );
+const configuredCorsOrigins = process.env.CORS_ORIGIN?.split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 const app = express();
+app.use(helmet());
+app.use(
+  cors({
+    origin: configuredCorsOrigins?.length ? configuredCorsOrigins : true,
+  }),
+);
+app.use(
+  rateLimit({
+    windowMs: 60_000,
+    limit: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+  }),
+);
 app.use(express.json());
 const db = new Database(dbPath);
 const TOMORROW_API_KEY = process.env.TOMORROW_API_KEY;
@@ -150,22 +176,6 @@ const STATION_SELECT = `
   FROM station_observations_latest
 `;
 
-type SegmentPrimaryStation = {
-  stationId: string;
-  stationName: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  observedAt: string | null;
-  airTempF: number | null;
-  windSpeedMph: number | null;
-  windGustMph: number | null;
-  visibilityMi: number | null;
-  roadSurfaceTempF: number | null;
-  roadStateCode: number | null;
-  roadStateLabel: string | null;
-  sourceProvider: string | null;
-};
-
 type WydotMediaConditionRecord = {
   category: string;
   region: string | null;
@@ -174,12 +184,6 @@ type WydotMediaConditionRecord = {
   fromLabel: string;
   toLabel: string;
   rawText: string;
-};
-
-type OfficialSegmentCondition = {
-  officialConditionLabel: string | null;
-  officialConditionDescription: string | null;
-  officialRestriction: string | null;
 };
 
 type TomorrowDiagnosticError = {
@@ -236,94 +240,6 @@ type RegisteredPushToken = {
 };
 
 const registeredPushTokens = new Map<string, RegisteredPushToken>();
-
-function computeImpact(primaryStation: SegmentPrimaryStation | null) {
-  if (!primaryStation) {
-    return {
-      level: "unknown",
-      reason: "Primary station data unavailable",
-    };
-  }
-
-  const {
-    windSpeedMph,
-    windGustMph,
-    visibilityMi,
-    roadStateCode,
-    roadStateLabel,
-    roadSurfaceTempF,
-  } = primaryStation;
-
-  const nonDryRoad = roadStateCode !== null && roadStateCode !== 1;
-  const lowVisibility = visibilityMi !== null && visibilityMi < 2;
-  const strongSustainedWind = windSpeedMph !== null && windSpeedMph >= 25;
-  const highWindGust = windGustMph !== null && windGustMph >= 40;
-  const nearFreezingSurface =
-    roadSurfaceTempF !== null && roadSurfaceTempF <= 34;
-
-  if (
-    highWindGust ||
-    (nonDryRoad && nearFreezingSurface) ||
-    (lowVisibility && strongSustainedWind)
-  ) {
-    if (highWindGust) {
-      return {
-        level: "high",
-        reason: `High wind gusts at ${Math.round(windGustMph!)} mph`,
-      };
-    }
-
-    if (nonDryRoad && nearFreezingSurface) {
-      return {
-        level: "high",
-        reason: `Road surface near freezing with ${roadStateLabel ?? "non-dry"} conditions`,
-      };
-    }
-
-    return {
-      level: "high",
-      reason: "Reduced visibility combined with strong wind",
-    };
-  }
-
-  if (
-    strongSustainedWind ||
-    lowVisibility ||
-    nonDryRoad ||
-    (windGustMph !== null && windGustMph >= 30)
-  ) {
-    if (strongSustainedWind) {
-      return {
-        level: "moderate",
-        reason: `Sustained wind near ${Math.round(windSpeedMph!)} mph`,
-      };
-    }
-
-    if (windGustMph !== null && windGustMph >= 30) {
-      return {
-        level: "moderate",
-        reason: `Wind gusts at ${Math.round(windGustMph)} mph`,
-      };
-    }
-
-    if (lowVisibility) {
-      return {
-        level: "moderate",
-        reason: `Visibility reduced to ${visibilityMi!.toFixed(1)} miles`,
-      };
-    }
-
-    return {
-      level: "moderate",
-      reason: roadStateLabel ?? "Non-dry road state reported",
-    };
-  }
-
-  return {
-    level: "low",
-    reason: "No major impact detected from the primary station",
-  };
-}
 
 function buildObservedFactors(primaryStation: SegmentPrimaryStation | null) {
   if (!primaryStation) {
@@ -642,6 +558,13 @@ function getRequiredLatLon(req: express.Request, res: express.Response) {
     res
       .status(400)
       .json({ error: "lat and lon query parameters are required" });
+    return null;
+  }
+
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+    res.status(400).json({
+      error: "lat must be between -90 and 90; lon must be between -180 and 180",
+    });
     return null;
   }
 
@@ -1095,14 +1018,22 @@ function buildHomeSummary(current: ReturnType<typeof toHomeCurrentPayload>) {
   const precipProbability = current.precipProbability;
   const visibility = current.visibility;
   const isHighImpact =
-    (typeof windGust === "number" && windGust >= 45) ||
-    (typeof visibility === "number" && visibility <= 1) ||
-    (typeof precipProbability === "number" && precipProbability >= 80);
+    (typeof windGust === "number" &&
+      windGust >= ROAD_RISK_THRESHOLDS.wind.highGustMph) ||
+    (typeof visibility === "number" &&
+      visibility <= ROAD_RISK_THRESHOLDS.visibility.highMi) ||
+    (typeof precipProbability === "number" &&
+      precipProbability >=
+        ROAD_RISK_THRESHOLDS.homeSummary.highPrecipProbability);
   const isModerateImpact =
     isHighImpact ||
-    (typeof windGust === "number" && windGust >= 30) ||
-    (typeof visibility === "number" && visibility <= 3) ||
-    (typeof precipProbability === "number" && precipProbability >= 40);
+    (typeof windGust === "number" &&
+      windGust >= ROAD_RISK_THRESHOLDS.wind.moderateGustMph) ||
+    (typeof visibility === "number" &&
+      visibility <= ROAD_RISK_THRESHOLDS.visibility.moderateMi) ||
+    (typeof precipProbability === "number" &&
+      precipProbability >=
+        ROAD_RISK_THRESHOLDS.homeSummary.moderatePrecipProbability);
 
   if (isHighImpact) {
     return {
@@ -1115,7 +1046,8 @@ function buildHomeSummary(current: ReturnType<typeof toHomeCurrentPayload>) {
   if (isModerateImpact) {
     return {
       headline:
-        typeof windGust === "number" && windGust >= 30
+        typeof windGust === "number" &&
+          windGust >= ROAD_RISK_THRESHOLDS.wind.moderateGustMph
           ? "Wind may affect travel"
           : current.condition,
       impactLevel: "Moderate",
@@ -2505,7 +2437,6 @@ app.get("/api/road/segments", async (_req, res) => {
             sourceProvider: row.sourceProvider,
           }
         : null;
-      const impact = computeImpact(primaryStation);
       const officialCondition = findOfficialConditionForSegment(
         {
           routeName: row.routeName,
@@ -2514,6 +2445,7 @@ app.get("/api/road/segments", async (_req, res) => {
         },
         officialRecords,
       );
+      const impact = computeSegmentImpact(primaryStation, officialCondition);
 
       return {
         segmentId: row.segmentId,
@@ -2656,7 +2588,7 @@ app.get("/api/road/segment/:segmentId", async (req, res) => {
       notes: row.notes,
     },
     primaryStation,
-    impact: computeImpact(primaryStation),
+    impact: computeSegmentImpact(primaryStation, officialCondition),
     officialConditionLabel: officialCondition.officialConditionLabel,
     officialConditionDescription:
       officialCondition.officialConditionDescription,
@@ -2673,6 +2605,26 @@ app.get("/api/road/official-conditions", async (_req, res) => {
     records,
   });
 });
+
+const jsonErrorHandler: express.ErrorRequestHandler = (
+  error,
+  _req,
+  res,
+  next,
+) => {
+  console.log("[ExpressError]", {
+    error: error instanceof Error ? error.message : String(error),
+  });
+
+  if (res.headersSent) {
+    next(error);
+    return;
+  }
+
+  res.status(500).json({ error: "Internal server error" });
+};
+
+app.use(jsonErrorHandler);
 
 const port = Number(process.env.PORT ?? 3000);
 

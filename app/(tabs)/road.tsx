@@ -35,6 +35,7 @@ import {
     formatTime24Hour,
     formatUpdatedTimeLabel,
 } from "@/utils/dateTime";
+import { ROAD_RISK_THRESHOLDS } from "@/utils/roadRiskThresholds";
 import {
     evaluateSuggestions,
     getSuggestionPresentation,
@@ -118,21 +119,21 @@ const EMPTY_WYDOT_OFFICIAL_STATUS: WydotOfficialRoadStatus = {
   lastUpdated: null,
 };
 function getRoadCautionResult(temperatureF: number, windSpeedMph: number) {
-  if (temperatureF <= 32) {
+  if (temperatureF <= ROAD_RISK_THRESHOLDS.freeze.highRiskLowF) {
     return {
       level: "caution" as const,
       message: "Use caution: freezing temperatures",
     };
   }
 
-  if (temperatureF <= 40) {
+  if (temperatureF <= ROAD_RISK_THRESHOLDS.freeze.nearFreezingF) {
     return {
       level: "caution" as const,
       message: "Use caution: temps near freezing",
     };
   }
 
-  if (windSpeedMph >= 25) {
+  if (windSpeedMph >= ROAD_RISK_THRESHOLDS.wind.cautionMph) {
     return {
       level: "caution" as const,
       message: "Use caution: windy conditions",
@@ -255,33 +256,6 @@ function getConfidenceLabel(
   return "Confidence: Low";
 }
 
-function inferPrecipLabel(
-  officialCondition: string,
-  weatherCaution: string,
-  roadSummary: string,
-) {
-  const combined =
-    `${officialCondition} ${weatherCaution} ${roadSummary}`.toLowerCase();
-
-  if (combined.includes("snow")) {
-    return "Snow";
-  }
-
-  if (combined.includes("rain")) {
-    return "Rain";
-  }
-
-  if (combined.includes("ice") || combined.includes("freezing")) {
-    return "Wintry";
-  }
-
-  if (combined.includes("dry")) {
-    return "None";
-  }
-
-  return "None";
-}
-
 function buildRiskBullets(
   report: WydotRoadReport | null,
   officialCondition: string,
@@ -335,30 +309,48 @@ function buildRiskBullets(
   }));
 }
 
-function buildRoadOutlookItems(
-  temperature: string,
-  precipLabel: string,
-): RoadOutlookItem[] {
-  const match = temperature.match(/-?\d+/);
-  const baseTemp = match ? Number.parseInt(match[0], 10) : 32;
-  const condition = precipLabel === "None" ? "Clear" : precipLabel;
-  const labels = buildFutureTimeLabels24Hour(5, 3);
-  const deltas = [0, -2, -4, -6, -8];
-
-  return labels.map((label, index) => ({
-    id: `${label}-${index}`,
-    time: label,
-    temperature: `${baseTemp + deltas[index]}°`,
-    condition,
-  }));
-}
-
 function buildUnavailableRoadOutlookItems(): RoadOutlookItem[] {
   return buildFutureTimeLabels24Hour(5, 3).map((label, index) => ({
     id: `unavailable-${index}`,
     time: label,
     temperature: "--",
     condition: "Unavailable",
+  }));
+}
+
+function getRoadOutlookCondition(entry: TomorrowHourlyForecastEntry) {
+  if (typeof entry.precipProbability === "number") {
+    return `${Math.round(entry.precipProbability)}% precip`;
+  }
+
+  if (typeof entry.windSpeed === "number") {
+    return `${Math.round(entry.windSpeed)} mph wind`;
+  }
+
+  return "Forecast";
+}
+
+function buildRoadOutlookItems(
+  hourlyForecast: TomorrowHourlyForecastEntry[],
+): RoadOutlookItem[] {
+  const usableEntries = hourlyForecast
+    .filter(
+      (entry) =>
+        typeof entry.temp === "number" ||
+        typeof entry.precipProbability === "number" ||
+        typeof entry.windSpeed === "number",
+    )
+    .slice(0, 5);
+
+  if (usableEntries.length === 0) {
+    return buildUnavailableRoadOutlookItems();
+  }
+
+  return usableEntries.map((entry, index) => ({
+    id: `${entry.time}-${index}`,
+    time: formatTime24Hour(entry.time) ?? "--",
+    temperature: typeof entry.temp === "number" ? `${Math.round(entry.temp)}°` : "--",
+    condition: getRoadOutlookCondition(entry),
   }));
 }
 
@@ -1295,7 +1287,6 @@ export default function RoadScreen() {
   const roadLocation = selectedLocation;
   const {
     currentWeather,
-    roadSummary,
     weatherCaution,
     wydotNotice,
     routeLabel,
@@ -1309,14 +1300,11 @@ export default function RoadScreen() {
     stationWindAvg,
     stationWindGust,
     stationWindDirection,
+    hourlyForecast,
     alertEvent,
     roadSuggestionsReady,
   } = useRoadScreenData(roadLocation);
 
-  const precipLabel = useMemo(
-    () => inferPrecipLabel(officialCondition, weatherCaution, roadSummary),
-    [officialCondition, weatherCaution, roadSummary],
-  );
   const canEvaluateRoadSuggestions = Boolean(
     roadLocation && (roadSuggestionsReady || roadReport || wydotNotice),
   );
@@ -1458,14 +1446,8 @@ export default function RoadScreen() {
   );
 
   const outlookItems = useMemo(
-    () =>
-      buildRoadOutlookItems(
-        stationAirTemp !== "Unavailable"
-          ? stationAirTemp
-          : currentWeather.temperatureLabel,
-        precipLabel,
-      ),
-    [currentWeather.temperatureLabel, precipLabel, stationAirTemp],
+    () => buildRoadOutlookItems(hourlyForecast),
+    [hourlyForecast],
   );
 
   const actionDestination = useMemo(

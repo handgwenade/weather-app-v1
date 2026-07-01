@@ -1,4 +1,5 @@
 import type { WydotOfficialRoadStatus } from "@/services/wydot";
+import { ROAD_RISK_THRESHOLDS } from "@/utils/roadRiskThresholds";
 
 export enum SuggestionCode {
   ROAD_CLOSED = "ROAD_CLOSED",
@@ -65,23 +66,11 @@ export const FIRST_IMPLEMENTATION_RULES: SuggestionCode[] = [
 ];
 
 export const SUGGESTION_THRESHOLDS = {
-  wind: {
-    cautionMph: 25,
-    highGustMph: 35,
-    driftingWindMph: 25,
-    highProfileHighGustMph: 50,
-    highProfileHighSustainedMph: 40,
-    highProfileModerateGustMph: 40,
-    highProfileModerateSustainedMph: 30,
-  },
-  freeze: {
-    highRiskLowF: 32,
-    moderateRiskLowF: 36,
-    nearFreezingF: 40,
-  },
+  wind: ROAD_RISK_THRESHOLDS.wind,
+  freeze: ROAD_RISK_THRESHOLDS.freeze,
   visibility: {
-    highRiskFt: 1320,
-    moderateRiskFt: 2640,
+    highRiskFt: ROAD_RISK_THRESHOLDS.visibility.highFt,
+    moderateRiskFt: ROAD_RISK_THRESHOLDS.visibility.moderateFt,
   },
 } as const;
 

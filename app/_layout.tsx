@@ -7,8 +7,8 @@ import "expo-dev-client";
 import * as Location from "expo-location";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
-import { StyleSheet } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { AppState, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 
@@ -23,9 +23,6 @@ import { initializeOfficialAlertPushNotifications } from "@/services/pushNotific
 export const unstable_settings = {
   anchor: "(tabs)",
 };
-
-let didAttemptCurrentLocationBootstrap = false;
-let blockedCurrentLocationBootstrapForSession = false;
 
 function buildCurrentLocationLabels(
   placemark: Location.LocationGeocodedAddress | null,
@@ -51,6 +48,11 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   const locationStoreReady = useLocationStoreReady();
   const selectedLocation = useSelectedLocation();
+  const didAttemptCurrentLocationBootstrapRef = useRef(false);
+  const [locationPermissionBlocked, setLocationPermissionBlocked] =
+    useState(false);
+  const [locationPermissionRetryToken, setLocationPermissionRetryToken] =
+    useState(0);
 
   useEffect(() => {
     let isActive = true;
@@ -87,6 +89,38 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState !== "active" || !locationPermissionBlocked) {
+        return;
+      }
+
+      async function recheckLocationPermission() {
+        try {
+          const permission = await Location.getForegroundPermissionsAsync();
+
+          if (permission.status !== "granted") {
+            return;
+          }
+
+          didAttemptCurrentLocationBootstrapRef.current = false;
+          setLocationPermissionBlocked(false);
+          setLocationPermissionRetryToken((current) => current + 1);
+        } catch (error) {
+          console.log("[LocationBootstrap] Permission recheck failed", {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      void recheckLocationPermission();
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [locationPermissionBlocked]);
+
+  useEffect(() => {
     let isActive = true;
 
     async function bootstrapCurrentLocation() {
@@ -94,14 +128,11 @@ export default function RootLayout() {
         return;
       }
 
-      if (
-        didAttemptCurrentLocationBootstrap ||
-        blockedCurrentLocationBootstrapForSession
-      ) {
+      if (didAttemptCurrentLocationBootstrapRef.current) {
         return;
       }
 
-      didAttemptCurrentLocationBootstrap = true;
+      didAttemptCurrentLocationBootstrapRef.current = true;
 
       try {
         const servicesEnabled = await Location.hasServicesEnabledAsync();
@@ -117,7 +148,7 @@ export default function RootLayout() {
         }
 
         if (permission.status !== "granted") {
-          blockedCurrentLocationBootstrapForSession = true;
+          setLocationPermissionBlocked(true);
           return;
         }
 
@@ -165,7 +196,7 @@ export default function RootLayout() {
     return () => {
       isActive = false;
     };
-  }, [locationStoreReady, selectedLocation]);
+  }, [locationPermissionRetryToken, locationStoreReady, selectedLocation]);
 
   return (
     <GestureHandlerRootView style={styles.gestureRoot}>

@@ -67,7 +67,7 @@ export function getRoadMapStatusLabel(status: RoadMapStatus) {
       return status === "closed" ? "Closed" : "High";
     case "unknown":
     default:
-      return "Unknown";
+      return "Data unavailable";
   }
 }
 
@@ -95,6 +95,6 @@ export function getRoadMapStatusDescription(params: {
       return "High risk or official impact";
     case "unknown":
     default:
-      return "No current status data";
+      return "No current road status data";
   }
 }

@@ -399,3 +399,133 @@ test("does not surface high-profile vehicle wind risk when no wind data is avail
     SuggestionCode.HIGH_PROFILE_VEHICLE_RISK,
   );
 });
+
+type SuggestionInputOverrides = Partial<
+  Omit<SuggestionInput, "road" | "weather" | "alerts" | "forecast">
+> & {
+  road?: Partial<SuggestionInput["road"]>;
+  weather?: Partial<SuggestionInput["weather"]>;
+  alerts?: Partial<SuggestionInput["alerts"]>;
+  forecast?: Partial<SuggestionInput["forecast"]>;
+};
+
+function calmDrySuggestionInput(
+  overrides: SuggestionInputOverrides = {},
+): SuggestionInput {
+  const base: SuggestionInput = {
+    road: {
+      available: true,
+      mapped: true,
+      restriction: null,
+      advisory: null,
+      officialCondition: "Dry",
+      officialRoadStatus: {
+        hasOfficialStatus: false,
+        type: "none",
+        impact: "none",
+        title: "",
+        description: "",
+        source: "wydot",
+        lastUpdated: null,
+      },
+      fetchedAt: "2026-06-30T22:30:00.000Z",
+      stationObservedAt: "2026-06-30T22:30:00.000Z",
+      windAvgMph: 3,
+      windGustMph: 4,
+      windDirection: "N",
+      visibilityFt: 52800,
+      airTempF: 72,
+      surfaceTempF: 58,
+    },
+    weather: {
+      available: true,
+      observedAt: "2026-06-30T22:30:00.000Z",
+      temperatureF: 72,
+      windSpeedMph: 3,
+      windDirection: "N",
+      precipProbability: 0,
+      weatherCode: 1000,
+    },
+    alerts: {
+      available: true,
+      hasActiveAlert: false,
+      primaryEvent: null,
+      primarySeverity: null,
+      primaryCertainty: null,
+    },
+    forecast: {
+      available: true,
+      dailyLowF: 55,
+    },
+  };
+
+  return {
+    ...base,
+    ...overrides,
+    road: { ...base.road, ...overrides.road },
+    weather: { ...base.weather, ...overrides.weather },
+    alerts: { ...base.alerts, ...overrides.alerts },
+    forecast: { ...base.forecast, ...overrides.forecast },
+  };
+}
+
+test("calm and dry observed weather stays low in suggestion classification", () => {
+  const decision = evaluateSuggestions(calmDrySuggestionInput());
+
+  assert.equal(
+    decision.primary?.code,
+    SuggestionCode.NO_ACTIVE_TRAVEL_IMPACTS,
+  );
+  assert.equal(getSuggestionPresentation(decision.primary!).levelLabel, "Low");
+});
+
+test("unknown road and weather data render neutral unavailable guidance", () => {
+  const decision = evaluateSuggestions(
+    calmDrySuggestionInput({
+      road: {
+        available: false,
+        mapped: false,
+        fetchedAt: null,
+        stationObservedAt: null,
+        windAvgMph: null,
+        windGustMph: null,
+        visibilityFt: null,
+        airTempF: null,
+        surfaceTempF: null,
+      },
+      weather: {
+        available: false,
+        observedAt: null,
+        temperatureF: null,
+        windSpeedMph: null,
+        windDirection: null,
+        precipProbability: null,
+        weatherCode: null,
+      },
+    }),
+  );
+
+  assert.equal(decision.primary?.code, SuggestionCode.ROAD_DATA_UNAVAILABLE);
+  assert.equal(
+    getSuggestionPresentation(decision.primary!).levelLabel,
+    "Unavailable",
+  );
+  assert.equal(getSuggestionPresentation(decision.primary!).homeTone, "neutral");
+});
+
+test("forecast-only freeze risk copy is forecast-based", () => {
+  const decision = evaluateSuggestions(
+    calmDrySuggestionInput({
+      forecast: {
+        available: true,
+        dailyLowF: 31,
+      },
+    }),
+  );
+
+  assert.equal(decision.primary?.code, SuggestionCode.FREEZE_RISK_TONIGHT);
+  assert.match(
+    getSuggestionPresentation(decision.primary!).recommendationText,
+    /Forecast temperatures/,
+  );
+});
