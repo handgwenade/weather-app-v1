@@ -70,7 +70,7 @@ function assertRoadApiBaseUrl() {
   return baseUrl.replace(/\/$/, "");
 }
 
-export async function searchLocations(query: string) {
+export async function searchLocations(query: string, signal?: AbortSignal) {
   const trimmedQuery = query.trim();
 
   if (!trimmedQuery) {
@@ -81,10 +81,10 @@ export async function searchLocations(query: string) {
   const params = new URLSearchParams({ q: trimmedQuery });
   const url = `${baseUrl}/api/geocoding/search?${params.toString()}`;
 
-  const response = await fetch(url);
+  const response = await fetch(url, { signal });
 
   if (!response.ok) {
-    throw new Error(`Failed to search locations: ${response.status}`);
+    throw new Error("Location search is temporarily unavailable.");
   }
 
   const data: MapboxGeocodingResponse = await response.json();

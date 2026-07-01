@@ -91,3 +91,10 @@ test("red status requires an explicit severe or official trigger", () => {
   assert.equal(severe.level, "high");
   assert.equal(official.level, "high");
 });
+
+test("severe visibility threshold is a defensible red trigger", () => {
+  const impact = computeSegmentImpact(station({ visibilityMi: 0.2 }));
+
+  assert.equal(impact.level, "high");
+  assert.equal(impact.reason, "Visibility severely reduced to 0.2 miles");
+});

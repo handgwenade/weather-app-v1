@@ -24,6 +24,7 @@ type AlertsScreenV2Props = {
   subtitle: string;
   alerts: AlertCardItem[];
   footerNote: string;
+  fallbackTitle?: string;
   fallbackMessage?: string;
   onPressSettings: () => void;
 };
@@ -62,6 +63,7 @@ export default function AlertsScreenV2({
   subtitle,
   alerts,
   footerNote,
+  fallbackTitle = "No official alerts",
   fallbackMessage,
   onPressSettings,
 }: AlertsScreenV2Props) {
@@ -149,7 +151,7 @@ export default function AlertsScreenV2({
           })
         ) : fallbackMessage ? (
           <View style={styles.alertCard}>
-            <Text style={styles.alertTitle}>No official alerts</Text>
+            <Text style={styles.alertTitle}>{fallbackTitle}</Text>
             <Text style={styles.summaryText}>{fallbackMessage}</Text>
           </View>
         ) : null}

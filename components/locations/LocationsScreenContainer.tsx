@@ -3,7 +3,7 @@ import LocationsScreenV2, {
 } from "@/components/locations/LocationsScreenV2";
 import { Palette, Radius, Shadows } from "@/constants/theme";
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -79,8 +79,13 @@ export default function LocationsScreenContainer() {
   const [searching, setSearching] = useState(false);
   const [saving, setSaving] = useState(false);
   const [searchMessage, setSearchMessage] = useState<string | null>(null);
+  const searchRequestIdRef = useRef(0);
+  const searchAbortControllerRef = useRef<AbortController | null>(null);
 
   function resetAddFlow() {
+    searchAbortControllerRef.current?.abort();
+    searchAbortControllerRef.current = null;
+    searchRequestIdRef.current += 1;
     setEditingLocationId(null);
     setSearchQuery("");
     setSearchResults([]);
@@ -123,6 +128,8 @@ export default function LocationsScreenContainer() {
   }
 
   function handleCloseAdd() {
+    searchAbortControllerRef.current?.abort();
+    searchAbortControllerRef.current = null;
     setAddModalVisible(false);
     resetAddFlow();
   }
@@ -137,11 +144,21 @@ export default function LocationsScreenContainer() {
       return;
     }
 
+    searchAbortControllerRef.current?.abort();
+    const requestId = searchRequestIdRef.current + 1;
+    const controller = new AbortController();
+    searchRequestIdRef.current = requestId;
+    searchAbortControllerRef.current = controller;
+
     setSearching(true);
     setSearchMessage(null);
 
     try {
-      const results = await searchLocations(trimmedQuery);
+      const results = await searchLocations(trimmedQuery, controller.signal);
+
+      if (searchRequestIdRef.current !== requestId) {
+        return;
+      }
 
       setSearchResults(results);
       setSelectedResult(null);
@@ -149,14 +166,25 @@ export default function LocationsScreenContainer() {
       if (results.length === 0) {
         setSearchMessage("No places matched that search.");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      if (
+        controller.signal.aborted ||
+        searchRequestIdRef.current !== requestId
+      ) {
+        return;
+      }
+
+      console.log("[Locations] Search failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       setSearchResults([]);
       setSelectedResult(null);
-      setSearchMessage(
-        error?.message ?? "Location search is temporarily unavailable.",
-      );
+      setSearchMessage("Location search is temporarily unavailable. Please try again.");
     } finally {
-      setSearching(false);
+      if (searchRequestIdRef.current === requestId) {
+        setSearching(false);
+        searchAbortControllerRef.current = null;
+      }
     }
   }
 

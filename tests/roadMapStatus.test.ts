@@ -12,7 +12,14 @@ import {
 
 test("marker without risk status uses neutral gray", () => {
   assert.equal(getRoadMapStatusColor(undefined), ROAD_MAP_STATUS_COLORS.unknown);
+  assert.equal(getRoadMapStatusColor(null), ROAD_MAP_STATUS_COLORS.unknown);
+  assert.equal(
+    getRoadMapStatusColor("unavailable"),
+    ROAD_MAP_STATUS_COLORS.unknown,
+  );
   assert.equal(getRoadMapStatusLabel(undefined), "Data unavailable");
+  assert.equal(getRoadMapStatusLabel("unknown"), "Data unavailable");
+  assert.equal(getRoadMapStatusLabel("unavailable"), "Data unavailable");
   assert.equal(
     getRoadMapStatusDescription({ status: undefined }),
     "No current road status data",
@@ -27,6 +34,16 @@ test("low and normal statuses use green", () => {
 test("caution and moderate statuses use yellow", () => {
   assert.equal(getRoadMapStatusColor("caution"), ROAD_MAP_STATUS_COLORS.caution);
   assert.equal(getRoadMapStatusColor("moderate"), ROAD_MAP_STATUS_COLORS.caution);
+});
+
+test("yellow status description uses the actual triggering reason", () => {
+  assert.equal(
+    getRoadMapStatusDescription({
+      status: "moderate",
+      reason: "Wind gusts at 42 mph",
+    }),
+    "Wind gusts at 42 mph",
+  );
 });
 
 test("elevated status uses orange", () => {

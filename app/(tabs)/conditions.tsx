@@ -34,7 +34,7 @@ import type {
   ForecastChartUnits,
 } from "@/utils/forecastChart";
 
-type HourlyForecastStatus = "loading" | "fresh" | "unavailable";
+type HourlyForecastStatus = "loading" | "fresh" | "unavailable" | "error";
 
 type ConditionsViewModel = {
   updatedLabel: string;
@@ -193,7 +193,11 @@ function ConditionsScreenV2({
           <View style={styles.sectionCard}>
             <Text style={styles.cardTitle}>Next 12 Hours</Text>
 
-            <View style={styles.metricTabs}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.metricTabs}
+            >
               {FORECAST_METRIC_TABS.map((tab) => {
                 const isActive = activeMetric === tab.metric;
 
@@ -212,19 +216,34 @@ function ConditionsScreenV2({
                           ? styles.metricTabActiveText
                           : styles.metricTabText
                       }
+                      numberOfLines={1}
                     >
                       {tab.label}
                     </Text>
                   </Pressable>
                 );
               })}
-            </View>
+            </ScrollView>
 
             <InteractiveForecastChart
               hourly={hourlyForecast}
               metric={activeMetric}
               units={CONDITIONS_CHART_UNITS}
               isLoading={hourlyStatus === "loading"}
+              unavailableTitle={
+                hourlyStatus === "error"
+                  ? "Hourly forecast request failed"
+                  : hourlyStatus === "unavailable"
+                    ? "Hourly forecast unavailable"
+                    : "Hourly data unavailable"
+              }
+              unavailableMessage={
+                hourlyStatus === "error"
+                  ? "Weather data could not be loaded right now. Try again before making travel decisions."
+                  : hourlyStatus === "unavailable"
+                    ? "The provider did not return usable hourly forecast data for this location."
+                    : "No valid hourly values are available for this view."
+              }
             />
           </View>
 
@@ -481,6 +500,24 @@ function buildConditionsViewModel(params: {
     };
   }
 
+  if (hourlyStatus === "error" && hourlyEntries.length === 0) {
+    return {
+      updatedLabel,
+      summaryText: "Hourly forecast request failed.",
+      takeawayText:
+        "Weather data could not be loaded right now, so no forward-looking weather takeaway is available.",
+    };
+  }
+
+  if (hourlyStatus === "unavailable" && hourlyEntries.length === 0) {
+    return {
+      updatedLabel,
+      summaryText: "Hourly forecast is unavailable for this location.",
+      takeawayText:
+        "The provider did not return usable hourly forecast data, so no forward-looking weather takeaway is available.",
+    };
+  }
+
   return {
     updatedLabel,
     summaryText: buildSummaryText(hourlyEntries),
@@ -554,30 +591,32 @@ function useConditionsScreenData(
           response: hourlyResult.value,
           entries: nextHourly,
         });
-        console.log(
-          "[Conditions] Hourly payload sample",
-          nextHourly.slice(0, 12).map((entry) => ({
-            time: entry.time,
-            temperature: entry.temp,
-            windSpeed: entry.windSpeed,
-            windGust: entry.windGust,
-            precipProbability: entry.precipProbability,
-            weatherCode: entry.weatherCode,
-            conditionLabel:
-              typeof entry.weatherCode === "number"
-                ? getConditionLabel(entry.weatherCode)
-                : null,
-          })),
-        );
+        if (typeof __DEV__ !== "undefined" && __DEV__) {
+          console.log(
+            "[Conditions] Hourly payload sample",
+            nextHourly.slice(0, 12).map((entry) => ({
+              time: entry.time,
+              temperature: entry.temp,
+              windSpeed: entry.windSpeed,
+              windGust: entry.windGust,
+              precipProbability: entry.precipProbability,
+              weatherCode: entry.weatherCode,
+              conditionLabel:
+                typeof entry.weatherCode === "number"
+                  ? getConditionLabel(entry.weatherCode)
+                  : null,
+            })),
+          );
+        }
         setHourlyForecast(nextHourly);
         setHourlyStatus(nextHourly.length > 0 ? "fresh" : "unavailable");
       } else {
-        console.log(
+        console.error(
           "Conditions screen hourly weather fetch failed:",
           hourlyResult.reason,
         );
         setHourlyForecast([]);
-        setHourlyStatus("unavailable");
+        setHourlyStatus("error");
       }
     }
 
@@ -857,9 +896,10 @@ const styles = StyleSheet.create({
   metricTabs: {
     flexDirection: "row",
     gap: 8,
+    minWidth: "100%",
   },
   metricTab: {
-    flex: 1,
+    minWidth: 112,
     minHeight: 38,
     borderWidth: 1,
     borderColor: "rgba(86, 55, 255, 0.16)",
@@ -870,7 +910,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   metricTabActive: {
-    flex: 1,
+    minWidth: 112,
     minHeight: 38,
     borderWidth: 1,
     borderColor: "rgba(86, 55, 255, 0.32)",

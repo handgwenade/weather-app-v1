@@ -46,6 +46,7 @@ type RoadSegmentDetail = {
 
 type SegmentFilterMode = "all" | "wind-prone" | "high-impact";
 type SegmentSortMode = "highest-impact" | "nearest";
+type SegmentListStatus = "loading" | "success" | "empty" | "error";
 
 function getRoadMapHrefForSegment(
   segment: RoadSegmentListItem,
@@ -301,6 +302,8 @@ export default function RoadSegmentsPrototype({
   fallbackObservation = null,
 }: RoadSegmentsPrototypeProps) {
   const [segments, setSegments] = useState<RoadSegmentListItem[]>([]);
+  const [segmentsStatus, setSegmentsStatus] =
+    useState<SegmentListStatus>("loading");
   const [segmentsError, setSegmentsError] = useState<string | null>(null);
   const [filterMode, setFilterMode] = useState<SegmentFilterMode>("all");
   const [sortMode, setSortMode] = useState<SegmentSortMode>(defaultSortMode);
@@ -328,11 +331,16 @@ export default function RoadSegmentsPrototype({
       const requestPath = "/api/road/segments";
       const requestUrl = buildRoadApiUrl(requestPath) ?? "unconfigured";
 
-      console.log("[RoadSegments] Fetch request", {
-        requestPath,
-        requestUrl,
-        requestParams: null,
-      });
+      setSegmentsStatus("loading");
+      setSegmentsError(null);
+
+      if (typeof __DEV__ !== "undefined" && __DEV__) {
+        console.log("[RoadSegments] Fetch request", {
+          requestPath,
+          requestUrl,
+          requestParams: null,
+        });
+      }
 
       try {
         const data = await fetchRoadJson<RoadSegmentListItem[]>(
@@ -343,27 +351,33 @@ export default function RoadSegmentsPrototype({
           return;
         }
 
-        console.log("[RoadSegments] Fetch response", {
-          requestPath,
-          requestUrl,
-          rawBackendResponseCount: Array.isArray(data) ? data.length : null,
-          sampleSegmentIds: Array.isArray(data)
-            ? data.slice(0, 5).map((segment) => segment.segmentId)
-            : [],
-        });
+        if (typeof __DEV__ !== "undefined" && __DEV__) {
+          console.log("[RoadSegments] Fetch response", {
+            requestPath,
+            requestUrl,
+            rawBackendResponseCount: Array.isArray(data) ? data.length : null,
+            sampleSegmentIds: Array.isArray(data)
+              ? data.slice(0, 5).map((segment) => segment.segmentId)
+              : [],
+          });
+        }
         setSegments(data);
+        setSegmentsStatus(data.length > 0 ? "success" : "empty");
         setSegmentsError(null);
       } catch (error) {
         if (!isActive) {
           return;
         }
 
-        console.log("[RoadSegments] Fetch failed", {
-          requestPath,
-          requestUrl,
-          error: error instanceof Error ? error.message : String(error),
-        });
+        if (typeof __DEV__ !== "undefined" && __DEV__) {
+          console.log("[RoadSegments] Fetch failed", {
+            requestPath,
+            requestUrl,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
         setSegments([]);
+        setSegmentsStatus("error");
         setSegmentsError(
           error instanceof Error ? error.message : "Unable to load segments",
         );
@@ -489,7 +503,8 @@ export default function RoadSegmentsPrototype({
   ).length;
   const referenceCoordinates = selectedCoordinates ?? userCoordinates;
   const useNearestSorting = sortMode === "nearest" && !!referenceCoordinates;
-  const hasNoMappedSegments = !segmentsError && segments.length === 0;
+  const isSegmentsLoading = segmentsStatus === "loading";
+  const hasNoMappedSegments = segmentsStatus === "empty";
   const segmentIdSample = segments
     .slice(0, 5)
     .map((segment) => segment.segmentId)
@@ -609,6 +624,7 @@ export default function RoadSegmentsPrototype({
       sortedCount: segmentsError ? 0 : sortedSegments.length,
       finalRenderedCount: segmentsError ? 0 : visibleSegments.length,
       hasNoMappedSegments,
+      segmentsStatus,
       backendRowsDisappearInFrontend:
         !segmentsError && segments.length > 0 && visibleSegments.length === 0,
       sampleSegmentIds: segmentsError
@@ -630,6 +646,7 @@ export default function RoadSegmentsPrototype({
       segmentIdSample,
       segments.length,
       segmentsError,
+      segmentsStatus,
       selectedCoordinates,
       sortMode,
       sortedSegments.length,
@@ -641,16 +658,24 @@ export default function RoadSegmentsPrototype({
   );
 
   useEffect(() => {
-    console.log("[RoadSegments] Pipeline", pipelineLog);
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.log("[RoadSegments] Pipeline", pipelineLog);
+    }
   }, [pipelineLog]);
 
   return (
     <View style={styles.container}>
       <Text style={styles.sectionTitle}>Road Segments</Text>
-      {hasNoMappedSegments ? (
+      {isSegmentsLoading ? (
+        <Text style={styles.summaryText}>Loading road segments...</Text>
+      ) : segmentsStatus === "error" ? (
+        <Text style={styles.summaryText}>
+          Road segment request failed. Current road segment data is unavailable.
+        </Text>
+      ) : hasNoMappedSegments ? (
         <>
           <Text style={styles.summaryText}>
-            No mapped road segments for this area yet.
+            The road segment provider returned no mapped segments for this area.
           </Text>
           <Text style={styles.summaryText}>
             Showing nearest road conditions instead.
@@ -757,6 +782,9 @@ export default function RoadSegmentsPrototype({
       </View>
       <View style={styles.listBlock}>
         <Text style={styles.listLabelText}>{listLabel}</Text>
+        {isSegmentsLoading ? (
+          <Text style={styles.messageText}>Loading road segment data...</Text>
+        ) : null}
         {segmentsError ? (
           <Text style={styles.messageText}>
             Road segment data isn&apos;t available right now.
@@ -787,8 +815,11 @@ export default function RoadSegmentsPrototype({
         ) : null}
         {!segmentsError &&
         !hasNoMappedSegments &&
+        !isSegmentsLoading &&
         visibleSegments.length === 0 ? (
-          <Text style={styles.messageText}>No road segments available.</Text>
+          <Text style={styles.messageText}>
+            No road segments match this filter.
+          </Text>
         ) : null}
         {visibleSegments.map((segment) => (
           <View key={segment.segmentId} style={styles.segmentRowSpacing}>

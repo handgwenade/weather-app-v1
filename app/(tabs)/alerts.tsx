@@ -31,11 +31,18 @@ type NwsAlertFeature = {
 
 type UseAlertsScreenDataResult = {
   alerts: AlertCardItem[];
-  alertsAvailable: boolean;
+  status: "loading" | "success" | "empty" | "error";
 };
 
-function formatAlertCount(count: number, alertsAvailable: boolean) {
-  if (!alertsAvailable) {
+function formatAlertCount(
+  count: number,
+  status: UseAlertsScreenDataResult["status"],
+) {
+  if (status === "loading") {
+    return "Checking official alerts";
+  }
+
+  if (status === "error") {
     return "Alerts unavailable";
   }
 
@@ -149,7 +156,8 @@ function useAlertsScreenData(
   selectedLocation: ReturnType<typeof useSelectedLocation>,
 ): UseAlertsScreenDataResult {
   const [alerts, setAlerts] = useState<AlertCardItem[]>([]);
-  const [alertsAvailable, setAlertsAvailable] = useState(true);
+  const [status, setStatus] =
+    useState<UseAlertsScreenDataResult["status"]>("loading");
 
   useEffect(() => {
     let isActive = true;
@@ -157,9 +165,11 @@ function useAlertsScreenData(
     async function loadAlerts() {
       if (!selectedLocation) {
         setAlerts([]);
-        setAlertsAvailable(true);
+        setStatus("empty");
         return;
       }
+
+      setStatus("loading");
 
       try {
         const data = await getActiveAlertsForLocation(
@@ -175,17 +185,18 @@ function useAlertsScreenData(
           ? (data.features as NwsAlertFeature[])
           : [];
 
-        setAlerts(features.map(mapFeatureToCard));
-        setAlertsAvailable(true);
+        const nextAlerts = features.map(mapFeatureToCard);
+        setAlerts(nextAlerts);
+        setStatus(nextAlerts.length > 0 ? "success" : "empty");
       } catch (error) {
-        console.log("Alerts screen fetch failed:", error);
+        console.error("Alerts screen fetch failed:", error);
 
         if (!isActive) {
           return;
         }
 
         setAlerts([]);
-        setAlertsAvailable(false);
+        setStatus("error");
       }
     }
 
@@ -198,7 +209,7 @@ function useAlertsScreenData(
 
   return {
     alerts,
-    alertsAvailable,
+    status,
   };
 }
 
@@ -206,10 +217,19 @@ export default function AlertsScreen() {
   const router = useRouter();
   const selectedLocation = useSelectedLocation();
 
-  const { alerts, alertsAvailable } = useAlertsScreenData(selectedLocation);
-  const fallbackMessage = alertsAvailable
-    ? "No official alerts are active for this location right now."
-    : "Official alerts are temporarily unavailable for this location.";
+  const { alerts, status } = useAlertsScreenData(selectedLocation);
+  const fallbackTitle =
+    status === "loading"
+      ? "Checking official alerts"
+      : status === "error"
+        ? "Official alerts unavailable"
+        : "No official alerts";
+  const fallbackMessage =
+    status === "loading"
+      ? "Loading official alerts for this location."
+      : status === "error"
+        ? "Official alerts could not be loaded right now. Check again before travel."
+        : "No official alerts are active for this location right now.";
 
   if (!selectedLocation) {
     return (
@@ -266,8 +286,9 @@ export default function AlertsScreen() {
   return (
     <AlertsScreenV2
       title="Official Alerts"
-      subtitle={formatAlertCount(alerts.length, alertsAvailable)}
+      subtitle={formatAlertCount(alerts.length, status)}
       alerts={alerts}
+      fallbackTitle={fallbackTitle}
       fallbackMessage={fallbackMessage}
       footerNote="Official alerts from NWS and other agencies. Always use local observation and professional judgment."
       onPressSettings={() => router.push("/settings")}

@@ -36,6 +36,8 @@ export type InteractiveForecastChartProps = {
   metric: ForecastChartMetric;
   units: ForecastChartUnits;
   isLoading?: boolean;
+  unavailableTitle?: string;
+  unavailableMessage?: string;
 };
 
 const CHART_HEIGHT = 238;
@@ -80,6 +82,8 @@ export default function InteractiveForecastChart({
   metric,
   units,
   isLoading = false,
+  unavailableTitle = "Hourly forecast unavailable",
+  unavailableMessage = "No valid hourly values are available for this view.",
 }: InteractiveForecastChartProps) {
   const [chartWidth, setChartWidth] = useState(0);
   const points = useMemo(
@@ -193,10 +197,8 @@ export default function InteractiveForecastChart({
   if (hourly.length === 0 || points.length === 0) {
     return (
       <View style={styles.stateCard}>
-        <Text style={styles.unavailableTitle}>Hourly forecast unavailable</Text>
-        <Text style={styles.unavailableText}>
-          No valid hourly values are available for this view.
-        </Text>
+        <Text style={styles.unavailableTitle}>{unavailableTitle}</Text>
+        <Text style={styles.unavailableText}>{unavailableMessage}</Text>
       </View>
     );
   }
