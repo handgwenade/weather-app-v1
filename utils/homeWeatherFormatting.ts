@@ -8,6 +8,7 @@ import {
     getHomeCardStateLabel,
     type HomeCardDataState,
 } from "@/utils/homePerformance";
+import { normalizeTemperatureF } from "@/utils/weather";
 
 export type PropertyRisk = "High" | "Moderate" | "Low" | "Unavailable";
 export type HomeDataState = HomeCardDataState;
@@ -180,12 +181,14 @@ export function buildHomeWeatherSnapshotFromInitialPayload(
   payload: RoadSignalHomeInitialResponse,
   dataState: HomeDataState,
 ): HomeCurrentWeatherSnapshot {
+  const temperatureF = normalizeTemperatureF(payload.current.currentTemp);
+
   return {
     hasWeatherData:
-      typeof payload.current.currentTemp === "number" ||
+      temperatureF !== null ||
       typeof payload.current.windSpeed === "number",
-    temperatureF: payload.current.currentTemp,
-    feelsLikeF: payload.current.feelsLike,
+    temperatureF,
+    feelsLikeF: normalizeTemperatureF(payload.current.feelsLike),
     windSpeedMph: payload.current.windSpeed,
     windGustMph: payload.current.windGust,
     precipProbability: payload.current.precipProbability,
@@ -271,9 +274,11 @@ export function getHomeMetricFreshnessLabel(params: {
 }
 
 export function formatTemperatureValue(value?: number | null) {
-  return value === null || value === undefined || Number.isNaN(value)
+  const normalizedValue = normalizeTemperatureF(value);
+
+  return normalizedValue === null
     ? "--"
-    : `${Math.round(value)}°F`;
+    : `${Math.round(normalizedValue)}°F`;
 }
 
 export function getHomeForecastLowFFromHourlyEntries(

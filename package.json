@@ -44,6 +44,7 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
     "helmet": "^8.2.0",
+    "mapbox-gl": "^2.15.0",
     "netcdfjs": "^4.0.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",

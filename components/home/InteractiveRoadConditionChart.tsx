@@ -224,6 +224,10 @@ export default function InteractiveRoadConditionChart({
   if (isLoading) {
     return (
       <View style={styles.stateBox}>
+        <Text style={styles.loadingTitle}>Fetching weather data</Text>
+        <Text style={styles.loadingText}>
+          Getting road and forecast conditions now.
+        </Text>
         <View style={styles.skeletonLineWide} />
         <View style={styles.skeletonLineMid} />
         <View style={styles.skeletonLineShort} />
@@ -393,9 +397,11 @@ export default function InteractiveRoadConditionChart({
 
 const styles = StyleSheet.create({
   chartWrap: {
+    width: "100%",
     minHeight: CHART_HEIGHT + 38,
   },
   gestureSurface: {
+    width: "100%",
     minHeight: CHART_HEIGHT,
   },
   selectedTime: {
@@ -429,6 +435,22 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     backgroundColor: "rgba(199, 208, 230, 0.36)",
     marginBottom: 18,
+  },
+  loadingTitle: {
+    color: Palette.textPrimary,
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+  loadingText: {
+    color: Palette.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: "700",
+    textAlign: "center",
+    marginTop: 6,
+    marginBottom: 16,
   },
   skeletonLineMid: {
     height: 16,

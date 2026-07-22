@@ -495,8 +495,8 @@ function buildConditionsViewModel(params: {
   if (hourlyStatus === "loading" && hourlyEntries.length === 0) {
     return {
       updatedLabel,
-      summaryText: "Loading hourly forecast for this location.",
-      takeawayText: "Collecting hourly weather guidance now.",
+      summaryText: "Fetching weather data for this location.",
+      takeawayText: "Fetching the latest hourly forecast now.",
     };
   }
 

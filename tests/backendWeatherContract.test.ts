@@ -5,6 +5,7 @@ import {
   toAppCurrentWeatherResponse,
   toAppDailyForecastResponse,
   toAppHourlyForecastResponse,
+  toAppNwsHourlyForecastResponse,
   withWeatherDebug,
 } from "../backend/src/weatherContract";
 
@@ -33,10 +34,60 @@ test("hourly weather contract excludes raw timelines by default", () => {
       precipProbability: 0,
       weatherCode: 1000,
       precipType: 0,
+      condition: null,
     },
   ]);
   assert.equal("timelines" in response, false);
   assert.equal("data" in response, false);
+});
+
+test("NWS hourly forecast normalizes into app hourly contract", () => {
+  const response = toAppNwsHourlyForecastResponse([
+    {
+      startTime: "2026-06-26T07:00:00-06:00",
+      temperature: 64,
+      temperatureUnit: "F",
+      windSpeed: "5 to 10 mph",
+      shortForecast: "Mostly Sunny",
+      probabilityOfPrecipitation: {
+        value: 20,
+      },
+    },
+  ]);
+
+  assert.deepEqual(response, {
+    hourlyForecast: [
+      {
+        time: "2026-06-26T07:00:00-06:00",
+        temp: 64,
+        windSpeed: 10,
+        windGust: null,
+        precipProbability: 20,
+        weatherCode: null,
+        precipType: null,
+        condition: "Mostly Sunny",
+      },
+    ],
+    updatedAt: "2026-06-26T07:00:00-06:00",
+  });
+});
+
+test("weather contract drops implausible forecast temperatures", () => {
+  const response = toAppHourlyForecastResponse([
+    {
+      startTime: "2026-06-26T07:00:00Z",
+      values: {
+        temperature: 80,
+        windSpeed: 2.6,
+        windGust: 4.3,
+        precipitationProbability: 0,
+        weatherCode: 1000,
+        precipitationType: 0,
+      },
+    },
+  ]);
+
+  assert.equal(response.hourlyForecast[0].temp, null);
 });
 
 test("debug weather contract includes raw provider payload only when requested", () => {

@@ -36,6 +36,7 @@ import {
     formatUpdatedTimeLabel,
 } from "@/utils/dateTime";
 import { ROAD_RISK_THRESHOLDS } from "@/utils/roadRiskThresholds";
+import { normalizeTemperatureF } from "@/utils/weather";
 import {
     evaluateSuggestions,
     getSuggestionPresentation,
@@ -336,7 +337,7 @@ function buildRoadOutlookItems(
   const usableEntries = hourlyForecast
     .filter(
       (entry) =>
-        typeof entry.temp === "number" ||
+        normalizeTemperatureF(entry.temp) !== null ||
         typeof entry.precipProbability === "number" ||
         typeof entry.windSpeed === "number",
     )
@@ -346,12 +347,17 @@ function buildRoadOutlookItems(
     return buildUnavailableRoadOutlookItems();
   }
 
-  return usableEntries.map((entry, index) => ({
-    id: `${entry.time}-${index}`,
-    time: formatTime24Hour(entry.time) ?? "--",
-    temperature: typeof entry.temp === "number" ? `${Math.round(entry.temp)}°` : "--",
-    condition: getRoadOutlookCondition(entry),
-  }));
+  return usableEntries.map((entry, index) => {
+    const normalizedTempF = normalizeTemperatureF(entry.temp);
+
+    return {
+      id: `${entry.time}-${index}`,
+      time: formatTime24Hour(entry.time) ?? "--",
+      temperature:
+        normalizedTempF === null ? "--" : `${Math.round(normalizedTempF)}°`,
+      condition: getRoadOutlookCondition(entry),
+    };
+  });
 }
 
 type RoadAlertFeature = {
@@ -426,7 +432,8 @@ function selectPrimaryRoadAlertEvent(
 }
 
 function getRoadLocationLabel(location: AppLocation) {
-  return formatCityState(location);
+  const savedName = location.name.trim();
+  return savedName.length > 0 ? savedName : formatCityState(location);
 }
 
 function getRoadMapFocusCoordinate(roadLocation: AppLocation | null) {
@@ -998,11 +1005,14 @@ function formatObservationValue(
   suffix: string,
   emptyText = "Unavailable",
 ) {
-  if (value === null || Number.isNaN(value)) {
+  const normalizedValue =
+    suffix === "°F" ? normalizeTemperatureF(value) : value;
+
+  if (normalizedValue === null || Number.isNaN(normalizedValue)) {
     return emptyText;
   }
 
-  return `${value}${suffix}`;
+  return `${normalizedValue}${suffix}`;
 }
 
 function formatObservationText(
@@ -1023,7 +1033,7 @@ function useRoadScreenData(
     useState<RoadCurrentWeatherSnapshot>(INITIAL_CURRENT_WEATHER);
   const [roadSummary, setRoadSummary] = useState("Loading road conditions...");
   const [weatherCaution, setWeatherCaution] = useState(
-    "Loading weather guidance...",
+    "Fetching weather data...",
   );
   const [wydotNotice, setWydotNotice] = useState("");
   const [routeLabel, setRouteLabel] = useState("Loading WYDOT corridor...");
@@ -1085,7 +1095,7 @@ function useRoadScreenData(
       setAlertEvent(null);
       setWydotNotice("");
       setRoadSummary("Loading road conditions...");
-      setWeatherCaution("Loading weather guidance...");
+      setWeatherCaution("Fetching weather data...");
       setCurrentWeather(INITIAL_CURRENT_WEATHER);
       setRoadReport(null);
 
@@ -1112,7 +1122,9 @@ function useRoadScreenData(
       let weatherSourceUpdatedLabel: string | null = null;
 
       if (weatherResult.status === "fulfilled") {
-        const temperatureF = weatherResult.value.currentTemp;
+        const temperatureF = normalizeTemperatureF(
+          weatherResult.value.currentTemp,
+        );
         const windSpeedMph = weatherResult.value.windSpeed;
 
         if (temperatureF !== null && windSpeedMph !== null) {

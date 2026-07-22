@@ -11,6 +11,7 @@ import {
   toAppCurrentWeatherResponse as buildAppCurrentWeatherResponse,
   toAppDailyForecastResponse as buildAppDailyForecastResponse,
   toAppHourlyForecastResponse as buildAppHourlyForecastResponse,
+  toAppNwsHourlyForecastResponse as buildAppNwsHourlyForecastResponse,
   toHomeCurrentPayload as buildAppHomeCurrentPayload,
   withWeatherDebug,
 } from "./weatherContract";
@@ -21,7 +22,9 @@ import {
 } from "./lib/roadRisk";
 import { ROAD_RISK_THRESHOLDS } from "../../utils/roadRiskThresholds";
 
-const dbPath = path.resolve(__dirname, "..", "weatherapp.db");
+const dbPath = process.env.ROADSIGNAL_DB_PATH
+  ? path.resolve(process.env.ROADSIGNAL_DB_PATH)
+  : path.resolve(__dirname, "..", "weatherapp.db");
 const roadGeometryPath = path.resolve(
   __dirname,
   "..",
@@ -32,11 +35,16 @@ const roadGeometryPath = path.resolve(
 const configuredCorsOrigins = process.env.CORS_ORIGIN?.split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
+const corsOrigin = configuredCorsOrigins?.length
+  ? configuredCorsOrigins
+  : process.env.NODE_ENV === "production"
+    ? false
+    : true;
 const app = express();
 app.use(helmet());
 app.use(
   cors({
-    origin: configuredCorsOrigins?.length ? configuredCorsOrigins : true,
+    origin: corsOrigin,
   }),
 );
 app.use(
@@ -49,7 +57,6 @@ app.use(
 );
 app.use(express.json());
 const db = new Database(dbPath);
-const TOMORROW_API_KEY = process.env.TOMORROW_API_KEY;
 const MAPBOX_ACCESS_TOKEN = process.env.MAPBOX_ACCESS_TOKEN;
 const TOMORROW_WEATHER_BASE_URL = "https://api.tomorrow.io/v4/weather";
 const TOMORROW_TIMELINES_URL = "https://api.tomorrow.io/v4/timelines";
@@ -58,6 +65,9 @@ const TOMORROW_CURRENT_TIMEOUT_MS = 1200;
 const TOMORROW_FORECAST_TIMEOUT_MS = 2500;
 const TOMORROW_COMBINED_TIMEOUT_MS = 2500;
 const TOMORROW_DEBUG_TIMEOUT_MS = 3500;
+const NWS_FORECAST_TIMEOUT_MS = 3000;
+const NWS_API_BASE_URL = "https://api.weather.gov";
+const NWS_USER_AGENT = "roadsignal-app";
 const WYDOT_MEDIA_TIMEOUT_MS = 2500;
 const MAPBOX_GEOCODING_TIMEOUT_MS = 2500;
 const COMBINED_CURRENT_AND_HOURLY_FIELDS = [
@@ -226,6 +236,52 @@ type TomorrowCombinedBranchMeta = {
   error: TomorrowDiagnosticError | null;
 };
 
+type NwsPointsResponse = {
+  properties?: {
+    forecastHourly?: string;
+  };
+};
+
+type NwsHourlyForecastResponse = {
+  properties?: {
+    periods?: {
+      startTime?: string;
+      temperature?: number | null;
+      temperatureUnit?: string | null;
+      windSpeed?: string | null;
+      shortForecast?: string | null;
+      probabilityOfPrecipitation?: {
+        value?: number | null;
+      } | null;
+    }[];
+  };
+};
+
+type NwsAlertsResponse = {
+  features?: {
+    id?: string;
+    properties?: {
+      id?: string;
+      event?: string | null;
+      headline?: string | null;
+      areaDesc?: string | null;
+      severity?: string | null;
+      certainty?: string | null;
+      ends?: string | null;
+      expires?: string | null;
+    };
+  }[];
+};
+
+type ExpoPushMessage = {
+  to: string;
+  sound: "default";
+  title: string;
+  body: string;
+  data: Record<string, string | null>;
+  channelId: string;
+};
+
 let wydotMediaCache: {
   fetchedAt: number;
   records: WydotMediaConditionRecord[];
@@ -235,11 +291,12 @@ type RegisteredPushToken = {
   expoPushToken: string;
   platform: string | null;
   notificationTypes: string[];
+  alertLatitude: number | null;
+  alertLongitude: number | null;
+  alertLocationName: string | null;
   registeredAt: string;
   updatedAt: string;
 };
-
-const registeredPushTokens = new Map<string, RegisteredPushToken>();
 
 function buildObservedFactors(primaryStation: SegmentPrimaryStation | null) {
   if (!primaryStation) {
@@ -580,13 +637,19 @@ function assertDevDebugEndpoint(res: express.Response) {
   return false;
 }
 
+function getTomorrowApiKey() {
+  return process.env.TOMORROW_API_KEY;
+}
+
 function assertTomorrowApiKey(res: express.Response) {
-  if (!TOMORROW_API_KEY) {
+  const apiKey = getTomorrowApiKey();
+
+  if (!apiKey) {
     res.status(500).json({ error: "TOMORROW_API_KEY is not configured" });
     return null;
   }
 
-  return TOMORROW_API_KEY;
+  return apiKey;
 }
 
 function assertMapboxAccessToken(res: express.Response) {
@@ -600,9 +663,10 @@ function assertMapboxAccessToken(res: express.Response) {
 
 function sanitizeTomorrowBodyPreview(value: string) {
   let sanitized = value;
+  const apiKey = getTomorrowApiKey();
 
-  if (TOMORROW_API_KEY) {
-    sanitized = sanitized.split(TOMORROW_API_KEY).join("[REDACTED_API_KEY]");
+  if (apiKey) {
+    sanitized = sanitized.split(apiKey).join("[REDACTED_API_KEY]");
   }
 
   sanitized = sanitized
@@ -772,6 +836,85 @@ async function fetchTomorrowJson<T>(
   }
 
   return result.payload;
+}
+
+async function fetchNwsJson<T>(url: string): Promise<T> {
+  const response = await fetchWithTimeout(
+    url,
+    {
+      headers: {
+        Accept: "application/geo+json",
+        "User-Agent": NWS_USER_AGENT,
+      },
+    },
+    NWS_FORECAST_TIMEOUT_MS,
+  );
+
+  if (!response.ok) {
+    throw new Error(`NWS fallback failed: ${response.status}`);
+  }
+
+  return (await response.json()) as T;
+}
+
+async function fetchNwsHourlyForecast(lat: number, lon: number) {
+  const pointsUrl = `${NWS_API_BASE_URL}/points/${encodeURIComponent(
+    `${lat},${lon}`,
+  )}`;
+  const points = await fetchNwsJson<NwsPointsResponse>(pointsUrl);
+  const forecastHourlyUrl = points.properties?.forecastHourly;
+
+  if (!forecastHourlyUrl) {
+    throw new Error("NWS fallback failed: missing forecastHourly endpoint");
+  }
+
+  const hourly = await fetchNwsJson<NwsHourlyForecastResponse>(
+    forecastHourlyUrl,
+  );
+  const periods = hourly.properties?.periods ?? [];
+  const response = buildAppNwsHourlyForecastResponse(periods.slice(0, 12));
+
+  if (response.hourlyForecast.length === 0) {
+    throw new Error("NWS fallback failed: empty hourly forecast");
+  }
+
+  return {
+    response,
+    raw: {
+      points,
+      hourly,
+    },
+  };
+}
+
+async function fetchNwsActiveAlerts(lat: number, lon: number) {
+  const point = `${lat},${lon}`;
+  const url = `${NWS_API_BASE_URL}/alerts/active?point=${encodeURIComponent(
+    point,
+  )}`;
+
+  return fetchNwsJson<NwsAlertsResponse>(url);
+}
+
+function buildCurrentWeatherFromHourlyForecast(
+  hourlyResponse: ReturnType<typeof buildAppNwsHourlyForecastResponse>,
+) {
+  const firstHour = hourlyResponse.hourlyForecast[0];
+
+  return {
+    currentTemp: firstHour?.temp ?? null,
+    feelsLike: firstHour?.temp ?? null,
+    humidity: null,
+    windSpeed: firstHour?.windSpeed ?? null,
+    windGust: firstHour?.windGust ?? null,
+    visibility: null,
+    precipProbability: firstHour?.precipProbability ?? null,
+    weatherCode: firstHour?.weatherCode ?? null,
+    condition:
+      firstHour?.condition ??
+      getConditionLabelFromWeatherCode(firstHour?.weatherCode ?? null),
+    updatedAt: firstHour?.time ?? null,
+  };
 }
 
 function buildTomorrowWeatherUrl(
@@ -1001,6 +1144,200 @@ function roundNullable(value: number | null, digits = 0) {
 
   const factor = 10 ** digits;
   return Math.round(value * factor) / factor;
+}
+
+function parseNotificationTypes(value: string | null) {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function getRegisteredPushTokens() {
+  const rows = db
+    .prepare(
+      `
+        SELECT
+          expo_push_token AS expoPushToken,
+          platform,
+          notification_types AS notificationTypesJson,
+          alert_latitude AS alertLatitude,
+          alert_longitude AS alertLongitude,
+          alert_location_name AS alertLocationName,
+          registered_at AS registeredAt,
+          updated_at AS updatedAt
+        FROM push_notification_registrations
+        ORDER BY updated_at DESC
+      `,
+    )
+    .all() as {
+    expoPushToken: string;
+    platform: string | null;
+    notificationTypesJson: string | null;
+    alertLatitude: number | null;
+    alertLongitude: number | null;
+    alertLocationName: string | null;
+    registeredAt: string;
+    updatedAt: string;
+  }[];
+
+  return rows.map((row): RegisteredPushToken => ({
+    expoPushToken: row.expoPushToken,
+    platform: row.platform,
+    notificationTypes: parseNotificationTypes(row.notificationTypesJson),
+    alertLatitude: row.alertLatitude,
+    alertLongitude: row.alertLongitude,
+    alertLocationName: row.alertLocationName,
+    registeredAt: row.registeredAt,
+    updatedAt: row.updatedAt,
+  }));
+}
+
+function upsertRegisteredPushToken(params: {
+  expoPushToken: string;
+  platform: string | null;
+  notificationTypes: string[];
+  alertLatitude: number | null;
+  alertLongitude: number | null;
+  alertLocationName: string | null;
+}) {
+  const now = new Date().toISOString();
+
+  db.prepare(
+    `
+      INSERT INTO push_notification_registrations (
+        expo_push_token,
+        platform,
+        notification_types,
+        alert_latitude,
+        alert_longitude,
+        alert_location_name,
+        registered_at,
+        updated_at
+      ) VALUES (
+        @expoPushToken,
+        @platform,
+        @notificationTypes,
+        @alertLatitude,
+        @alertLongitude,
+        @alertLocationName,
+        @registeredAt,
+        @updatedAt
+      )
+      ON CONFLICT(expo_push_token) DO UPDATE SET
+        platform = excluded.platform,
+        notification_types = excluded.notification_types,
+        alert_latitude = excluded.alert_latitude,
+        alert_longitude = excluded.alert_longitude,
+        alert_location_name = excluded.alert_location_name,
+        updated_at = excluded.updated_at
+    `,
+  ).run({
+    expoPushToken: params.expoPushToken,
+    platform: params.platform,
+    notificationTypes: JSON.stringify(params.notificationTypes),
+    alertLatitude: params.alertLatitude,
+    alertLongitude: params.alertLongitude,
+    alertLocationName: params.alertLocationName,
+    registeredAt: now,
+    updatedAt: now,
+  });
+}
+
+function hasSentAlertNotification(alertId: string, expoPushToken: string) {
+  const row = db
+    .prepare(
+      `
+        SELECT 1
+        FROM sent_alert_notifications
+        WHERE alert_id = ? AND expo_push_token = ?
+      `,
+    )
+    .get(alertId, expoPushToken);
+
+  return Boolean(row);
+}
+
+function markAlertNotificationSent(alertId: string, expoPushToken: string) {
+  db.prepare(
+    `
+      INSERT OR IGNORE INTO sent_alert_notifications (
+        alert_id,
+        expo_push_token,
+        sent_at
+      ) VALUES (@alertId, @expoPushToken, @sentAt)
+    `,
+  ).run({
+    alertId,
+    expoPushToken,
+    sentAt: new Date().toISOString(),
+  });
+}
+
+async function sendExpoPushMessages(messages: ExpoPushMessage[]) {
+  const response = await fetch("https://exp.host/--/api/v2/push/send", {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Accept-Encoding": "gzip, deflate",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(messages),
+  });
+  const payload = await response.json();
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    payload,
+  };
+}
+
+function getAlertId(alert: NonNullable<NwsAlertsResponse["features"]>[number]) {
+  return alert.id ?? alert.properties?.id ?? null;
+}
+
+function buildAlertPushBody(
+  properties: NonNullable<NwsAlertsResponse["features"]>[number]["properties"],
+) {
+  const headline = properties?.headline?.trim();
+
+  if (headline) {
+    return headline.replace(/\s+/g, " ").slice(0, 180);
+  }
+
+  const area = properties?.areaDesc?.trim();
+
+  if (area) {
+    return area.replace(/\s+/g, " ").slice(0, 180);
+  }
+
+  return "Official alert details are available in RoadSignal.";
+}
+
+function ensureTableColumn(
+  tableName: string,
+  columnName: string,
+  columnDefinition: string,
+) {
+  const columns = db
+    .prepare(`PRAGMA table_info(${tableName})`)
+    .all() as { name: string }[];
+
+  if (columns.some((column) => column.name === columnName)) {
+    return;
+  }
+
+  db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnDefinition}`);
 }
 
 function getConditionLabelFromWeatherCode(weatherCode: number | null) {
@@ -1378,49 +1715,81 @@ app.post("/api/notifications/register", (req, res) => {
         (value: unknown): value is string => typeof value === "string",
       )
     : ["official-alerts"];
+  const alertLocation =
+    req.body?.alertLocation && typeof req.body.alertLocation === "object"
+      ? (req.body.alertLocation as {
+          name?: unknown;
+          latitude?: unknown;
+          longitude?: unknown;
+        })
+      : null;
+  const alertLatitude =
+    typeof alertLocation?.latitude === "number" &&
+    Number.isFinite(alertLocation.latitude)
+      ? alertLocation.latitude
+      : null;
+  const alertLongitude =
+    typeof alertLocation?.longitude === "number" &&
+    Number.isFinite(alertLocation.longitude)
+      ? alertLocation.longitude
+      : null;
+  const alertLocationName =
+    typeof alertLocation?.name === "string" &&
+    alertLocation.name.trim().length > 0
+      ? alertLocation.name.trim()
+      : null;
 
   if (!expoPushToken) {
     res.status(400).json({ error: "expoPushToken is required" });
     return;
   }
 
-  const existingToken = registeredPushTokens.get(expoPushToken);
-  const now = new Date().toISOString();
-
-  registeredPushTokens.set(expoPushToken, {
+  upsertRegisteredPushToken({
     expoPushToken,
     platform,
     notificationTypes,
-    registeredAt: existingToken?.registeredAt ?? now,
-    updatedAt: now,
+    alertLatitude,
+    alertLongitude,
+    alertLocationName,
   });
+  const tokenCount = getRegisteredPushTokens().length;
 
   console.log("[NotificationsAPI] Registered push token", {
     platform,
     notificationTypes,
-    tokenCount: registeredPushTokens.size,
+    hasAlertLocation: alertLatitude !== null && alertLongitude !== null,
+    tokenCount,
   });
 
   res.json({ ok: true });
 });
 
 app.get("/api/notifications/registrations", (_req, res) => {
+  const registrations = getRegisteredPushTokens();
+
   res.json({
-    count: registeredPushTokens.size,
-    registrations: Array.from(registeredPushTokens.values()).map(
-      (registration) => ({
-        platform: registration.platform,
-        notificationTypes: registration.notificationTypes,
-        registeredAt: registration.registeredAt,
-        updatedAt: registration.updatedAt,
-      }),
-    ),
+    count: registrations.length,
+    registrations: registrations.map((registration) => ({
+      platform: registration.platform,
+      notificationTypes: registration.notificationTypes,
+      alertLocation:
+        registration.alertLatitude !== null &&
+        registration.alertLongitude !== null
+          ? {
+              name: registration.alertLocationName,
+              latitude: registration.alertLatitude,
+              longitude: registration.alertLongitude,
+            }
+          : null,
+      registeredAt: registration.registeredAt,
+      updatedAt: registration.updatedAt,
+    })),
   });
 });
 
 // Test push notification route
 app.post("/api/notifications/test", async (_req, res) => {
-  const tokens = Array.from(registeredPushTokens.values());
+  const tokens = getRegisteredPushTokens();
 
   if (tokens.length === 0) {
     res.status(400).json({ error: "No registered push tokens" });
@@ -1429,7 +1798,7 @@ app.post("/api/notifications/test", async (_req, res) => {
 
   const messages = tokens.map((registration) => ({
     to: registration.expoPushToken,
-    sound: "default",
+    sound: "default" as const,
     title: "RoadSignal test alert",
     body: "Official alert push plumbing is connected.",
     data: {
@@ -1440,41 +1809,31 @@ app.post("/api/notifications/test", async (_req, res) => {
   }));
 
   try {
-    const response = await fetch("https://exp.host/--/api/v2/push/send", {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Accept-Encoding": "gzip, deflate",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(messages),
-    });
+    const expoResult = await sendExpoPushMessages(messages);
 
-    const payload = await response.json();
-
-    if (!response.ok) {
+    if (!expoResult.ok) {
       console.log("[NotificationsAPI] Test push failed", {
-        status: response.status,
-        payload,
+        status: expoResult.status,
+        payload: expoResult.payload,
       });
 
       res.status(502).json({
         error: "Failed to send test push notification",
-        expoStatus: response.status,
-        expoResponse: payload,
+        expoStatus: expoResult.status,
+        expoResponse: expoResult.payload,
       });
       return;
     }
 
     console.log("[NotificationsAPI] Sent test push", {
       tokenCount: tokens.length,
-      payload,
+      payload: expoResult.payload,
     });
 
     res.json({
       ok: true,
       tokenCount: tokens.length,
-      expoResponse: payload,
+      expoResponse: expoResult.payload,
     });
   } catch (error) {
     console.log("[NotificationsAPI] Test push request failed", {
@@ -1482,6 +1841,194 @@ app.post("/api/notifications/test", async (_req, res) => {
     });
 
     res.status(502).json({ error: "Failed to send test push notification" });
+  }
+});
+
+app.post("/api/notifications/official-alerts/check", async (req, res) => {
+  const tokens = getRegisteredPushTokens().filter((registration) =>
+    registration.notificationTypes.includes("official-alerts"),
+  );
+  const hasRequestedPoint =
+    typeof req.query.lat === "string" || typeof req.query.lon === "string";
+
+  if (tokens.length === 0) {
+    res.json({
+      ok: true,
+      activeAlertCount: 0,
+      tokenCount: 0,
+      notificationCount: 0,
+      skipped: "No registered push tokens",
+    });
+    return;
+  }
+
+  const targets = (() => {
+    if (hasRequestedPoint) {
+      const coordinates = getRequiredLatLon(req, res);
+
+      if (!coordinates) {
+        return null;
+      }
+
+      return [
+        {
+          lat: coordinates.lat,
+          lon: coordinates.lon,
+          tokens,
+        },
+      ];
+    }
+
+    const groups = new Map<
+      string,
+      {
+        lat: number;
+        lon: number;
+        tokens: RegisteredPushToken[];
+      }
+    >();
+
+    tokens.forEach((token) => {
+      if (token.alertLatitude === null || token.alertLongitude === null) {
+        return;
+      }
+
+      const key = `${token.alertLatitude},${token.alertLongitude}`;
+      const group =
+        groups.get(key) ??
+        {
+          lat: token.alertLatitude,
+          lon: token.alertLongitude,
+          tokens: [],
+        };
+
+      group.tokens.push(token);
+      groups.set(key, group);
+    });
+
+    return Array.from(groups.values());
+  })();
+
+  if (!targets) {
+    return;
+  }
+
+  if (targets.length === 0) {
+    res.json({
+      ok: true,
+      activeAlertCount: 0,
+      tokenCount: tokens.length,
+      notificationCount: 0,
+      skipped: "No registered push tokens have alert locations",
+    });
+    return;
+  }
+
+  try {
+    let activeAlertCount = 0;
+    const messagesWithAlertIds: {
+      alertId: string;
+      expoPushToken: string;
+      message: ExpoPushMessage;
+    }[] = [];
+
+    for (const target of targets) {
+      const alerts = await fetchNwsActiveAlerts(target.lat, target.lon);
+      const features = alerts.features ?? [];
+      activeAlertCount += features.length;
+
+      features.forEach((feature) => {
+        const alertId = getAlertId(feature);
+
+        if (!alertId) {
+          return;
+        }
+
+        target.tokens
+          .filter(
+            (registration) =>
+              !hasSentAlertNotification(alertId, registration.expoPushToken),
+          )
+          .forEach((registration) => {
+            messagesWithAlertIds.push({
+              alertId,
+              expoPushToken: registration.expoPushToken,
+              message: {
+                to: registration.expoPushToken,
+                sound: "default",
+                title: feature.properties?.event ?? "Official alert",
+                body: buildAlertPushBody(feature.properties),
+                data: {
+                  type: "official-alert",
+                  alertId,
+                  event: feature.properties?.event ?? null,
+                  severity: feature.properties?.severity ?? null,
+                  certainty: feature.properties?.certainty ?? null,
+                  ends:
+                    feature.properties?.ends ??
+                    feature.properties?.expires ??
+                    null,
+                },
+                channelId: "official-alerts",
+              },
+            });
+          });
+      });
+    }
+
+    if (messagesWithAlertIds.length === 0) {
+      res.json({
+        ok: true,
+        activeAlertCount,
+        tokenCount: tokens.length,
+        notificationCount: 0,
+      });
+      return;
+    }
+
+    const expoResult = await sendExpoPushMessages(
+      messagesWithAlertIds.map((item) => item.message),
+    );
+
+    if (!expoResult.ok) {
+      console.log("[NotificationsAPI] Official alert push failed", {
+        status: expoResult.status,
+        payload: expoResult.payload,
+      });
+
+      res.status(502).json({
+        error: "Failed to send official alert push notifications",
+        expoStatus: expoResult.status,
+        expoResponse: expoResult.payload,
+      });
+      return;
+    }
+
+    messagesWithAlertIds.forEach((item) => {
+      markAlertNotificationSent(item.alertId, item.expoPushToken);
+    });
+
+    console.log("[NotificationsAPI] Sent official alert pushes", {
+      activeAlertCount,
+      tokenCount: tokens.length,
+      notificationCount: messagesWithAlertIds.length,
+    });
+
+    res.json({
+      ok: true,
+      activeAlertCount,
+      tokenCount: tokens.length,
+      notificationCount: messagesWithAlertIds.length,
+      expoResponse: expoResult.payload,
+    });
+  } catch (error) {
+    console.log("[NotificationsAPI] Official alert check failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    res.status(502).json({
+      error: "Failed to check official alerts",
+    });
   }
 });
 
@@ -1538,6 +2085,24 @@ app.get("/api/geocoding/search", async (req, res) => {
 });
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS push_notification_registrations (
+    expo_push_token TEXT PRIMARY KEY,
+    platform TEXT,
+    notification_types TEXT NOT NULL,
+    alert_latitude REAL,
+    alert_longitude REAL,
+    alert_location_name TEXT,
+    registered_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS sent_alert_notifications (
+    alert_id TEXT NOT NULL,
+    expo_push_token TEXT NOT NULL,
+    sent_at TEXT NOT NULL,
+    PRIMARY KEY (alert_id, expo_push_token)
+  );
+
   CREATE TABLE IF NOT EXISTS route_segments (
     segment_id TEXT PRIMARY KEY,
     route_name TEXT NOT NULL,
@@ -2003,6 +2568,22 @@ db.exec(`
   );
 `);
 
+ensureTableColumn(
+  "push_notification_registrations",
+  "alert_latitude",
+  "alert_latitude REAL",
+);
+ensureTableColumn(
+  "push_notification_registrations",
+  "alert_longitude",
+  "alert_longitude REAL",
+);
+ensureTableColumn(
+  "push_notification_registrations",
+  "alert_location_name",
+  "alert_location_name TEXT",
+);
+
 app.get("/api/weather/current", async (req, res) => {
   const coordinates = getRequiredLatLon(req, res);
   const apiKey = assertTomorrowApiKey(res);
@@ -2055,69 +2636,111 @@ app.get("/api/weather/current", async (req, res) => {
 
 app.get("/api/weather/hourly", async (req, res) => {
   const coordinates = getRequiredLatLon(req, res);
-  const apiKey = assertTomorrowApiKey(res);
 
-  if (!coordinates || !apiKey) {
+  if (!coordinates) {
     return;
   }
 
+  const apiKey = getTomorrowApiKey();
+  let tomorrowError: unknown = null;
+
   try {
-    const url = `${TOMORROW_TIMELINES_URL}?apikey=${encodeURIComponent(apiKey)}`;
-    const requestBody = buildTomorrowTimelinesRequestBody(
-      coordinates.lat,
-      coordinates.lon,
-      "1h",
-    );
+    if (apiKey) {
+      const url = `${TOMORROW_TIMELINES_URL}?apikey=${encodeURIComponent(apiKey)}`;
+      const requestBody = buildTomorrowTimelinesRequestBody(
+        coordinates.lat,
+        coordinates.lon,
+        "1h",
+      );
 
-    debugLog("[WeatherAPI] Hourly Tomorrow request", {
-      location: requestBody.location,
-      fields: requestBody.fields,
-      timesteps: "1h",
-      startTime: requestBody.startTime,
-      endTime: requestBody.endTime,
-    });
+      debugLog("[WeatherAPI] Hourly Tomorrow request", {
+        location: requestBody.location,
+        fields: requestBody.fields,
+        timesteps: "1h",
+        startTime: requestBody.startTime,
+        endTime: requestBody.endTime,
+      });
 
-    const payload = await fetchTomorrowJson<TomorrowHourlyTimelinesResponse>(
-      url,
-      {
-        operation: "hourly weather forecast",
-        providerEndpoint: "timelines",
-      },
-      buildTomorrowJsonPostInit(requestBody),
-      TOMORROW_FORECAST_TIMEOUT_MS,
-    );
-    const hourlyEntries = getTimelineIntervals(payload, "1h");
+      const payload = await fetchTomorrowJson<TomorrowHourlyTimelinesResponse>(
+        url,
+        {
+          operation: "hourly weather forecast",
+          providerEndpoint: "timelines",
+        },
+        buildTomorrowJsonPostInit(requestBody),
+        TOMORROW_FORECAST_TIMEOUT_MS,
+      );
+      const hourlyEntries = getTimelineIntervals(payload, "1h");
 
-    logHourlyNormalizationDiagnostics({
-      source: "/api/weather/hourly",
-      entries: hourlyEntries,
-    });
+      logHourlyNormalizationDiagnostics({
+        source: "/api/weather/hourly",
+        entries: hourlyEntries,
+      });
 
-    debugLog(
-      "[WeatherAPI] Hourly Tomorrow response sample",
-      hourlyEntries.slice(0, 12).map((entry) => ({
-        time: entry.startTime ?? null,
-        weatherCode: entry.values?.weatherCode ?? null,
-        precipitationProbability:
-          entry.values?.precipitationProbability ?? null,
-        temperature: entry.values?.temperature ?? null,
-        windSpeed: entry.values?.windSpeed ?? null,
-        windGust: entry.values?.windGust ?? null,
-      })),
-    );
+      if (hourlyEntries.length > 0) {
+        debugLog(
+          "[WeatherAPI] Hourly Tomorrow response sample",
+          hourlyEntries.slice(0, 12).map((entry) => ({
+            time: entry.startTime ?? null,
+            weatherCode: entry.values?.weatherCode ?? null,
+            precipitationProbability:
+              entry.values?.precipitationProbability ?? null,
+            temperature: entry.values?.temperature ?? null,
+            windSpeed: entry.values?.windSpeed ?? null,
+            windGust: entry.values?.windGust ?? null,
+          })),
+        );
 
-    const hourlyResponse = toAppHourlyForecastResponse(hourlyEntries);
+        const hourlyResponse = toAppHourlyForecastResponse(hourlyEntries);
 
-    res.json(
-      withWeatherDebug(hourlyResponse, {
-        includeDebug: shouldIncludeWeatherDebug(req),
-        provider: "tomorrow",
-        raw: payload,
-      }),
-    );
+        res.json(
+          withWeatherDebug(hourlyResponse, {
+            includeDebug: shouldIncludeWeatherDebug(req),
+            provider: "tomorrow",
+            raw: payload,
+          }),
+        );
+        return;
+      }
+
+      tomorrowError = new Error("Tomorrow hourly response had no entries");
+    } else {
+      tomorrowError = new Error("TOMORROW_API_KEY is not configured");
+    }
   } catch (error) {
+    tomorrowError = error;
     console.log("[WeatherAPI] Hourly forecast request failed", {
       error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  try {
+    const fallback = await fetchNwsHourlyForecast(
+      coordinates.lat,
+      coordinates.lon,
+    );
+
+    console.log("[WeatherAPI] Hourly fallback provider used", {
+      provider: "nws",
+      tomorrowError:
+        tomorrowError instanceof Error ? tomorrowError.message : String(tomorrowError),
+    });
+
+    res.json(
+      withWeatherDebug(fallback.response, {
+        includeDebug: shouldIncludeWeatherDebug(req),
+        provider: "nws",
+        raw: fallback.raw,
+      }),
+    );
+  } catch (fallbackError) {
+    console.log("[WeatherAPI] Hourly NWS fallback failed", {
+      tomorrowError:
+        tomorrowError instanceof Error ? tomorrowError.message : String(tomorrowError),
+      fallbackError:
+        fallbackError instanceof Error
+          ? fallbackError.message
+          : String(fallbackError),
     });
     res.status(502).json({ error: "Failed to fetch hourly forecast data" });
   }
@@ -2166,13 +2789,39 @@ app.get("/api/weather/daily", async (req, res) => {
 
 app.get("/api/weather/current-hourly", async (req, res) => {
   const coordinates = getRequiredLatLon(req, res);
-  const apiKey = assertTomorrowApiKey(res);
 
-  if (!coordinates || !apiKey) {
+  if (!coordinates) {
     return;
   }
 
+  const apiKey = getTomorrowApiKey();
+
   try {
+    if (!apiKey) {
+      const fallback = await fetchNwsHourlyForecast(
+        coordinates.lat,
+        coordinates.lon,
+      );
+
+      const combinedFallbackResponse = {
+        current: null,
+        hourly: null,
+        currentWeather: buildCurrentWeatherFromHourlyForecast(
+          fallback.response,
+        ),
+        hourlyForecast: fallback.response,
+      };
+
+      res.json(
+        withWeatherDebug(combinedFallbackResponse, {
+          includeDebug: shouldIncludeWeatherDebug(req),
+          provider: "nws",
+          raw: fallback.raw,
+        }),
+      );
+      return;
+    }
+
     const url = `${TOMORROW_TIMELINES_URL}?apikey=${encodeURIComponent(apiKey)}`;
     const currentRequestBody = buildTomorrowTimelinesRequestBody(
       coordinates.lat,
@@ -2221,6 +2870,9 @@ app.get("/api/weather/current-hourly", async (req, res) => {
     const hourlyEntries = hourlyResult.ok
       ? getTimelineIntervals(hourlyResult.payload, "1h")
       : [];
+    let fallbackHourly:
+      | Awaited<ReturnType<typeof fetchNwsHourlyForecast>>
+      | null = null;
 
     if (currentResult.ok) {
       logCurrentNormalizationDiagnostics({
@@ -2237,7 +2889,28 @@ app.get("/api/weather/current-hourly", async (req, res) => {
       });
     }
 
-    if (!currentResult.ok && !hourlyResult.ok) {
+    if (!hourlyResult.ok || hourlyEntries.length === 0) {
+      try {
+        fallbackHourly = await fetchNwsHourlyForecast(
+          coordinates.lat,
+          coordinates.lon,
+        );
+        console.log("[WeatherAPI] Combined hourly fallback provider used", {
+          provider: "nws",
+          tomorrowHourlyOk: hourlyResult.ok,
+          tomorrowHourlyEntries: hourlyEntries.length,
+        });
+      } catch (fallbackError) {
+        console.log("[WeatherAPI] Combined NWS hourly fallback failed", {
+          fallbackError:
+            fallbackError instanceof Error
+              ? fallbackError.message
+              : String(fallbackError),
+        });
+      }
+    }
+
+    if (!currentResult.ok && !hourlyResult.ok && !fallbackHourly) {
       res.status(502).json({
         error: "Failed to fetch combined current and hourly weather data",
         current: buildTomorrowBranchMeta(currentResult),
@@ -2261,18 +2934,28 @@ app.get("/api/weather/current-hourly", async (req, res) => {
 
     const combinedResponse = {
       current: buildTomorrowBranchMeta(currentResult),
-      hourly: buildTomorrowBranchMeta(hourlyResult),
-      currentWeather: toAppCurrentWeatherResponse(currentEntry),
-      hourlyForecast: toAppHourlyForecastResponse(hourlyEntries),
+      hourly: fallbackHourly ? null : buildTomorrowBranchMeta(hourlyResult),
+      currentWeather: currentResult.ok
+        ? toAppCurrentWeatherResponse(currentEntry)
+        : fallbackHourly
+          ? buildCurrentWeatherFromHourlyForecast(fallbackHourly.response)
+          : toAppCurrentWeatherResponse(currentEntry),
+      hourlyForecast: fallbackHourly
+        ? fallbackHourly.response
+        : toAppHourlyForecastResponse(hourlyEntries),
     };
 
     res.json(
       withWeatherDebug(combinedResponse, {
         includeDebug: shouldIncludeWeatherDebug(req),
-        provider: "tomorrow",
+        provider: fallbackHourly ? "nws" : "tomorrow",
         raw: {
           current: currentResult.ok ? currentResult.payload : null,
-          hourly: hourlyResult.ok ? hourlyResult.payload : null,
+          hourly: fallbackHourly
+            ? fallbackHourly.raw.hourly
+            : hourlyResult.ok
+              ? hourlyResult.payload
+              : null,
         },
       }),
     );
@@ -2626,8 +3309,14 @@ const jsonErrorHandler: express.ErrorRequestHandler = (
 
 app.use(jsonErrorHandler);
 
-const port = Number(process.env.PORT ?? 3000);
+export { app };
 
-app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`);
-});
+export function startServer(port = Number(process.env.PORT ?? 3000)) {
+  return app.listen(port, () => {
+    console.log(`Server running on http://localhost:${port}`);
+  });
+}
+
+if (require.main === module) {
+  startServer();
+}

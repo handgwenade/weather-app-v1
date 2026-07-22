@@ -1,9 +1,22 @@
+import { normalizeTemperatureF } from "../../utils/weather";
+
 export type TomorrowValues = Record<string, number | string | null>;
 
 export type TomorrowTimelineEntry = {
   startTime?: string;
   time?: string;
   values?: TomorrowValues;
+};
+
+export type NwsHourlyForecastPeriod = {
+  startTime?: string;
+  temperature?: number | null;
+  temperatureUnit?: string | null;
+  windSpeed?: string | null;
+  shortForecast?: string | null;
+  probabilityOfPrecipitation?: {
+    value?: number | null;
+  } | null;
 };
 
 export type TomorrowDailyPayload = {
@@ -49,6 +62,36 @@ function roundNullable(value: number | null, digits = 0) {
 
   const factor = 10 ** digits;
   return Math.round(value * factor) / factor;
+}
+
+function fahrenheitFromNwsTemperature(
+  value: number | null | undefined,
+  unit: string | null | undefined,
+) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+
+  if (unit?.toUpperCase() === "C") {
+    return celsiusToFahrenheit(value);
+  }
+
+  return value;
+}
+
+function parseNwsWindSpeedMph(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const speeds = value.match(/\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+  const finiteSpeeds = speeds.filter(Number.isFinite);
+
+  if (finiteSpeeds.length === 0) {
+    return null;
+  }
+
+  return Math.max(...finiteSpeeds);
 }
 
 export function getConditionLabelFromWeatherCode(weatherCode: number | null) {
@@ -113,11 +156,15 @@ export function toHomeCurrentPayload(values: TomorrowValues | undefined) {
 
   return {
     currentTemp: roundNullable(
-      celsiusToFahrenheit(getFiniteTomorrowNumber(values, "temperature")),
+      normalizeTemperatureF(
+        celsiusToFahrenheit(getFiniteTomorrowNumber(values, "temperature")),
+      ),
     ),
     feelsLike: roundNullable(
-      celsiusToFahrenheit(
-        getFiniteTomorrowNumber(values, "temperatureApparent"),
+      normalizeTemperatureF(
+        celsiusToFahrenheit(
+          getFiniteTomorrowNumber(values, "temperatureApparent"),
+        ),
       ),
     ),
     windSpeed: windSpeedMph,
@@ -151,7 +198,9 @@ export function toAppHourlyForecastResponse(entries: TomorrowTimelineEntry[]) {
     return {
       time: entry.startTime ?? entry.time ?? "",
       temp: roundNullable(
-        celsiusToFahrenheit(getFiniteTomorrowNumber(values, "temperature")),
+        normalizeTemperatureF(
+          celsiusToFahrenheit(getFiniteTomorrowNumber(values, "temperature")),
+        ),
       ),
       windSpeed: roundNullable(
         metersPerSecondToMph(getFiniteTomorrowNumber(values, "windSpeed")),
@@ -166,6 +215,42 @@ export function toAppHourlyForecastResponse(entries: TomorrowTimelineEntry[]) {
       ),
       weatherCode: getFiniteTomorrowNumber(values, "weatherCode"),
       precipType: getFiniteTomorrowNumber(values, "precipitationType"),
+      condition: null,
+    };
+  });
+
+  return {
+    hourlyForecast,
+    updatedAt: hourlyForecast[0]?.time || null,
+  };
+}
+
+export function toAppNwsHourlyForecastResponse(
+  periods: NwsHourlyForecastPeriod[],
+) {
+  const hourlyForecast = periods.map((period) => {
+    const condition = period.shortForecast?.trim() || null;
+
+    return {
+      time: period.startTime ?? "",
+      temp: roundNullable(
+        normalizeTemperatureF(
+          fahrenheitFromNwsTemperature(
+            period.temperature,
+            period.temperatureUnit,
+          ),
+        ),
+      ),
+      windSpeed: roundNullable(parseNwsWindSpeedMph(period.windSpeed), 1),
+      windGust: null,
+      precipProbability: roundNullable(
+        typeof period.probabilityOfPrecipitation?.value === "number"
+          ? period.probabilityOfPrecipitation.value
+          : null,
+      ),
+      weatherCode: null,
+      precipType: null,
+      condition,
     };
   });
 
@@ -196,10 +281,18 @@ export function toAppDailyForecastResponse(payload: TomorrowDailyPayload) {
             ? entry.startTime
             : "",
       highTemp: roundNullable(
-        celsiusToFahrenheit(getFiniteTomorrowNumber(values, "temperatureMax")),
+        normalizeTemperatureF(
+          celsiusToFahrenheit(
+            getFiniteTomorrowNumber(values, "temperatureMax"),
+          ),
+        ),
       ),
       lowTemp: roundNullable(
-        celsiusToFahrenheit(getFiniteTomorrowNumber(values, "temperatureMin")),
+        normalizeTemperatureF(
+          celsiusToFahrenheit(
+            getFiniteTomorrowNumber(values, "temperatureMin"),
+          ),
+        ),
       ),
       precipProbability: roundNullable(
         getFiniteTomorrowNumber(values, "precipitationProbabilityAvg"),

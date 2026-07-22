@@ -59,7 +59,8 @@ export default function RootLayout() {
 
     async function initializePushNotifications() {
       try {
-        const result = await initializeOfficialAlertPushNotifications();
+        const result =
+          await initializeOfficialAlertPushNotifications(selectedLocation);
 
         if (!isActive) {
           return;
@@ -86,7 +87,7 @@ export default function RootLayout() {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [selectedLocation]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
