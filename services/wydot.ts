@@ -1,4 +1,5 @@
 import type { AppLocation } from "@/data/locationStore";
+import { normalizeTemperatureF } from "@/utils/weather";
 
 export type WydotOfficialStatusType =
   | "none"
@@ -365,7 +366,7 @@ function extractRouteCode(html: string) {
 
 function extractConditionsTableBody(html: string) {
   const match = html.match(
-    /<th class="title" colspan="8">\s*Conditions\s*<\/th>[\s\S]*?<tbody>([\s\S]*?)<\/tbody>\s*<\/table>/i,
+    /<th\b(?=[^>]*\bclass\s*=\s*["']title["'])[^>]*>\s*Conditions\s*<\/th>[\s\S]*?<tbody>([\s\S]*?)<\/tbody>\s*<\/table>/i,
   );
 
   if (!match) {
@@ -568,6 +569,14 @@ function normalizeNullableText(value: string | null) {
   return normalized;
 }
 
+function parseTemperatureF(value: string | null) {
+  const normalized = normalizeNullableText(value);
+
+  return normalizeTemperatureF(
+    normalized ? parseNumberFromText(normalized) : null,
+  );
+}
+
 // Accept a few label variants because WYDOT station pages do not use one perfectly
 // consistent naming pattern across all sensors and locations.
 export function parseWydotStationObservation(
@@ -620,12 +629,8 @@ export function parseWydotStationObservation(
   return {
     stationName,
     observedAt,
-    airTempF: normalizeNullableText(airTempText)
-      ? parseNumberFromText(airTempText!)
-      : null,
-    surfaceTempF: normalizeNullableText(surfaceTempText)
-      ? parseNumberFromText(surfaceTempText!)
-      : null,
+    airTempF: parseTemperatureF(airTempText),
+    surfaceTempF: parseTemperatureF(surfaceTempText),
     relativeHumidity: normalizeNullableText(humidityText)
       ? parseNumberFromText(humidityText!)
       : null,

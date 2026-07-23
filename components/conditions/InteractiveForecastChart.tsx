@@ -184,6 +184,10 @@ export default function InteractiveForecastChart({
   if (isLoading) {
     return (
       <View style={styles.stateCard}>
+        <Text style={styles.loadingTitle}>Fetching weather data</Text>
+        <Text style={styles.loadingText}>
+          Getting the latest hourly forecast now.
+        </Text>
         <View style={styles.skeletonHeader} />
         <View style={styles.skeletonChart}>
           <View style={[styles.skeletonLine, styles.skeletonLineTop]} />
@@ -326,9 +330,11 @@ export default function InteractiveForecastChart({
 
 const styles = StyleSheet.create({
   chartShell: {
+    width: "100%",
     marginTop: 12,
   },
   gestureSurface: {
+    width: "100%",
     minHeight: CHART_HEIGHT,
   },
   axisLabels: {
@@ -372,6 +378,22 @@ const styles = StyleSheet.create({
   skeletonChart: {
     height: 142,
     justifyContent: "space-between",
+  },
+  loadingTitle: {
+    color: Palette.textPrimary,
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+  loadingText: {
+    color: Palette.textSecondary,
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "700",
+    textAlign: "center",
+    marginTop: 6,
+    marginBottom: 18,
   },
   skeletonLine: {
     height: 18,

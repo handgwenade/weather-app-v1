@@ -76,6 +76,25 @@ test("hourly forecast normalization accepts app contract shape", () => {
   assert.deepEqual(getHourlyForecastEntries(response), response.hourlyForecast);
 });
 
+test("hourly forecast normalization drops implausible app contract temperatures", () => {
+  const response: TomorrowHourlyForecastResponse = {
+    hourlyForecast: [
+      {
+        time: "2026-06-26T01:00:00Z",
+        temp: 176,
+        windSpeed: 5,
+        windGust: 6,
+        precipProbability: 0,
+        weatherCode: 1000,
+        precipType: null,
+      },
+    ],
+    updatedAt: "2026-06-26T01:00:00Z",
+  };
+
+  assert.equal(getHourlyForecastEntries(response)[0].temp, null);
+});
+
 test("legacy provider hourly cache normalizes into app contract without dropping zero", () => {
   const response: TomorrowHourlyForecastResponse = {
     timelines: {

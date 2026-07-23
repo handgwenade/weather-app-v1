@@ -7,7 +7,10 @@ import { useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -136,6 +139,7 @@ export default function LocationsScreenContainer() {
 
   async function handleSearch() {
     const trimmedQuery = searchQuery.trim();
+    Keyboard.dismiss();
 
     if (!trimmedQuery) {
       setSearchMessage("Enter a place to search.");
@@ -189,12 +193,15 @@ export default function LocationsScreenContainer() {
   }
 
   function handleSelectResult(result: GeocodingResult) {
+    Keyboard.dismiss();
     setSelectedResult(result);
     setCustomLabel(result.name);
     setSearchMessage(null);
   }
 
   async function handleSaveLocation() {
+    Keyboard.dismiss();
+
     if (!selectedResult) {
       setSearchMessage("Choose a place before saving.");
       return;
@@ -287,148 +294,159 @@ export default function LocationsScreenContainer() {
         onRequestClose={handleCloseAdd}
       >
         <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <View style={styles.modalHeaderText}>
-                <Text style={styles.modalTitle}>
-                  {editingLocationId ? "Edit Location" : "Add Location"}
-                </Text>
-                <Text style={styles.modalSubtitle}>
-                  {editingLocationId
-                    ? "Update the saved label or choose a different place to replace it."
-                    : "Search for a place, then save it using your own label."}
-                </Text>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.modalKeyboardView}
+          >
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <View style={styles.modalHeaderText}>
+                  <Text style={styles.modalTitle}>
+                    {editingLocationId ? "Edit Location" : "Add Location"}
+                  </Text>
+                  <Text style={styles.modalSubtitle}>
+                    {editingLocationId
+                      ? "Update the saved label or choose a different place to replace it."
+                      : "Search for a place, then save it using your own label."}
+                  </Text>
+                </View>
+
+                <Pressable
+                  style={styles.modalCloseButton}
+                  onPress={handleCloseAdd}
+                >
+                  <Text style={styles.modalCloseButtonText}>Close</Text>
+                </Pressable>
               </View>
 
-              <Pressable
-                style={styles.modalCloseButton}
-                onPress={handleCloseAdd}
+              <ScrollView
+                contentContainerStyle={styles.modalContent}
+                keyboardShouldPersistTaps="handled"
               >
-                <Text style={styles.modalCloseButtonText}>Close</Text>
-              </Pressable>
-            </View>
+                <View style={styles.sectionBlock}>
+                  <Text style={styles.fieldLabel}>Search place</Text>
+                  <View style={styles.searchRow}>
+                    <TextInput
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                      blurOnSubmit
+                      onChangeText={setSearchQuery}
+                      onSubmitEditing={() => void handleSearch()}
+                      placeholder="City, address, or point of interest"
+                      placeholderTextColor={Palette.textMuted}
+                      returnKeyType="search"
+                      style={styles.textInput}
+                      value={searchQuery}
+                    />
 
-            <ScrollView
-              contentContainerStyle={styles.modalContent}
-              keyboardShouldPersistTaps="handled"
-            >
-              <View style={styles.sectionBlock}>
-                <Text style={styles.fieldLabel}>Search place</Text>
-                <View style={styles.searchRow}>
+                    <Pressable
+                      onPress={() => void handleSearch()}
+                      style={styles.searchButton}
+                    >
+                      {searching ? (
+                        <ActivityIndicator
+                          color={Palette.textOnDark}
+                          size="small"
+                        />
+                      ) : (
+                        <Text style={styles.searchButtonText}>Search</Text>
+                      )}
+                    </Pressable>
+                  </View>
+
+                  <Text style={styles.helperText}>
+                    {getSearchSummary(
+                      searchQuery,
+                      selectedResult,
+                      searchResults.length,
+                    )}
+                  </Text>
+
+                  {searchMessage ? (
+                    <Text style={styles.statusMessage}>{searchMessage}</Text>
+                  ) : null}
+                </View>
+
+                {searchResults.length > 0 ? (
+                  <View style={styles.sectionBlock}>
+                    <Text style={styles.fieldLabel}>Search results</Text>
+
+                    <View style={styles.resultsList}>
+                      {searchResults.map((result) => {
+                        const selected = result.id === selectedResult?.id;
+
+                        return (
+                          <Pressable
+                            key={result.id}
+                            onPress={() => handleSelectResult(result)}
+                            style={[
+                              styles.resultCard,
+                              selected ? styles.resultCardSelected : null,
+                            ]}
+                          >
+                            <View style={styles.resultTextBlock}>
+                              <Text style={styles.resultTitle}>
+                                {result.name}
+                              </Text>
+                              <Text style={styles.resultSubtitle}>
+                                {result.city}, {result.state}
+                              </Text>
+                            </View>
+
+                            {selected ? (
+                              <Text style={styles.resultSelectedText}>
+                                Selected
+                              </Text>
+                            ) : null}
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                ) : null}
+
+                <View style={styles.sectionBlock}>
+                  <Text style={styles.fieldLabel}>Saved label</Text>
                   <TextInput
                     autoCapitalize="words"
                     autoCorrect={false}
-                    onChangeText={setSearchQuery}
-                    placeholder="City, address, or point of interest"
+                    blurOnSubmit
+                    onChangeText={setCustomLabel}
+                    onSubmitEditing={Keyboard.dismiss}
+                    placeholder="Enter the label you want to use"
                     placeholderTextColor={Palette.textMuted}
+                    returnKeyType="done"
                     style={styles.textInput}
-                    value={searchQuery}
+                    value={customLabel}
                   />
-
-                  <Pressable
-                    onPress={() => void handleSearch()}
-                    style={styles.searchButton}
-                  >
-                    {searching ? (
-                      <ActivityIndicator
-                        color={Palette.textOnDark}
-                        size="small"
-                      />
-                    ) : (
-                      <Text style={styles.searchButtonText}>Search</Text>
-                    )}
-                  </Pressable>
-                </View>
-
-                <Text style={styles.helperText}>
-                  {getSearchSummary(
-                    searchQuery,
-                    selectedResult,
-                    searchResults.length,
-                  )}
-                </Text>
-
-                {searchMessage ? (
-                  <Text style={styles.statusMessage}>{searchMessage}</Text>
-                ) : null}
-              </View>
-
-              {searchResults.length > 0 ? (
-                <View style={styles.sectionBlock}>
-                  <Text style={styles.fieldLabel}>Search results</Text>
-
-                  <View style={styles.resultsList}>
-                    {searchResults.map((result) => {
-                      const selected = result.id === selectedResult?.id;
-
-                      return (
-                        <Pressable
-                          key={result.id}
-                          onPress={() => handleSelectResult(result)}
-                          style={[
-                            styles.resultCard,
-                            selected ? styles.resultCardSelected : null,
-                          ]}
-                        >
-                          <View style={styles.resultTextBlock}>
-                            <Text style={styles.resultTitle}>
-                              {result.name}
-                            </Text>
-                            <Text style={styles.resultSubtitle}>
-                              {result.city}, {result.state}
-                            </Text>
-                          </View>
-
-                          {selected ? (
-                            <Text style={styles.resultSelectedText}>
-                              Selected
-                            </Text>
-                          ) : null}
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-              ) : null}
-
-              <View style={styles.sectionBlock}>
-                <Text style={styles.fieldLabel}>Saved label</Text>
-                <TextInput
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                  onChangeText={setCustomLabel}
-                  placeholder="Enter the label you want to use"
-                  placeholderTextColor={Palette.textMuted}
-                  style={styles.textInput}
-                  value={customLabel}
-                />
-                <Text style={styles.helperText}>
-                  This label is what the app will show in Home, Road,
-                  Conditions, and Alerts.
-                </Text>
-              </View>
-            </ScrollView>
-
-            <View style={styles.footer}>
-              <Pressable
-                onPress={handleSaveLocation}
-                style={[
-                  styles.saveButton,
-                  !selectedResult || !customLabel.trim() || saving
-                    ? styles.saveButtonDisabled
-                    : null,
-                ]}
-              >
-                {saving ? (
-                  <ActivityIndicator color={Palette.textOnDark} size="small" />
-                ) : (
-                  <Text style={styles.saveButtonText}>
-                    {editingLocationId ? "Save changes" : "Save location"}
+                  <Text style={styles.helperText}>
+                    This label is what the app will show in Home, Road,
+                    Conditions, and Alerts.
                   </Text>
-                )}
-              </Pressable>
+                </View>
+              </ScrollView>
+
+              <View style={styles.footer}>
+                <Pressable
+                  onPress={handleSaveLocation}
+                  style={[
+                    styles.saveButton,
+                    !selectedResult || !customLabel.trim() || saving
+                      ? styles.saveButtonDisabled
+                      : null,
+                  ]}
+                >
+                  {saving ? (
+                    <ActivityIndicator color={Palette.textOnDark} size="small" />
+                  ) : (
+                    <Text style={styles.saveButtonText}>
+                      {editingLocationId ? "Save changes" : "Save location"}
+                    </Text>
+                  )}
+                </Pressable>
+              </View>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </>
@@ -440,6 +458,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(16, 20, 46, 0.48)",
     justifyContent: "flex-end",
+  },
+  modalKeyboardView: {
+    width: "100%",
   },
   modalCard: {
     maxHeight: "92%",

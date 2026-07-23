@@ -1,9 +1,11 @@
 import Constants from "expo-constants";
 import * as Device from "expo-device";
-import * as Notifications from "expo-notifications";
+import type { AppLocation } from "@/data/locationStore";
 import { Platform } from "react-native";
 
 const ROAD_API_BASE_URL = process.env.EXPO_PUBLIC_ROAD_API_BASE_URL;
+type NotificationsModule = typeof import("expo-notifications");
+let notificationHandlerConfigured = false;
 
 export type PushRegistrationResult =
   | {
@@ -23,7 +25,36 @@ function getExpoProjectId() {
   );
 }
 
-async function ensureAndroidNotificationChannel() {
+async function loadNotificationsModule() {
+  if (Platform.OS === "web") {
+    return null;
+  }
+
+  return import("expo-notifications");
+}
+
+function configureNotificationPresentation(
+  Notifications: NotificationsModule,
+) {
+  if (notificationHandlerConfigured) {
+    return;
+  }
+
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+  notificationHandlerConfigured = true;
+}
+
+async function ensureAndroidNotificationChannel(
+  Notifications: NotificationsModule,
+) {
   if (Platform.OS !== "android") {
     return;
   }
@@ -37,6 +68,15 @@ async function ensureAndroidNotificationChannel() {
 }
 
 export async function registerForOfficialAlertPushNotifications(): Promise<PushRegistrationResult> {
+  const Notifications = await loadNotificationsModule();
+
+  if (!Notifications) {
+    return {
+      ok: false,
+      reason: "Push notifications are not enabled on web.",
+    };
+  }
+
   if (!Device.isDevice) {
     return {
       ok: false,
@@ -44,7 +84,8 @@ export async function registerForOfficialAlertPushNotifications(): Promise<PushR
     };
   }
 
-  await ensureAndroidNotificationChannel();
+  configureNotificationPresentation(Notifications);
+  await ensureAndroidNotificationChannel(Notifications);
 
   const existingPermissions = await Notifications.getPermissionsAsync();
   let finalStatus = existingPermissions.status;
@@ -82,6 +123,7 @@ export async function registerForOfficialAlertPushNotifications(): Promise<PushR
 
 export async function registerOfficialAlertPushTokenWithBackend(
   expoPushToken: string,
+  alertLocation?: AppLocation | null,
 ) {
   if (!ROAD_API_BASE_URL) {
     throw new Error("Road API base URL is not configured.");
@@ -98,6 +140,14 @@ export async function registerOfficialAlertPushTokenWithBackend(
         expoPushToken,
         platform: Platform.OS,
         notificationTypes: ["official-alerts"],
+        alertLocation: alertLocation
+          ? {
+              id: alertLocation.id,
+              name: alertLocation.name,
+              latitude: alertLocation.latitude,
+              longitude: alertLocation.longitude,
+            }
+          : null,
       }),
     },
   );
@@ -109,7 +159,9 @@ export async function registerOfficialAlertPushTokenWithBackend(
   return response.json() as Promise<{ ok: true }>;
 }
 
-export async function initializeOfficialAlertPushNotifications() {
+export async function initializeOfficialAlertPushNotifications(
+  alertLocation?: AppLocation | null,
+) {
   const registration = await registerForOfficialAlertPushNotifications();
 
   if (!registration.ok) {
@@ -119,7 +171,10 @@ export async function initializeOfficialAlertPushNotifications() {
     return registration;
   }
 
-  await registerOfficialAlertPushTokenWithBackend(registration.expoPushToken);
+  await registerOfficialAlertPushTokenWithBackend(
+    registration.expoPushToken,
+    alertLocation,
+  );
 
   console.log("[PushNotifications] Registered official alert push token");
 

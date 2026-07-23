@@ -131,10 +131,13 @@ const FORECAST_METRIC_TABS: {
   metric: ForecastChartMetric;
   label: string;
 }[] = [
-  { metric: "temperature", label: "Temperature" },
   { metric: "precipitationProbability", label: "Precipitation" },
   { metric: "windSpeed", label: "Wind" },
+  { metric: "temperature", label: "Air Temp" },
 ];
+
+const SELECTED_TAB_ACCESSIBILITY_STATE = { selected: true } as const;
+const UNSELECTED_TAB_ACCESSIBILITY_STATE = { selected: false } as const;
 
 function ConditionsScreenV2({
   locationName,
@@ -193,11 +196,7 @@ function ConditionsScreenV2({
           <View style={styles.sectionCard}>
             <Text style={styles.cardTitle}>Next 12 Hours</Text>
 
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.metricTabs}
-            >
+            <View style={styles.metricTabs}>
               {FORECAST_METRIC_TABS.map((tab) => {
                 const isActive = activeMetric === tab.metric;
 
@@ -205,6 +204,11 @@ function ConditionsScreenV2({
                   <Pressable
                     key={tab.metric}
                     accessibilityRole="button"
+                    accessibilityState={
+                      isActive
+                        ? SELECTED_TAB_ACCESSIBILITY_STATE
+                        : UNSELECTED_TAB_ACCESSIBILITY_STATE
+                    }
                     onPress={() => setActiveMetric(tab.metric)}
                     style={
                       isActive ? styles.metricTabActive : styles.metricTab
@@ -223,7 +227,7 @@ function ConditionsScreenV2({
                   </Pressable>
                 );
               })}
-            </ScrollView>
+            </View>
 
             <InteractiveForecastChart
               hourly={hourlyForecast}
@@ -495,8 +499,8 @@ function buildConditionsViewModel(params: {
   if (hourlyStatus === "loading" && hourlyEntries.length === 0) {
     return {
       updatedLabel,
-      summaryText: "Loading hourly forecast for this location.",
-      takeawayText: "Collecting hourly weather guidance now.",
+      summaryText: "Fetching weather data for this location.",
+      takeawayText: "Fetching the latest hourly forecast now.",
     };
   }
 
@@ -877,12 +881,11 @@ const styles = StyleSheet.create({
   sectionCard: {
     borderWidth: 1,
     borderColor: "rgba(221, 227, 243, 0.72)",
-    borderRadius: 36,
+    borderRadius: Radius.xl,
     backgroundColor: "rgba(255, 255, 255, 0.72)",
-    paddingHorizontal: 18,
-    paddingTop: 18,
+    paddingHorizontal: 16,
+    paddingTop: 16,
     paddingBottom: 18,
-    gap: 14,
     overflow: "hidden",
     ...Shadows.card,
   },
@@ -892,45 +895,43 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: Palette.textPrimary,
     letterSpacing: -0.44,
+    marginBottom: 14,
   },
   metricTabs: {
     flexDirection: "row",
-    gap: 8,
-    minWidth: "100%",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 20,
   },
   metricTab: {
-    minWidth: 112,
+    flex: 1,
     minHeight: 38,
     borderWidth: 1,
-    borderColor: "rgba(86, 55, 255, 0.16)",
+    borderColor: "rgba(105, 106, 112, 0.42)",
     borderRadius: Radius.pill,
-    backgroundColor: "rgba(255, 255, 255, 0.7)",
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 8,
   },
   metricTabActive: {
-    minWidth: 112,
+    flex: 1,
     minHeight: 38,
     borderWidth: 1,
-    borderColor: "rgba(86, 55, 255, 0.32)",
+    borderColor: "rgba(105, 106, 112, 0.42)",
     borderRadius: Radius.pill,
-    backgroundColor: Palette.primarySoft,
+    backgroundColor: "rgba(105, 106, 112, 0.16)",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 8,
   },
   metricTabText: {
     color: Palette.textSecondary,
     fontSize: 12,
-    lineHeight: 17,
-    fontWeight: "900",
+    fontWeight: "800",
     textAlign: "center",
   },
   metricTabActiveText: {
-    color: Palette.primary,
+    color: Palette.textPrimary,
     fontSize: 12,
-    lineHeight: 17,
     fontWeight: "900",
     textAlign: "center",
   },

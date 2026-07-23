@@ -2,6 +2,26 @@ export function celsiusToFahrenheit(celsius: number) {
   return Math.round((celsius * 9) / 5 + 32);
 }
 
+const MIN_PLAUSIBLE_TEMPERATURE_F = -80;
+const MAX_PLAUSIBLE_TEMPERATURE_F = 140;
+
+export function isPlausibleTemperatureF(
+  value: number | null | undefined,
+): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= MIN_PLAUSIBLE_TEMPERATURE_F &&
+    value <= MAX_PLAUSIBLE_TEMPERATURE_F
+  );
+}
+
+export function normalizeTemperatureF(
+  value: number | null | undefined,
+): number | null {
+  return isPlausibleTemperatureF(value) ? value : null;
+}
+
 export function metersPerSecondToMph(metersPerSecond: number) {
   return Math.round(metersPerSecond * 2.237);
 }

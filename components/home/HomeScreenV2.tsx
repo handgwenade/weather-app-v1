@@ -54,11 +54,20 @@ export type HomeLocationCard = {
   impactLabel: string;
 };
 
+export type HomeForecastOutlookItem = {
+  id: string;
+  time: string;
+  temperature: string;
+  condition: string;
+};
+
 type HomeScreenV2Props = {
   topTitle: string;
   updatedLabel: string;
   statusBanner: HomeStatusBanner;
   metrics: HomeMetric[];
+  forecastOutlookItems: HomeForecastOutlookItem[];
+  forecastOutlookLoading: boolean;
   roadHourly: RoadConditionChartPoint[];
   conditionChartDebugContext?: {
     hourlyCount: number;
@@ -150,6 +159,8 @@ export default function HomeScreenV2({
   updatedLabel,
   statusBanner,
   metrics,
+  forecastOutlookItems,
+  forecastOutlookLoading,
   roadHourly,
   conditionChartDebugContext,
   roadHourlyLoading,
@@ -298,6 +309,37 @@ export default function HomeScreenV2({
               ) : null}
             </View>
           ))}
+        </View>
+
+        <View style={styles.outlookCard}>
+          <Text style={styles.outlookTitle}>12-Hour Forecast</Text>
+
+          {forecastOutlookLoading ? (
+            <View style={styles.outlookState}>
+              <Text style={styles.outlookStateTitle}>
+                Fetching weather data
+              </Text>
+              <Text style={styles.outlookStateText}>
+                Getting the latest forecast now.
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.outlookRow}
+            >
+              {forecastOutlookItems.map((item) => (
+                <View key={item.id} style={styles.outlookItem}>
+                  <Text style={styles.outlookTime}>{item.time}</Text>
+                  <Text style={styles.outlookTemp}>{item.temperature}</Text>
+                  <Text style={styles.outlookCondition} numberOfLines={1}>
+                    {item.condition}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+          )}
         </View>
 
         <View style={styles.forecastCard}>
@@ -660,6 +702,91 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 4,
     maxWidth: "100%",
+  },
+  outlookCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.78)",
+    borderWidth: 1,
+    borderColor: "rgba(221, 227, 243, 0.72)",
+    borderRadius: Radius.xl,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
+    overflow: "hidden",
+    ...Shadows.card,
+  },
+  outlookTitle: {
+    color: Palette.textPrimary,
+    fontSize: 18,
+    lineHeight: 26,
+    fontWeight: "900",
+    letterSpacing: -0.44,
+    marginBottom: 12,
+  },
+  outlookRow: {
+    gap: 10,
+    paddingRight: 2,
+  },
+  outlookItem: {
+    width: 86,
+    minHeight: 94,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: "rgba(221, 227, 243, 0.72)",
+    backgroundColor: Palette.backgroundCool,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  outlookTime: {
+    color: Palette.textSecondary,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+  outlookTemp: {
+    color: Palette.primary,
+    fontSize: 18,
+    lineHeight: 25,
+    fontWeight: "900",
+    letterSpacing: -0.25,
+    textAlign: "center",
+    marginTop: 6,
+  },
+  outlookCondition: {
+    color: Palette.textSecondary,
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: "700",
+    textAlign: "center",
+    marginTop: 3,
+    maxWidth: "100%",
+  },
+  outlookState: {
+    minHeight: 94,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: "rgba(221, 227, 243, 0.72)",
+    backgroundColor: Palette.backgroundCool,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  outlookStateTitle: {
+    color: Palette.textPrimary,
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+  outlookStateText: {
+    color: Palette.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: "700",
+    textAlign: "center",
+    marginTop: 4,
   },
   forecastCard: {
     backgroundColor: "rgba(255, 255, 255, 0.72)",

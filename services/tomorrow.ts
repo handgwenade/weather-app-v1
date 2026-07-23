@@ -1,4 +1,5 @@
 import type { AppLocation } from "@/data/locationStore";
+import { normalizeTemperatureF } from "@/utils/weather";
 
 const ROAD_API_BASE_URL = process.env.EXPO_PUBLIC_ROAD_API_BASE_URL;
 const CURRENT_WEATHER_REQUEST_TIMEOUT_MS = 1500;
@@ -60,6 +61,7 @@ export type TomorrowHourlyForecastEntry = {
   precipProbability: number | null;
   weatherCode: number | null;
   precipType: number | null;
+  condition?: string | null;
 };
 
 export type TomorrowHourlyForecastResponse = {
@@ -85,6 +87,15 @@ export type TomorrowHourlyForecastResponse = {
     }[];
   };
 };
+
+function normalizeHourlyForecastEntry(
+  entry: TomorrowHourlyForecastEntry,
+): TomorrowHourlyForecastEntry {
+  return {
+    ...entry,
+    temp: normalizeTemperatureF(entry.temp),
+  };
+}
 
 export type RoadSignalWeatherBranchMeta = {
   ok: boolean;
@@ -147,19 +158,19 @@ export function getHourlyForecastEntries(
   response: TomorrowHourlyForecastResponse,
 ): TomorrowHourlyForecastEntry[] {
   if (Array.isArray(response.hourlyForecast)) {
-    return response.hourlyForecast;
+    return response.hourlyForecast.map(normalizeHourlyForecastEntry);
   }
 
   if (Array.isArray(response.data?.hourlyForecast)) {
-    return response.data.hourlyForecast;
+    return response.data.hourlyForecast.map(normalizeHourlyForecastEntry);
   }
 
   if (Array.isArray(response.hourly)) {
-    return response.hourly;
+    return response.hourly.map(normalizeHourlyForecastEntry);
   }
 
   if (Array.isArray(response.data?.hourly)) {
-    return response.data.hourly;
+    return response.data.hourly.map(normalizeHourlyForecastEntry);
   }
 
   const timelineEntries =
@@ -190,7 +201,9 @@ export function getHourlyForecastEntries(
           : "startTime" in entry && typeof entry.startTime === "string"
             ? entry.startTime
             : "",
-      temp: celsius === null ? null : Math.round((celsius * 9) / 5 + 32),
+      temp: normalizeTemperatureF(
+        celsius === null ? null : Math.round((celsius * 9) / 5 + 32),
+      ),
       windSpeed: windSpeed === null ? null : Math.round(windSpeed * 22.369362920544) / 10,
       windGust: windGust === null ? null : Math.round(windGust * 22.369362920544) / 10,
       precipProbability:

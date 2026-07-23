@@ -474,8 +474,8 @@ function getHomeMonitoringCard(
 ): HomeMonitoringCard {
   if (!decision) {
     return {
-      title: "Collecting current guidance",
-      body: "Checking road, weather, and forecast signals for this location.",
+      title: "Fetching weather data",
+      body: "Getting the latest road, weather, and forecast signals for this location.",
     };
   }
 
@@ -672,9 +672,9 @@ export function buildHomeViewModel(params: {
       }
 
       return {
-        title: "Collecting current guidance",
+        title: "Fetching weather data",
         subtitle:
-          "Checking road, weather, and forecast signals for this location.",
+          "Getting the latest road, weather, and forecast signals for this location.",
         statusLabel: "Loading",
         statusTone: "neutral",
         actionLabel: "Monitor",

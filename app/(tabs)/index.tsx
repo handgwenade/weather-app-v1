@@ -4,7 +4,9 @@ import { useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import HomeScreenV2 from "@/components/home/HomeScreenV2";
+import HomeScreenV2, {
+    type HomeForecastOutlookItem,
+} from "@/components/home/HomeScreenV2";
 import QuickSwitchModal from "@/components/quickSwitchModal";
 import {
     setSelectedLocation,
@@ -13,9 +15,12 @@ import {
     useSelectedLocation,
 } from "@/data/locationStore";
 import { useHomeScreenData } from "@/hooks/useHomeScreenData";
+import type { TomorrowHourlyForecastEntry } from "@/services/tomorrow";
+import { formatTime24Hour } from "@/utils/dateTime";
 import { buildHomeRoadHourlyPoints } from "@/utils/homeRoadHourly";
 import { buildHomeViewModel, type HomeViewModel } from "@/utils/homeViewModel";
 import {
+    getConditionLabel,
     getTopTitle,
     hasUsableHomeRoadObservation,
 } from "@/utils/homeWeatherFormatting";
@@ -45,6 +50,69 @@ function getHomeSuggestionRoute(code?: SuggestionCode | null) {
     default:
       return "/conditions";
   }
+}
+
+function buildUnavailableForecastOutlookItems(): HomeForecastOutlookItem[] {
+  return Array.from({ length: 5 }, (_, index) => ({
+    id: `forecast-unavailable-${index}`,
+    time: "--",
+    temperature: "--",
+    condition: "Unavailable",
+  }));
+}
+
+function getHomeForecastOutlookCondition(entry: TomorrowHourlyForecastEntry) {
+  if (entry.condition?.trim()) {
+    return entry.condition.trim();
+  }
+
+  if (typeof entry.weatherCode === "number") {
+    const conditionLabel = getConditionLabel(entry.weatherCode);
+
+    if (conditionLabel !== "Current conditions") {
+      return conditionLabel;
+    }
+  }
+
+  if (
+    typeof entry.precipProbability === "number" &&
+    entry.precipProbability > 0
+  ) {
+    return `${Math.round(entry.precipProbability)}% precip`;
+  }
+
+  if (typeof entry.windSpeed === "number") {
+    return `${Math.round(entry.windSpeed)} mph wind`;
+  }
+
+  return "Forecast";
+}
+
+function buildHomeForecastOutlookItems(
+  hourlyForecast: TomorrowHourlyForecastEntry[],
+): HomeForecastOutlookItem[] {
+  const usableEntries = hourlyForecast
+    .slice(0, 12)
+    .filter(
+      (entry) =>
+        typeof entry.temp === "number" ||
+        typeof entry.precipProbability === "number" ||
+        typeof entry.windSpeed === "number" ||
+        typeof entry.weatherCode === "number",
+    )
+    .slice(0, 5);
+
+  if (usableEntries.length === 0) {
+    return buildUnavailableForecastOutlookItems();
+  }
+
+  return usableEntries.map((entry, index) => ({
+    id: `${entry.time}-${index}`,
+    time: formatTime24Hour(entry.time) ?? "--",
+    temperature:
+      typeof entry.temp === "number" ? `${Math.round(entry.temp)}°` : "--",
+    condition: getHomeForecastOutlookCondition(entry),
+  }));
 }
 
 export default function HomeScreen() {
@@ -204,6 +272,16 @@ export default function HomeScreen() {
     () => hourlyState === "loading" && roadHourly.length === 0,
     [hourlyState, roadHourly.length],
   );
+  const forecastOutlookItems = useMemo(
+    () => buildHomeForecastOutlookItems(hourlyForecast),
+    [hourlyForecast],
+  );
+  const forecastOutlookLoading = useMemo(
+    () =>
+      hourlyState === "loading" &&
+      forecastOutlookItems.every((item) => item.condition === "Unavailable"),
+    [forecastOutlookItems, hourlyState],
+  );
   const statusActionRoute = useMemo(
     () => getHomeSuggestionRoute(suggestionDecision?.primary?.code),
     [suggestionDecision?.primary?.code],
@@ -344,6 +422,8 @@ export default function HomeScreen() {
           updatedLabel={homeViewModel.updatedLabel}
           statusBanner={homeViewModel.statusBanner}
           metrics={homeViewModel.metrics}
+          forecastOutlookItems={forecastOutlookItems}
+          forecastOutlookLoading={forecastOutlookLoading}
           roadHourly={roadHourly}
           conditionChartDebugContext={{
             hourlyCount: hourlyForecast.length,
